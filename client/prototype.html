@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Juno design prototype</title>
+  <title>Nevada design prototype</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#121212">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,9 +14,9 @@
   <style>
     /* Prototype only. One state per URL hash: #home, #first, #cards, #tile,
        #conflict, #typed, #listening, #thinking, #quiet, #disclosure, #pairing, #recap.
-       .proto-juno stands in for Juno's keyed video: a flat bust in the
+       .proto-nevada stands in for Nevada's keyed video: a flat bust in the
        box app.js measures, placed with the same --zoom and --headroom. */
-    .cutout .proto-juno {
+    .cutout .proto-nevada {
       position: absolute; left: 50%; top: var(--headroom); height: calc(100% * var(--zoom));
       transform: translateX(-50%);
     }
@@ -35,7 +35,7 @@
       </linearGradient>
       <symbol id="mark" viewBox="0 0 32 32">
         <circle cx="16" cy="16" r="14.5" fill="#02010A" stroke="url(#glow)" stroke-width="2.5" />
-        <text x="16" y="21.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="16" fill="#fff">J</text>
+        <text x="16" y="21.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="16" fill="#fff">N</text>
       </symbol>
       <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10v1a7 7 0 0 1-14 0v-1" /><path d="M12 18v4" />
@@ -54,13 +54,13 @@
 
   <div class="app" id="app" data-avatar="split">
     <header class="top-bar">
-      <svg class="mark" role="img" aria-label="Juno"><use href="#mark" /></svg>
-      <span class="name">Juno</span>
+      <svg class="mark" role="img" aria-label="Nevada"><use href="#mark" /></svg>
+      <span class="name">Nevada</span>
       <span class="pill"><span class="t-glow">12 days</span></span>
     </header>
-    <section class="avatar" id="avatar" data-voice="speaking" data-keyed="ready" aria-label="Juno, AI avatar">
+    <section class="avatar" id="avatar" data-voice="speaking" data-keyed="ready" aria-label="Nevada, AI avatar">
       <div class="cutout">
-        <svg class="proto-juno" viewBox="0 0 200 220" aria-hidden="true">
+        <svg class="proto-nevada" viewBox="0 0 200 220" aria-hidden="true">
           <circle cx="100" cy="31" r="17" fill="#2a1a14" />
           <path d="M74 142h52l-26 58z" fill="#cdbfc4" />
           <path d="M86 100h28v42l-14 28-14-28z" fill="#a8785d" />
@@ -79,7 +79,7 @@
         </svg>
       </div>
       <span class="ai-chip">AI</span>
-      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Juno's voice"><svg><use href="#i-volume" /></svg></button>
+      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Nevada's voice"><svg><use href="#i-volume" /></svg></button>
       <p class="captions" id="captions"></p>
     </section>
     <main id="main" tabindex="-1">
@@ -147,15 +147,15 @@
           <span class="meta">Reserved · Breakout · 300</span>
         </button>
         <span></span>
-        <p class="t-caption" id="empty" style="grid-column: 1 / -1">Your week is wide open. Tell Juno what you're here for.</p>
+        <p class="t-caption" id="empty" style="grid-column: 1 / -1">Your week is wide open. Tell Nevada what you're here for.</p>
       </section>
     </main>
     <footer class="composer-bar">
       <div class="chips" id="chips" role="group" aria-label="Suggestions"></div>
       <form class="composer" onsubmit="event.preventDefault()">
-        <input id="ask" type="text" placeholder="Ask Juno" autocomplete="off" enterkeyhint="send" aria-label="Ask Juno">
+        <input id="ask" type="text" placeholder="Ask Nevada" autocomplete="off" enterkeyhint="send" aria-label="Ask Nevada">
         <button class="send" type="submit" aria-label="Send"><svg><use href="#i-send" /></svg></button>
-        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Juno"><svg><use href="#i-mic" /></svg></button>
+        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Nevada"><svg><use href="#i-mic" /></svg></button>
       </form>
       <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
     </footer>
@@ -185,13 +185,13 @@
 
   <!-- Pairing -->
   <main data-page="pairing" class="center" hidden>
-    <svg class="mark" style="width:56px;height:56px" role="img" aria-label="Juno"><use href="#mark" /></svg>
+    <svg class="mark" style="width:56px;height:56px" role="img" aria-label="Nevada"><use href="#mark" /></svg>
     <h1 class="t-title" style="margin:0">Connect your AWS Events account</h1>
     <p class="t-caption" style="margin:0">On a laptop, scan this or run the command below. The code works for 10 minutes.</p>
     <div class="pair-code t-glow" aria-label="Code K 7 Q, 4 M 2">K7Q 4M2</div>
     <div class="qr" role="img" aria-label="QR code"></div>
     <button class="btn btn-primary btn-block">Copy command</button>
-    <code class="t-caption" style="font-family: var(--mono)">npx juno-pair K7Q4M2</code>
+    <code class="t-caption" style="font-family: var(--mono)">npx nevada-pair K7Q4M2</code>
     <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
   </main>
 
@@ -211,7 +211,7 @@
 
   <dialog class="disclosure" id="disclosure" aria-labelledby="disclosure-text">
     <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
-    <p class="t-section" id="disclosure-text" style="margin:0">Juno is an AI concierge.</p>
+    <p class="t-section" id="disclosure-text" style="margin:0">Nevada is an AI concierge.</p>
     <button class="btn btn-primary btn-block" onclick="location.hash = 'first'">Continue</button>
     <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
   </dialog>
@@ -221,7 +221,7 @@
     const FIRST = ['Agentic AI', 'Serverless', 'First time here'];
     const STATES = {
       home: { said: 'Your 11:30 clashes with your 10:30. Want me to fix it?', focus: 'AIM301', chips: ['Fix my clash', 'Fill Tue pm'] },
-      first: { avatar: 'stage', said: "Hi, I'm Juno. What are you here for?", view: 'empty', chips: FIRST },
+      first: { avatar: 'stage', said: "Hi, I'm Nevada. What are you here for?", view: 'empty', chips: FIRST },
       cards: { you: 'What can I do Tuesday afternoon?', said: 'Two picks near your lunch. This one has plenty of seats.', view: 'cards', focus: 'AIM342', chips: ['When else is this on?', 'Surprise me'] },
       tile: { avatar: 'tile', said: "After lunch you're free until 2.", scroll: 160 },
       conflict: { you: 'Reserve the agent workshop.', said: "That clashes with your 10:30. It repeats Thursday at 10, and you're free then.", sheet: true },
@@ -261,7 +261,7 @@
         return chip;
       }));
       $('ask').value = s.ask ?? '';
-      $('ask').placeholder = s.placeholder ?? 'Ask Juno';
+      $('ask').placeholder = s.placeholder ?? 'Ask Nevada';
       $('mic').dataset.state = s.mic ?? 'idle';
       $('mic').setAttribute('aria-pressed', s.mic === 'listening');
       $('conflict').hidden = !s.sheet;

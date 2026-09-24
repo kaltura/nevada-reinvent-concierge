@@ -1,4 +1,4 @@
-/* Juno design tokens and components. Values and rules: DESIGN.md. */
+/* Nevada design tokens and components. Values and rules: DESIGN.md. */
 
 :root {
   color-scheme: dark;
@@ -17,7 +17,7 @@
   --success: #00A078;
   --warning: #E86925;
 
-  /* Event layer: Juno moments only */
+  /* Event layer: Nevada moments only */
   --night-1: #000036;
   --night-2: #010040;
   --night-3: #02010A;
@@ -211,7 +211,7 @@ button {
 }
 
 /* Avatar frame. Sizes and states: DESIGN.md § Avatar frame.
-   Keyed: Juno stands on the night gradient with no box. app.js sets
+   Keyed: Nevada stands on the night gradient with no box. app.js sets
    data-keyed and --bx, --by, --bw, --bh, the box she fills in the frame. */
 
 .avatar {
@@ -290,7 +290,7 @@ button {
   background: currentColor; transform: rotate(-45deg);
 }
 
-/* Captions: Juno's sentence, with the attendee's last line above it. */
+/* Captions: Nevada's sentence, with the attendee's last line above it. */
 .captions {
   position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; margin: 0;
   padding: var(--s-7) var(--s-4) var(--s-5);
@@ -468,7 +468,7 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 @keyframes blink { 50% { opacity: .3; } }
 @keyframes point { from { outline-color: transparent; } 8%, 80% { outline-color: var(--glow-lavender); filter: drop-shadow(0 0 10px rgb(154 131 254 / .6)); } to { outline-color: transparent; } }
 
-/* Phones: while the attendee scrolls, Juno docks as a round bubble in the
+/* Phones: while the attendee scrolls, Nevada docks as a round bubble in the
    top bar, where the mark was. Tap it to go back to split. */
 
 @media (max-width: 599px) {

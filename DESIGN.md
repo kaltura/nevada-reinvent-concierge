@@ -2,25 +2,25 @@
 
 # Design
 
-How Juno looks, moves and feels. Mobile first. What each screen does is in [EXPERIENCE-UX.md](EXPERIENCE-UX.md). The tokens live in `client/styles.css`, and `client/prototype.html` shows them in use.
+How Nevada looks, moves and feels. Mobile first. What each screen does is in [EXPERIENCE-UX.md](EXPERIENCE-UX.md). The tokens live in `client/styles.css`, and `client/prototype.html` shows them in use.
 
 ## Idea
 
-Juno is the host and producer of your week: a realistic avatar you plan with face to face. She stands on the page itself, keyed out of her green backdrop, with a soft glow behind her shoulders. No video box. Dark keynote-hall night, the glow around her and on what she points at, and small bright moments when something goes right.
+Nevada is the host and producer of your week: a realistic avatar you plan with face to face. She stands on the page itself, keyed out of her green backdrop, with a soft glow behind her shoulders. No video box. Dark keynote-hall night, the glow around her and on what she points at, and small bright moments when something goes right.
 
 | Principle | In practice |
 |---|---|
-| Face to face | Juno is live on screen for the whole visit. She changes size but never hides. |
+| Face to face | Nevada is live on screen for the whole visit. She changes size but never hides. |
 | Part of the page | She is keyed out and stands on the night gradient, not inside a player |
-| Show and tell | When Juno talks about a session, that session is on screen and glows. |
+| Show and tell | When Nevada talks about a session, that session is on screen and glows. |
 | Talk, type or tap | Every input is a turn in one conversation. No mode to pick first. |
 | Thumb first | The composer and main actions sit in the bottom third |
-| Glow means Juno | The gradient appears only behind Juno, on what she points at, and in surprise moments |
+| Glow means Nevada | The gradient appears only behind Nevada, on what she points at, and in surprise moments |
 | Calm, then a spark | Plain screens most of the time. Motion is saved for bookings, swaps and reveals. |
 
 ## Persona
 
-Juno ("JOO-no") is a senior event producer who has run this show many times. She knows the venues, the walking times and which sessions fill first. The attendee should feel that someone capable has their week in hand.
+Nevada ("neh-VAH-dah"), named for the state the show runs in, is a senior event producer who has run this show many times. She knows the venues, the walking times and which sessions fill first. The attendee should feel that someone capable has their week in hand.
 
 ### Character
 
@@ -60,7 +60,7 @@ For a custom visual, frame her face at about 20 to 25% of the canvas height, wit
 
 ## Brand boundaries
 
-AWS's [trademark guidelines](https://aws.amazon.com/trademark-guidelines/) set these rules.
+AWS's [trademark guidelines](https://aws.amazon.com/trademark-guidelines/) set these rules. AWS reviews the name and brand before release.
 
 | Rule | Source |
 |---|---|
@@ -71,7 +71,7 @@ AWS's [trademark guidelines](https://aws.amazon.com/trademark-guidelines/) set t
 | Show "Not affiliated with or endorsed by AWS" on the landing page, the About sheet and the pairing page | §13 |
 | Don't copy AWS's product look. Orange is a small accent, not the whole UI. | §10 |
 
-Our mark is a round `--glow` ring with a bold "J" on `--night-1`. It contains no AWS shape.
+Our mark is a round `--glow` ring with a bold "N" on `--night-1`. It contains no AWS shape.
 
 ## Tokens
 
@@ -96,7 +96,7 @@ Dark UI with AWS-style orange for the one main action per screen.
 
 ### Colour: event layer
 
-Sampled from AWS's own 2026 re:Invent art: deep navy and a blue to violet to pink glow. Use it only for Juno moments (the aura behind her, point ring, wildcard, celebrate, countdown, recap).
+Sampled from AWS's own 2026 re:Invent art: deep navy and a blue to violet to pink glow. Use it only for Nevada moments (the aura behind her, point ring, wildcard, celebrate, countdown, recap).
 
 | Token | Hex |
 |---|---|
@@ -159,9 +159,9 @@ Phone home screen, avatar at split size:
 
 ```
 ┌──────────────────────────────┐
-│ (J) Juno           12 days ◆ │
-│ AI          ▄▄▄         vol  │  Juno keyed out, no box
-│          ░(Juno)░            │  aura glows behind her
+│ (N) Nevada         12 days ◆ │
+│ AI          ▄▄▄         vol  │  Nevada keyed out, no box
+│         ░(Nevada)░           │  aura glows behind her
 │ "Your 11:30 clashes.         │  captions over her shoulders
 │  Want me to fix it?"         │
 │  MON  TUE  WED  THU  FRI     │  day strip, today underlined
@@ -170,11 +170,11 @@ Phone home screen, avatar at split size:
 │ 9:00 ┃ Keynote          MGM  │  solid = reserved
 │10:30 ┆ Serverless 301   WYN  │  outlined = favorite
 │      ├ 35 min walk ⚠ ────────┤  travel tag
-│11:30 ┃ Agents workshop  VEN ▌│  ring = Juno points here
+│11:30 ┃ Agents workshop  VEN ▌│  ring = Nevada points here
 │12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │  striped = personal time
 ├──────────────────────────────┤
 │ [Fix my clash] [Fill Tue pm] │  suggestion chips
-│ ( Ask Juno…           )  (◉) │  composer: text field, mic
+│ ( Ask Nevada…         )  (◉) │  composer: text field, mic
 └──────────────────────────────┘
 ```
 
@@ -182,14 +182,14 @@ Phone, scrolled, avatar at tile size:
 
 ```
 ┌──────────────────────────────┐
-│ (◕) Juno           12 days ◆ │  Juno as a round bubble in the top bar
+│ (◕) Nevada         12 days ◆ │  Nevada as a round bubble in the top bar
 ├──────────────────────────────┤
 │10:30 ┆ Serverless 301   WYN  │
 │11:30 ┃ Agents workshop  VEN ▌│
 │12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │
 │ 2:00 ┃ Multi-agent systems   │
 │ "Want me to fix it?"         │  captions above the composer
-│ ( Ask Juno…           )  (◉) │
+│ ( Ask Nevada…         )  (◉) │
 └──────────────────────────────┘
 ```
 
@@ -197,15 +197,15 @@ First run, avatar at stage size:
 
 ```
 ┌──────────────────────────────┐
-│ (J) Juno           12 days ◆ │
+│ (N) Nevada         12 days ◆ │
 │ AI                      vol  │
 │             ▄▄▄              │
-│           ░(Juno)░           │  Juno keyed out, stage size
+│          ░(Nevada)░          │  Nevada keyed out, stage size
 │         ░░░░░░░░░░░          │
-│ "Hi, I'm Juno. What are      │
+│ "Hi, I'm Nevada. What are    │
 │  you here for?"              │
 │ [Agentic AI] [Serverless] [F │  chips send exactly this text
-│ ( Ask Juno…           )  (◉) │
+│ ( Ask Nevada…         )  (◉) │
 └──────────────────────────────┘
 ```
 
@@ -213,11 +213,11 @@ Desktop:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ (J) Juno                                       12 days ◆ │
+│ (N) Nevada                                     12 days ◆ │
 ├──────────────────┬───────────────────────────────────────┤
 │ AI          vol  │ MON 30   TUE 1   WED 2   THU 3  FRI 4 │
 │      ▄▄▄         │ ┃ Keynote  ┆ Serv.   ┃ Agents         │
-│    ░(Juno)░      │ ▒ Lunch   ┃ Work.   ┆ Data            │
+│   ░(Nevada)░     │ ▒ Lunch   ┃ Work.   ┆ Data            │
 │ "captions"       │ Cards open in place.                  │
 │ [chips]          │                                       │
 │ ( Ask… )     (◉) │                                       │
@@ -229,7 +229,7 @@ Desktop:
 
 ### Avatar frame
 
-One frame holds Juno's live video for the whole visit. The page changes its size with a `data-avatar` attribute. The video element never moves in the DOM, because moving it pauses playback.
+One frame holds Nevada's live video for the whole visit. The page changes its size with a `data-avatar` attribute. The video element never moves in the DOM, because moving it pauses playback.
 
 | Size (phone) | When | Box |
 |---|---|---|
@@ -244,7 +244,7 @@ One frame holds Juno's live video for the whole visit. The page changes its size
 
 #### Keying
 
-Juno is keyed out of her green backdrop, so she stands on the page with no box. `client/app.js` does this with the SDK's `attachChromaKeyAvatar` and the `chroma-key-video` library.
+Nevada is keyed out of her green backdrop, so she stands on the page with no box. `client/app.js` does this with the SDK's `attachChromaKeyAvatar` and the `chroma-key-video` library.
 
 1. The keyer draws her into a canvas in `.cutout`. The video stays in place at opacity 0, because the keyer reads it.
 2. The render frames her in a dark margin that keying keeps. For 2.5 s after the keyer starts, the page samples frames to find her box, then sets `--bx`, `--by`, `--bw` and `--bh` on the frame.
@@ -258,9 +258,9 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Component | Look | Notes |
 |---|---|---|
 | Top bar | Mark, name, countdown pill | The countdown uses `--glow` text |
-| Avatar frame | Juno keyed onto the night gradient, the aura behind her shoulders, "AI" chip, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
-| Captions | Juno's current sentence in `--text` on the frame's lower third, over a dark fade. Your own last line shows first in `--glow-lavender`. | Moves above the composer at `tile` size. Timing is per sentence, not per word. |
-| Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Juno connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
+| Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, "AI" chip, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
+| Captions | Nevada's current sentence in `--text` on the frame's lower third, over a dark fade. Your own last line shows first in `--glow-lavender`. | Moves above the composer at `tile` size. Timing is per sentence, not per word. |
+| Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
 | Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen. A tap sends the chip's text as a turn. |
 | Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a card or block | Set by `point_at`. Fades after 4 s. |
 | Day strip | Five day chips with the day in 800 and the date in 300 | Swipe or tap. A dot marks days with a clash. |
@@ -277,7 +277,7 @@ Stacking, top first: disclosure dialog, toast, avatar frame, conflict sheet, com
 
 ### Conversation states
 
-The aura behind Juno shows what she is doing. The mic button shows only your side.
+The aura behind Nevada shows what she is doing. The mic button shows only your side.
 
 | State | Avatar frame | Mic button |
 |---|---|---|
@@ -305,7 +305,7 @@ Two speeds: quick for feedback, slower for delight.
 
 - Use the View Transitions API (single document, Safari 18+) for day switches and card to detail. When it's missing, the change happens instantly.
 - Animate only `transform` and `opacity`. The avatar frame is the one exception: it animates its height, so the content below can reflow.
-- Never move content the attendee is reading while Juno speaks about it. `point_at` scrolls only when the target is off screen, jumps there with no smooth scroll, and never while the attendee is scrolling.
+- Never move content the attendee is reading while Nevada speaks about it. `point_at` scrolls only when the target is off screen, jumps there with no smooth scroll, and never while the attendee is scrolling.
 - With `prefers-reduced-motion: reduce`, every move becomes a fade of 150 ms or less. No bursts, pulses, orbits or confetti. State still shows through colour and text.
 
 ### Haptics
@@ -316,8 +316,8 @@ On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favori
 
 | Moment | What happens | Trigger |
 |---|---|---|
-| Hello | The first live frame fades in over the night gradient, the aura breathes once, and Juno greets you | Disclosure accepted |
-| Pointing | Juno says "this one has seats" and a ring lights that card | `point_at` |
+| Hello | The first live frame fades in over the night gradient, the aura breathes once, and Nevada greets you | Disclosure accepted |
+| Pointing | Nevada says "this one has seats" and a ring lights that card | `point_at` |
 | Booked | The block fills from left to right. A `--glow` ring pulses around it once. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
 | Swapped | The two blocks trade places in one move. Toast: "Swapped. Thursday 10:00, Wynn." | `kind: 'swap'` |

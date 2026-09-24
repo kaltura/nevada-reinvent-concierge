@@ -1,8 +1,8 @@
 /**
- * Juno web app shell. Runtime rules: ARCHITECTURE.md § Runtime.
+ * Nevada web app shell. Runtime rules: ARCHITECTURE.md § Runtime.
  *
  * Built so far: widget token, one KalturaAgentSession in avatar mode with
- * Juno live the whole visit and keyed out of her green backdrop, disclosure,
+ * Nevada live the whole visit and keyed out of her green backdrop, disclosure,
  * talk, type or tap turns, captions, quiet mode, screen context and client
  * tools that fetch what they show from our Web API. The Web API data routes
  * return 501 until ROADMAP.md Phase 1, so the tools only show a toast for now.
@@ -85,7 +85,7 @@ const session = new KalturaAgentSession({
 let acknowledge;
 const disclosed = new Promise((resolve) => { acknowledge = resolve; });
 
-// Captions: the attendee's last line in lavender, then Juno's sentence.
+// Captions: the attendee's last line in lavender, then Nevada's sentence.
 let heard = '';
 function caption(said = '') {
   const you = document.createElement('span');
@@ -99,7 +99,7 @@ const capturing = (t) => (t.capabilities?.tapToTalk ? t.tapToTalkActive : t.micE
 function listening(on) {
   mic.dataset.state = on ? 'listening' : 'idle';
   mic.setAttribute('aria-pressed', on);
-  $('ask').placeholder = on ? 'Listening. Tap the mic to finish.' : 'Ask Juno';
+  $('ask').placeholder = on ? 'Listening. Tap the mic to finish.' : 'Ask Nevada';
   if (frame.dataset.voice !== 'speaking') frame.dataset.voice = on ? 'listening' : 'idle';
 }
 
@@ -114,7 +114,7 @@ function syncScreen(patch) {
 // stage, split or tile. DESIGN.md § Avatar frame.
 const size = (s) => { app.dataset.avatar = s; };
 
-// Typed and tapped turns. In avatar mode Juno answers out loud.
+// Typed and tapped turns. In avatar mode Nevada answers out loud.
 function say(text) {
   if (!text) return false;
   // sendText throws while a push-to-talk capture is open.
@@ -164,7 +164,7 @@ $('quiet').addEventListener('click', ({ currentTarget }) => {
   captions.setAttribute('aria-live', audio.muted ? 'polite' : 'off');
 });
 
-// Key Juno out of her green backdrop so she stands on the page, not in a box.
+// Key Nevada out of her green backdrop so she stands on the page, not in a box.
 // The render also frames her in an uneven black margin that keying keeps, so
 // sample 2.5 s of frames for where she is and let CSS crop to that. If keying
 // can't start (no WebGL or Canvas2D), the plain video shows in a framed box.
@@ -249,17 +249,17 @@ mic.addEventListener('click', () => {
 session.on('warning', ({ code }) => {
   // No voice says these, so the toast sends them to screen readers too.
   if (code === 'playback_blocked') {
-    caption('Tap anywhere to hear Juno.');
-    toast('Tap anywhere to hear Juno.');
+    caption('Tap anywhere to hear Nevada.');
+    toast('Tap anywhere to hear Nevada.');
     document.addEventListener('click', () => session.transport.startPlayback(), { once: true, capture: true });
   }
   if (code === 'mic_permission_denied') {
     mic.dataset.state = 'off';
-    caption('Mic is off. You can still type, and Juno answers out loud.');
+    caption('Mic is off. You can still type, and Nevada answers out loud.');
     toast('Mic is off. You can still type.');
   }
 });
-// The frame shows Juno's side. The mic button shows only the attendee's.
+// The frame shows Nevada's side. The mic button shows only the attendee's.
 session.on('responsePending', () => { frame.dataset.voice = 'thinking'; });
 session.on('responseSettled', () => { if (frame.dataset.voice === 'thinking') frame.dataset.voice = 'idle'; });
 session.on('avatarStartTalking', () => { frame.dataset.voice = 'speaking'; });
@@ -275,10 +275,10 @@ session.on('transcript', ({ type, text }) => {
   }
   if (type === 'final' && text !== SILENT_OPENING_LABEL && !isSilentOpening(text)) caption(text);
 });
-session.on('error', () => toast('Juno hit a snag. Try again.'));
+session.on('error', () => toast('Nevada hit a snag. Try again.'));
 
 // Client tools: IDs in, page data from our Web API. Args: ARCHITECTURE.md § Tools.
-// Juno stays on screen: tools size the frame, never hide it.
+// Nevada stays on screen: tools size the frame, never hide it.
 session.onToolCall('show_sessions', async ({ sessionIds, title }) => {
   const data = await show('/api/sessions', { ids: sessionIds });
   if (!data) return;
@@ -320,4 +320,4 @@ session.onToolCall('point_at', ({ sessionId }) => {
 
 countdown();
 // A failed connect can't be retried on the same session. Reload builds a new one.
-await session.connect().catch(() => toast("Couldn't reach Juno. Reload to try again."));
+await session.connect().catch(() => toast("Couldn't reach Nevada. Reload to try again."));

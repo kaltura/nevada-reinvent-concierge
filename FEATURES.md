@@ -2,7 +2,7 @@
 
 # Features
 
-What Juno must beat, where it wins, and what's in or out. Market facts were checked on 2026-09-23.
+What Nevada must beat, where it wins, and what's in or out. Market facts were checked on 2026-09-23.
 
 ## The baseline: AWS's own app
 
@@ -13,13 +13,13 @@ The official AWS Events app is what every attendee already has. It's good, and i
 - Reservations, schedule-change alerts and calendar sync
 - Maps with turn-by-turn directions between venues, and live shuttle times
 
-So "it has AI" is not a reason to use Juno. Sources: the [re:Invent FAQ](https://aws.amazon.com/events/reinvent/faqs/) (Mobile App section) and AWS's [Know Before You Go](https://builder.aws.com/content/35iYepTKrrpDlEVwLGuPPfJ6X4y/know-before-you-go-attending-reinvent-2025-in-person) guide.
+So "it has AI" is not a reason to use Nevada. Sources: the [re:Invent FAQ](https://aws.amazon.com/events/reinvent/faqs/) (Mobile App section) and AWS's [Know Before You Go](https://builder.aws.com/content/35iYepTKrrpDlEVwLGuPPfJ6X4y/know-before-you-go-attending-reinvent-2025-in-person) guide.
 
 Other event apps (Swapcard, Brella, Grip and similar) share one feature set: matchmaking, suggestion lists and meeting booking. Digital-human kiosks such as [RAVATAR](https://ravatar.com/) are built for single visits at a booth or sign, not a plan that lasts a week.
 
-## Where Juno wins
+## Where Nevada wins
 
-| Juno does | The official app |
+| Nevada does | The official app |
 |---|---|
 | Plans with you face to face. A realistic avatar you can talk to, type to or tap, and it shows and points at what it means. | Tap and scroll, and a text assistant |
 | Knows what's on your screen. "Book this one" just works. | Every action is a new search or tap |
@@ -35,11 +35,11 @@ White space: we found no conference app that resolves a clash against real, API-
 
 | # | Moment | Why it lands | Data | Effort |
 |---|---|---|---|---|
-| 1 | [Conflict swap](EXPERIENCE-UX.md#conflict-swap) with repeats | Answers a real attendee request to "see ALL occurrences" of a session. Juno explains it face to face while both blocks glow, and a tap or a word fixes it. | `conflictsWith` plus our repeat matching | Medium |
-| 2 | [Show and tell](EXPERIENCE-UX.md#talk-type-or-tap) | Juno points at the card she's talking about and understands "this one". It feels like planning with a person. | Screen context plus `point_at` | Low |
+| 1 | [Conflict swap](EXPERIENCE-UX.md#conflict-swap) with repeats | Answers a real attendee request to "see ALL occurrences" of a session. Nevada explains it face to face while both blocks glow, and a tap or a word fixes it. | `conflictsWith` plus our repeat matching | Medium |
+| 2 | [Show and tell](EXPERIENCE-UX.md#talk-type-or-tap) | Nevada points at the card she's talking about and understands "this one". It feels like planning with a person. | Screen context plus `point_at` | Low |
 | 3 | Travel check between venues | Shuttle and walking time is the top attendee complaint | Venue mapping plus a static table (see [ARCHITECTURE.md § Search](ARCHITECTURE.md#search)) | Medium |
 | 4 | Full-session fallback | Turns "full" into a next step | `seatAvailability`, repeats | Low |
-| 5 | Morning briefing | Juno greets you each morning with your day. Feels like a real concierge, not a search box. | `GetSchedule` plus the keynote list | Low |
+| 5 | Morning briefing | Nevada greets you each morning with your day. Feels like a real concierge, not a search box. | `GetSchedule` plus the keynote list | Low |
 | 6 | Shareable recap card | Fun to post, and nothing like it exists for re:Invent | `GetSchedule` | Low |
 | 7 | Wildcard pick | Quotable in a demo | Index with inverted ranking | Low |
 

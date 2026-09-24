@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Juno</title>
+  <title>Nevada</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#121212">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -96,7 +96,7 @@
       </linearGradient>
       <symbol id="mark" viewBox="0 0 32 32">
         <circle cx="16" cy="16" r="14.5" fill="#02010A" stroke="url(#glow)" stroke-width="2.5" />
-        <text x="16" y="21.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="16" fill="#fff">J</text>
+        <text x="16" y="21.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="16" fill="#fff">N</text>
       </symbol>
       <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10v1a7 7 0 0 1-14 0v-1" /><path d="M12 18v4" />
@@ -117,19 +117,19 @@
 
   <div class="app" id="app" data-avatar="stage">
     <header class="top-bar">
-      <svg class="mark" role="img" aria-label="Juno"><use href="#mark" /></svg>
-      <span class="name">Juno</span>
+      <svg class="mark" role="img" aria-label="Nevada"><use href="#mark" /></svg>
+      <span class="name">Nevada</span>
       <span class="pill"><span class="t-glow" id="countdown"></span></span>
     </header>
-    <!-- Juno's live video. It never moves in the DOM: moving it pauses playback.
+    <!-- Nevada's live video. It never moves in the DOM: moving it pauses playback.
          When keying works, the video is hidden and #cutout holds the keyed canvas. -->
-    <section class="avatar" id="avatar" data-voice="idle" aria-label="Juno, AI avatar">
+    <section class="avatar" id="avatar" data-voice="idle" aria-label="Nevada, AI avatar">
       <svg class="mark avatar-mark" aria-hidden="true"><use href="#mark" /></svg>
       <video id="avatar-video" autoplay playsinline muted></video>
       <div class="cutout" id="cutout"></div>
       <span class="ai-chip">AI</span>
-      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Juno's voice"><svg><use href="#i-volume" /></svg></button>
-      <!-- Not a live region unless quiet mode is on: Juno's voice already says these words. -->
+      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Nevada's voice"><svg><use href="#i-volume" /></svg></button>
+      <!-- Not a live region unless quiet mode is on: Nevada's voice already says these words. -->
       <p class="captions" id="captions" aria-live="off"></p>
     </section>
     <main id="main" tabindex="-1">
@@ -143,7 +143,7 @@
       <section class="card-stack" id="cards" aria-label="Sessions" hidden></section>
       <section class="timeline" id="timeline" aria-label="Schedule">
         <span></span>
-        <p class="t-caption">Your week is wide open. Tell Juno what you're here for.</p>
+        <p class="t-caption">Your week is wide open. Tell Nevada what you're here for.</p>
       </section>
     </main>
     <footer class="composer-bar">
@@ -153,9 +153,9 @@
         <button class="chip-btn" type="button" data-turn>First time here</button>
       </div>
       <form class="composer" id="composer">
-        <input id="ask" type="text" placeholder="Ask Juno" autocomplete="off" enterkeyhint="send" aria-label="Ask Juno" disabled>
+        <input id="ask" type="text" placeholder="Ask Nevada" autocomplete="off" enterkeyhint="send" aria-label="Ask Nevada" disabled>
         <button class="send" type="submit" aria-label="Send"><svg><use href="#i-send" /></svg></button>
-        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Juno"><svg><use href="#i-mic" /></svg></button>
+        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Nevada"><svg><use href="#i-mic" /></svg></button>
       </form>
       <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
     </footer>
@@ -166,7 +166,7 @@
 
   <dialog class="disclosure" id="disclosure" aria-labelledby="disclosure-text">
     <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
-    <p class="t-section" id="disclosure-text" style="margin:0">Juno is an AI concierge.</p>
+    <p class="t-section" id="disclosure-text" style="margin:0">Nevada is an AI concierge.</p>
     <button class="btn btn-primary btn-block" id="disclosure-ok">Continue</button>
     <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
   </dialog>
