@@ -2,81 +2,89 @@
 
 # Roadmap
 
-Phased build plan. Each phase has a concrete check before moving to the next.
+Each phase ends with a check. Don't start the next phase until it passes.
 
-## Phase 0 — Spikes (de-risk before committing to the architecture)
+Deadline: event week starts Mon Nov 30, 2026. Reserved seating opens Oct 6, 2026, and through the API on Oct 8. Favorites work before that, so Phase 1 can launch favorites-first and switch on reservations when the API allows them.
 
-| Spike | Question it answers | Check |
+## Phase 0: spikes
+
+Each spike answers one question that could change the architecture.
+
+| Spike | Question | Pass |
 |---|---|---|
-| Local pairing helper, minimal version | Does the PKCE loopback flow work end-to-end from a bare script, and does the pairing-code handoff to a backend actually work | One real AWS Builder ID login completes, refresh token lands in our backend |
-| `search_sessions` retrieval service, tiny version | Is our own embeddings + filter index (Option B in [ARCHITECTURE.md](ARCHITECTURE.md#session-discovery-search-not-pagination)) good enough on a sample catalog | A handful of realistic queries return sensible top-5 results |
-| Kaltura native knowledge-base ingestion | Can individual session records actually be ingested as separate retrievable documents under `opts.knowledge`, or does it only support one coarse record | A test ingestion of 20+ sample sessions either works cleanly or is ruled out — decides whether Option A ever replaces Option B |
-| Client-command round-trip | Does `show_sessions`/`render_schedule` fire reliably on a live open-mic session without the GenUI master switch interfering | A live test conversation triggers the tool and the page updates, confirmed via the `type:"tool"` segment |
+| Request variables on voice | Does `{{ session_ref }}` resolve in an `api` tool header on the avatar socket, with `allow_client_variables: true`? | The proxy logs the right ref for a voice turn. If not, use the [fallback](ARCHITECTURE.md#identity). |
+| System variables | Does `{{ sys__thread_id }}` resolve in a header, and does the backend refuse a client-sent `sys__*` value? | Real thread ID in the header. A spoofed value is dropped. |
+| Tool reach | Can the tool executor reach our proxy within 10 s? | 20 calls from a live session, all under 10 s |
+| Client tools | Do `show_sessions` and `highlight_conflict` fire once, with `waitForResponse: false`, and let the agent keep talking? | The page updates and speech continues in 10 of 10 test turns |
+| Pairing | Does `npx marquee-pair` complete PKCE on 8484 to 8489 and hand tokens to the backend? | One real Builder ID sign-in ends with a stored refresh token |
+| Live bulk codes | What do real `BulkFailure` codes look like once seating opens? | Record each code seen. Update the [draft speech](AWS-EVENTS-INTEGRATION.md#bulk-results). |
+| Search option A | Can the Kaltura knowledge base hold the whole catalog, keep up with hourly changes and rank well? | 20 test queries rank as well as option B, or A is dropped |
+| Push-to-talk | Can our agent get `isTapToTalk: true`? The SDK's management API has no setting for it, so ask Kaltura. | `session.transport.capabilities.tapToTalk` is true on a live session. If not, ship open mic, with the mic button as mute. |
+| Real iPhone | Voice, captions and reconnect on a real iPhone in Safari, on a slow network | A full planning conversation on the device. Automated browsers can't test iOS Safari. |
 
-## Phase 1 — Personal-use MVP
+## Phase 1: one attendee, end to end
 
-Goal: the concierge works end-to-end for one paired attendee (the builder, first).
+- Backend: Web API, proxy, encrypted token store, pairing codes, first catalog sync, search option B.
+- Pairing helper, from the spike.
+- One agent, provisioned by `scripts/provision.mjs`, with every [capability](ARCHITECTURE.md#agent-configuration) set at create time.
+- All server tools and client tools.
+- Web app: disclosure, first run, schedule canvas, session cards, conflict sheet, voice with toggle mic, quiet reconnect with "Welcome back" after the background grace.
+- Fill my gaps, see all times, wildcard.
 
-- Local pairing helper (hardened from the spike).
-- Token-refresh job against one stored refresh token.
-- One provisioned intellect, all client-command tools wired, `kaltura_genie_experiences: off` at creation.
-- `get_my_schedule`, `favorite_sessions`, `reserve_sessions` (gated by lifecycle phase), personal-time tools.
-- `search_sessions` on the chosen retrieval backend, fed by a first catalog sync run.
-- Voice surface: schedule canvas, session cards, conflict highlighting.
-- "Wildcard pick" and morning-briefing/evening-digest — both low-effort, high-wow per [FEATURES.md](FEATURES.md), pulled into the MVP rather than left for later.
+Check: one real, unscripted conversation. "What should I do Tuesday if I care about agentic AI?" → cards appear → "favorite the second one" → the canvas updates from a real `GetSchedule`. After seating opens, repeat it with a reservation and a conflict swap.
 
-**Check:** a real, unscripted planning conversation — "what should I do Tuesday if I care about agentic AI" → cards appear → "reserve the second one" → canvas updates and reflects a real `GetSchedule` read.
+## Phase 2: many attendees
 
-## Phase 2 — Multi-attendee
+- Many paired attendees at once, each pinned to their own `session_ref`.
+- Token refresh on demand for every attendee. Disconnect and the 7-day purge.
+- Travel check, once AWS publishes 2026 transport details.
+- In-app morning briefing.
+- Rate limits on our Web API and pairing endpoints.
 
-Goal: any attendee can pair and use it, per the scoping decision in [README.md](README.md#the-scoping-decision-built-for-every-attendee-not-just-one-login).
+Check: two attendees paired at once. Each sees only their own schedule, and a ref from one thread is refused on another.
 
-- Per-attendee intellect provisioning from a template (resolve the open question below first).
-- Pairing-code UX on the web app (generate, display, correlate with the CLI helper).
-- Per-attendee token-refresh job, scaled from one to many.
-- Basic account/session layer on the web app (attendee identity independent of AWS Builder ID).
+## Phase 3: chat, personas and lifecycle
 
-**Check:** two attendees paired at once, each sees only their own schedule, neither's secret/tool config leaks into the other's.
+- Chat mode with follow-up chips, and `switchMode` both ways.
+- Personas as prompt variants.
+- Lifecycle detection and the matching speech.
 
-## Phase 3 — Chat/GenUI surface + personalization
+Check: start by voice, switch to chat, switch back. `threadContinuity` is `true`, the schedule is unchanged, and no second greeting plays.
 
-- `KalturaChatSession` surface with real GenUI widgets (`content-gallery`, `sources`, `followups`).
-- `switchMode()` wired between voice and chat.
-- Personalization onboarding (spoken, revisitable).
-- Lifecycle-aware tone shifts.
-- Persona presets (builder track / exec track / first-timer) and the first-timer "survival mode" onboarding framing — cheap, canned system-prompt variants over the existing tools, per [FEATURES.md](FEATURES.md).
-- Post-session voice recap capture (dictate personal notes per session).
+## Phase 4: polish and launch
 
-**Check:** start a conversation by voice, switch to chat, confirm `threadContinuity:true` and the schedule state is unchanged across the switch.
+- Recap card with Web Share.
+- Optional morning push notification, behind a real-device test. On iOS it needs Home Screen install.
+- Accessibility pass against [EXPERIENCE-UX.md § Accessibility](EXPERIENCE-UX.md#accessibility).
+- Load test the sync job and the proxy at expected attendee counts.
+- Public landing page with the non-affiliation line.
 
-## Phase 4 — Polish and launch
+Check: the accessibility pass is clean, and the load test holds at the target count with no `429`s from AWS.
 
-- Countdown/anticipation framing pre-Oct-6, event-week morning briefings live.
-- Accessibility pass against the checklist in [EXPERIENCE-UX.md](EXPERIENCE-UX.md#accessibility).
-- Public landing page explaining the project and the pairing step, since this is also an SDK showcase artifact.
-- Load-test the sync job and token-refresh job at realistic attendee counts.
+## Not in v1
 
-## Explicitly not v1 (and why)
+See [FEATURES.md § Not in v1](FEATURES.md#not-in-v1).
 
-Per [FEATURES.md](FEATURES.md), these are real ideas, deliberately deferred for a concrete reason rather than just deprioritized:
+## Open questions
 
-| Feature | Why it's out |
+| Question | Who answers |
 |---|---|
-| Team/coworker schedule coordination | Each teammate needs their own local-pairing run — a real multi-person onboarding cost, not just more code |
-| Room-walk / venue navigation | The AWS API has no venue-map data at all; would need a separately-sourced map |
-| Session "FOMO"/popularity scoring | The API only exposes the banded `seatAvailability` enum, not real numbers — an honest popularity score isn't buildable from this data alone |
-
-## Open questions to resolve before Phase 2
-
-- **Per-attendee tool/secret cloning mechanics.** Confirm the actual SDK primitive for cloning an intellect config + its tool set per attendee (vs. hand-rolling it against the raw Management API) before designing the provisioning pipeline in detail.
-- **Kaltura knowledge-base ingestion granularity.** Resolved by the Phase 0 spike — decides whether Option A ever becomes viable, per [ARCHITECTURE.md](ARCHITECTURE.md#session-discovery-search-not-pagination).
-- **Pairing-code correlation UX.** Exact mechanism for the web app and the CLI helper to agree on the same attendee without either side needing a shared login first — needs a concrete design, not just the one-paragraph sketch in ARCHITECTURE.md.
+| Is there a terms-of-use page for the AWS Events API? Does it allow a hosted service that holds many attendees' tokens? | Ask AWS before a public launch |
+| Is "Marquee" free to use as a name? | Trademark search |
+| Can we show catalog data to visitors who haven't paired? The catalog is gated to registered attendees. | Ask AWS. Until then, see the risk below. |
 
 ## Risks
 
-| Risk | Mitigation |
+| Risk | Plan |
 |---|---|
-| Refresh token idles out mid-event (30-day window, unlikely but possible if pairing happens far in advance) | Re-pairing is a one-time, low-friction script re-run; surface it plainly in the agent's own speech rather than a silent tool failure |
-| Catalog sync job's own credential hits AWS-side abuse detection at scale | Sync runs under a dedicated service registration, paced well under the 120 req/min `ListSessions` quota, with backoff on `429`/`503` |
-| Per-attendee secret/tool cloning turns out to be awkward on the current SDK primitives | Falls out of the Phase 0 spike list above; worst case, a thin custom layer over the raw `/v1/tool/*` and intellect-config APIs |
-| Reservation writes reported as failed when they actually succeeded (network drop before the response arrives) | Never blind-retry a write; always reconcile against a fresh `GetSchedule` first, per [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md#error-handling-this-project-must-implement) |
+| No terms of use for the API | Ask AWS early. Keep the pairing helper open source and the data use narrow. |
+| Our backend holds many attendees' tokens | Encrypt at rest, keep the key in an environment secret, delete on Disconnect and 7 days after the event |
+| Pre-pair browse shows gated catalog data from our service credential | If AWS says no, make pairing the first step and drop try-before-pair |
+| The name "Marquee" is taken | Clear it before any public use. The name lives in one place in the code. |
+| Travel times change in 2026 | Keep the table provisional and update it when AWS publishes transport details |
+| Seating opens before Phase 1 is ready (API date Oct 8) | Ship Phase 1 favorites-first. Detect seating from the API, not the date. |
+| The Builder ID session ends before the 30-day refresh token does | A dead refresh means pair again. Say so in speech and show the pairing button. Measure the real lifetime in the pairing spike. |
+| AWS's edge refuses our backend's traffic (`403` with no body) | Back off. Keep attendee calls on each attendee's own token. Ask AWS if it persists. |
+| A swap loses the old seat | Warn before swapping when the new session isn't `available`. Try to re-reserve the old seat and report the result truthfully. |
+| A write fails with an unknown outcome | Never blind-retry. Reconcile through `GetSchedule` (see [AWS-EVENTS-INTEGRATION.md § Errors](AWS-EVENTS-INTEGRATION.md#errors)). |
+| The refresh token expires (30 days) | Tell the attendee in speech and show the pairing button |

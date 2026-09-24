@@ -2,91 +2,171 @@
 
 # Architecture
 
+One shared Kaltura agent, plus our own backend. The backend holds every attendee's AWS tokens and does all AWS work. The agent only talks, calls our tools and drives the page.
+
 ## Components
 
 ```
-Attendee's browser                 Our hosted backend                  Kaltura platform            AWS Events API
-──────────────────                 ──────────────────                  ────────────────            ──────────────
-Concierge web app  ───WebRTC/HTTP──▶ Kaltura Management (Node)
- (voice + chat UI,                    - provisions/updates the intellect
-  schedule canvas,                    - runs the catalog sync job   ─────────────────────ListSessions──▶
-  session cards)                      - runs the token-refresh job  ─────────────────────refresh grant──▶
-       ▲                              - runs the session-search service
-       │ client-command                     │
-       │ tool segments                      │ tool_ids / secrets
-       │ (silent, over the                  ▼
-       │ live socket)              Kaltura agent (avatar/chat)  ──api tool calls──▶ AWS Events API
-       │                                (voice or text transport)   (bearer = attendee's live token)
-       └────────────────────────────────────┘
+Phone or laptop browser            Our backend (Node)                 AWS Events API
+───────────────────────            ──────────────────                 ──────────────
+Marquee web app ──HTTPS──────────▶ Web API: session, pairing,
+ (schedule canvas, cards,           catalog reads for the page
+  voice and chat UI)                Proxy: tool endpoints ───────────▶ GetSchedule, Reserve…
+       │    ▲                       Token store (encrypted) ─refresh─▶ oauth.awsevents.com
+       │    │ client tools          Sync job + search index ─────────▶ ListSessions (service login)
+       │    │ (IDs only)                   ▲
+       ▼    │                              │ api tools: X-Proxy-Key + session_ref
+Kaltura agent (avatar or chat) ────────────┘
 
-One-time local pairing (per attendee, once):
-  attendee's machine ──PKCE──▶ oauth.awsevents.com ──code──▶ attendee's machine
-        │
-        └── refresh token ──pairing code──▶ our hosted backend (stored per attendee)
+Pairing (once per attendee, on a laptop):
+Pairing helper ──PKCE on 127.0.0.1:848x──▶ AWS ──code──▶ helper ──tokens + pairing code──▶ backend
 ```
 
-Three planes, matching the SDK's own model (see the SDK's `docs/ARCHITECTURE.md`): **Management** (Node, server-side — provisions the intellect, owns secrets, runs the sync/refresh jobs), **Conversation/text** and **Runtime/video** (the attendee-facing agent, voice or chat).
-
-## The auth bridge
-
-1. **Local pairing helper** — a small, single-purpose script (distributed as `npx reinvent-concierge-login` or a downloadable one-file executable). It does exactly one thing: run the PKCE exchange against `oauth.awsevents.com` on a loopback redirect, get a refresh token, hand it to our backend via a short-lived pairing code (e.g. a 6-character code the attendee also sees on the web app, so the two sides correlate without needing a login on the CLI side), then exit. It never talks to Kaltura and never sees anything beyond the AWS token exchange.
-2. **Backend stores the refresh token** per attendee, encrypted at rest, keyed to whatever identity the concierge web app uses for that attendee (a lightweight session/account, separate from AWS Builder ID).
-3. **Token-refresh job** — per paired attendee, roughly every 50 minutes: exchange the refresh token for a fresh 60-minute access token, push it into that attendee's Kaltura intellect config secret via `mgmt.intellects.secrets.set(configId, {AWS_EVENTS_TOKEN: accessToken}, adminKs)`. This means every attendee needs their **own intellect/agent configuration** (so their own token secret doesn't collide with anyone else's) — see [Per-attendee provisioning](#per-attendee-provisioning) below.
-4. If a refresh itself fails (30-day idle expiry, or the attendee revoked consent), mark that attendee as needing to re-run the pairing helper, and have the agent say so plainly rather than silently failing tool calls.
-
-## Per-attendee provisioning
-
-Rather than one shared intellect for every attendee (which would mean one shared secret slot — a real collision risk the SDK's own tools docs flag explicitly as a hazard for globally-named tools/secrets), provision one Kaltura intellect config per attendee, cloned from a single template at signup time:
-
-- Template holds the fixed parts: prompts, capabilities, the client-command tool set (identical for everyone), voice/persona config.
-- Per-attendee parts: the `AWS_EVENTS_TOKEN` secret, and the `api` tools that reference it (also provisioned per attendee, or built once with the secret name parameterized — needs a build-time check against the SDK's actual tool-cloning primitives before locking this down; flagged as an open item in [ROADMAP.md](ROADMAP.md)).
-- Capabilities are set once, at creation, per the SDK's own hard rule (~24h partner-config cache) — never create-then-update.
-
-## Tool inventory
-
-### Server-side `api` tools (secret-authenticated, call AWS Events directly — no proxy layer needed)
-
-| Tool | AWS operation | Notes |
+| Part | Job | Lives in |
 |---|---|---|
-| `get_my_schedule` | `GetSchedule` | Called before the agent states anything about the attendee's current plan — never trust conversation memory over a fresh read |
-| `search_sessions` | *(ours, not AWS)* | See [Session discovery](#session-discovery-search-not-pagination) below — this is the one tool that does NOT call AWS Events directly |
-| `favorite_sessions` / `unfavorite_session` | `AssociateFavorites` / `DisassociateFavorite` | Batches of 1–10; surface per-session failures individually, per [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md#endpoints-this-project-uses) |
-| `reserve_sessions` / `cancel_reservation` | `ReserveSessions` / `CancelReservation` | Gated off (agent explains "not open yet") before reserved seating opens — see lifecycle table |
-| `add_personal_time` / `update_personal_time` / `delete_personal_time` | `CreatePersonalTime` etc. | For travel, meetings, breaks |
+| Web app | Mobile-first UI, SDK sessions, renders from our Web API | `client/` |
+| Web API | Visitor sessions, pairing codes, page data (`/api/schedule`, `/api/sessions`) | `server/` |
+| Proxy | One endpoint per agent tool. Resolves the attendee, calls AWS, shapes a short answer. | `server/` |
+| Token store | Refresh and access tokens per attendee, encrypted at rest | `server/` |
+| Sync job and index | Catalog snapshot, search, repeats, venue mapping | `server/` |
+| Pairing helper | Single-purpose CLI. Runs PKCE and hands tokens to the backend. | `pair/` |
+| Provisioning | Creates the agent, tools and prompts once | `scripts/provision.mjs` |
 
-Every write tool's `responseMapping` should return a short structured result (succeeded IDs, failed IDs + reason) — never the raw AWS response — so the model has exactly what it needs to speak the outcome accurately without over-fetching.
+## Why a proxy
 
-### Client-command tools (`tools.client()`, drive our own page UI — no server call at all)
+An SDK `api` tool is one HTTP request. It has a timeout of 1 to 120 s (default 10) and exactly one of `responseMapping`, `responseTemplate` or `responseChapters`. It can't fan out, retry or reconcile. Our AWS logic needs all three:
 
-| Tool | Fires | Rendered by |
+- `GetSchedule` returns IDs only, so the proxy joins them with the index.
+- After an uncertain write, the proxy reconciles through `GetSchedule` (see [AWS-EVENTS-INTEGRATION.md § Errors](AWS-EVENTS-INTEGRATION.md#errors)).
+- A swap is a cancel then a reserve, with rollback.
+
+Other reasons:
+
+- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no hosted callback can finish the sign-in.
+- One agent serves everyone. No per-attendee provisioning, and no live AWS tokens in Kaltura's secret store.
+- `secrets.set` is a read-merge-write with unknown propagation delay, so a token-push design would race.
+- The tool executor's egress is restricted (it can't reach kaltura.com). Reach to AWS is unverified. Reach to our proxy is a Phase 0 spike.
+- The proxy is plain code we can unit test and deploy.
+
+## Identity
+
+The voice path starts from an anonymous widget KS, so `sys__user_id` is not bound there. Identity comes from our own reference:
+
+1. The web app holds an HttpOnly visitor cookie from our backend.
+2. Before each conversation, the page asks `/api/session-ref` for an opaque, random, short-lived `session_ref`.
+3. The page passes it as a request variable. The agent is created with `allow_client_variables: true`, because request variables fail silently without it.
+4. Every `api` tool sends `X-Proxy-Key: {{secrets.PROXY_KEY}}`, `X-Session-Ref: {{ session_ref }}` and `X-Thread: {{ sys__thread_id }}`.
+5. The proxy checks the key, looks up the ref and pins the ref to the first thread ID it sees. A ref from another thread is refused.
+
+Rules:
+
+- Never forward `sys__ks`. Never put an AWS token in a request variable, prompt or tool config.
+- `{{secrets.NAME}}` is the only form that resolves. `{{variables.secrets.NAME}}` renders empty with no error. Run `mgmt.intellects.secrets.validate` after provisioning.
+- Fallback if request variables don't interpolate on the avatar socket: `createConversationToken({configId, userId})` gives a bound `sys__user_id`, but only on chat. That would make voice read-only for personal data.
+
+An unpaired visitor still gets a `session_ref`. Tools that need AWS then answer "pair to connect your schedule", and search still works.
+
+## Pairing
+
+A phone can't run a CLI or bind a loopback port, so pairing needs a laptop. The flow starts on the phone:
+
+1. The phone shows a 6-character code and a QR code, valid 10 minutes.
+2. On a laptop, the attendee runs `npx marquee-pair CODE`. The QR code opens a page with this command ready to copy.
+3. The helper binds the first free port from 8484 to 8489 and opens the AWS sign-in page with PKCE.
+4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS.
+5. The phone polls the pairing status, sees "paired", and syncs any shortlist made before pairing (see [EXPERIENCE-UX.md § First run](EXPERIENCE-UX.md#first-run)).
+
+The helper talks only to AWS and our backend. It stores nothing on disk, prints nothing secret, and exits. We publish its source.
+
+Token rules:
+
+- Encrypt tokens at rest with a key held in an environment secret.
+- Refresh on demand, using `expires_in` to decide when a token is stale.
+- On "Disconnect", and for everyone 7 days after the event: revoke the refresh token at AWS, then delete our copy. Revoking doesn't kill an access token already issued, so delete that too. It dies within 60 minutes.
+- Disconnect doesn't end the attendee's Builder ID browser session on their laptop. Point them to `https://profile.aws.amazon.com` if they want that.
+
+## Agent configuration
+
+One intellect for English with toggle push-to-talk. A second one is added only if a Phase 0 spike justifies it (see [ROADMAP.md](ROADMAP.md)).
+
+| Setting | Value | Why |
 |---|---|---|
-| `show_sessions` | After a search or recommendation | A session-card panel (title, time, room, level, one-line abstract, favorite/reserve buttons) |
-| `render_schedule` | After any schedule change, or on request | The weekly schedule canvas, re-drawn from the latest `GetSchedule` read |
-| `highlight_conflict` | When a reservation attempt clashes | Visually flags the two clashing blocks on the canvas |
-| `celebrate_action` | On a successful favorite/reserve | A small, deliberately restrained UI acknowledgment — see [EXPERIENCE-UX.md](EXPERIENCE-UX.md) for why "restrained" is a real design choice here, not an afterthought |
+| `kaltura_genie_experiences` | `off` | Its injected instructions beat custom tools. The SDK's create-time check expects exactly `off`. |
+| `use_content_search`, `use_get_entry_content`, `use_related_files` | `disabled` | They default on and compete with `search_sessions` |
+| `generate_followup_questions` | `on` | Capabilities are per intellect, and the avatar session always requests this one. Chat shows the chips. The voice view doesn't render them. |
+| `include_sources` | `off` | Answers come from tools, not documents |
+| `use_knowledge_base` | `off` unless option A wins (see [Search](#search)) | |
+| `avatar` | `on` | |
+| `avatar_filler` | `off` | Its canned "looking that up" lines can't be steered by prompt. The page shows a thinking state instead. |
+| `use_web_search`, `video_gallery`, `external_video`, `show_link`, `avatar_show_content`, `screen_share_analysis`, `think_process` | `disabled` | We mount no GenUI renderer, and none of these fit |
+| Voice input | Toggle push-to-talk (`isTapToTalk`), a per-agent backend setting with no SDK setter (see [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes)) | SDK advice for noisy, multi-speaker places. Toggle beats hold for TalkBack. |
+| Opening | Jinja: greeting if `sys__is_new_thread`, "Welcome back" if the page set `returning`, else `SILENT_OPENING` | The opening replays on every avatar join, including `switchMode`. The page sets `returning` only when it comes back from the background, and clears it by sending an empty string. |
+| `requireDisclosureAck` | `true` | EU AI Act Art. 50. The page calls `acknowledgeDisclosure()` before kickoff. |
+| Avatar | Chosen from `avatars.listTemplates`, plus our background | There is no emotion API, so don't promise expressions |
 
-`kaltura_genie_experiences` must be `off` at creation for this intellect — it's a command-driven agent, and the SDK's own docs are explicit that leaving the master GenUI switch on injects a competing instruction that out-competes custom tools. RAG (`use_knowledge_base`) can stay on independently of this switch if the RAG experiment below is adopted — the SDK's own docs confirm knowledge retrieval and command tools coexist fine with experiences off.
+Capabilities are cached for about 24 hours, so set them all in `intellects.create()`. Never create and then update.
 
-Per the SDK's tool-spiral guidance, the system prompt carries an explicit tool-call budget (one `show_sessions`/`render_schedule` call per turn, always followed by 1–3 spoken sentences) and each fire-and-forget client tool's own `description` repeats the "call once, then speak, never retry" instruction — the documented mitigation for exactly this failure mode.
+## Tools
 
-## Session discovery: search, not pagination
+### Server tools (`api`, all pointed at the proxy)
 
-The catalog is too large to walk live inside a conversation turn (a `ListSessions` pagination loop inside a tool call is exactly the tool-call-spiral pattern the SDK's docs warn against, and it would blow well past any reasonable per-turn budget). Two candidate designs, evaluated:
+The proxy answers with pre-shaped text through `responseTemplate`. Keep every answer under 10 s. The proxy owns its own AWS timeouts.
 
-**A. Kaltura's own knowledge base / RAG** (`opts.knowledge` in `provision.js`, `use_knowledge_base` capability). Confirmed as real scaffolding: `createCategory` → `addRecord` → `addSource({type:'internal', categoryIds:[...]})` → `intellectConfig.setKnowledgeIds` (capped at one record) → `setEnabled`. What's **not yet confirmed** from reading the SDK alone is the exact per-document ingestion path — how ~1,500+ individual session records actually become indexed, retrievable content under that one knowledge record. This needs a hands-on spike before it can be relied on for the launch date.
+| Tool | Proxy does | AWS calls |
+|---|---|---|
+| `search_sessions(query, day?, from?, to?, venue?, level?, mode?)` | Top 5 from our index. `mode: wildcard` inverts tag overlap. | None |
+| `get_session(sessionId)` | Details, repeats, seat band, walk-up note | `GetSession` only if the snapshot is stale |
+| `get_my_schedule(day?)` | Joins IDs with the index. Adds gaps and travel warnings. | `GetSchedule` |
+| `favorite_sessions(ids)` / `unfavorite_session(id)` | Batch of up to 10, per-session results | `AssociateFavorites` / `DisassociateFavorite` |
+| `reserve_sessions(ids)` / `cancel_reservation(id)` | Per-session results. On a clash, returns `conflictsWith` and swap options. | `ReserveSessions` / `CancelReservation` |
+| `swap_reservation(dropId, addId)` | Checks the seat band, cancels `dropId`, reserves `addId`. If that fails, tries to re-reserve `dropId` and reports the outcome truthfully. | Cancel, Reserve, `GetSchedule` |
+| `add_personal_time` / `update_personal_time` / `delete_personal_time` | Local to UTC conversion, reconcile | Personal-time endpoints |
 
-**B. A small retrieval service we own**, exposed to the agent as a single `search_sessions(query, filters?)` `api` tool pointed at our own backend (not AWS Events directly): the sync job (see [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md#catalog-sync-strategy)) keeps a local index (embeddings + structured filters — track, level, day, room) up to date, the tool does a top-K semantic + filtered lookup, and returns a short list of `sessionId`s plus enough fields for `show_sessions` to render cards. The model never sees the full catalog; it sees 5–10 relevant results per query.
+A swap gives up the old seat first, because AWS refuses to reserve a clashing session. The agent must say that before it swaps, whenever the new session isn't `available`.
 
-**Recommendation: build B as the primary path.** It's fully within our control, has no unconfirmed SDK behavior on the critical path, and lets us tune ranking (recency, personalization weights from onboarding, explicit filters) directly. Spend a short, bounded spike on A in parallel — if Kaltura's native RAG turns out to ingest structured records cleanly, it's a strong candidate to *replace* B later with zero attendee-facing change (same `search_sessions` tool, same `show_sessions` output). Don't block the plan on A resolving first.
+### Client tools (`tools.client`, drive our page)
 
-## Two agent surfaces, one thread
+Every client tool sets `waitForResponse: false`, because the wire default blocks the turn. The arguments carry IDs only. The page fetches what it shows from our Web API, so the screen always matches real data and not the model's memory.
 
-Voice (`KalturaAvatarSession`) and chat (`KalturaChatSession`) share one conversation via `KalturaAgentSession.switchMode()` — same thread, same `request_vars`, same `onToolCall` handlers, carried across transports automatically. This is why the client-command tools above work identically whichever surface the attendee is on; only the GenUI widget path (chat-only, per [EXPERIENCE-UX.md](EXPERIENCE-UX.md#two-surfaces-voice--client-commands-vs-chat--genui)) differs between the two.
+| Tool | Args | Page does |
+|---|---|---|
+| `show_sessions` | `sessionIds`, `title` | Card stack |
+| `render_schedule` | `day?`, `focusIds?` | Redraws the canvas from `/api/schedule` |
+| `highlight_conflict` | `sessionId`, `conflictsWith`, `options` | Conflict sheet with swap choices |
+| `celebrate_action` | `kind` | Small success moment (see [DESIGN.md § Motion](DESIGN.md#motion)) |
+| `show_recap` | none | Recap card (Phase 4) |
 
-## Related docs
+The system prompt caps each turn at one client-tool call followed by one to three spoken sentences. Each client tool's description repeats "call once, then speak, never retry". This is the SDK's fix for tool spirals.
 
-| Doc | Covers |
-|---|---|
-| [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md) | The API contract these tools call |
-| [EXPERIENCE-UX.md](EXPERIENCE-UX.md) | What the attendee actually sees/hears |
-| [ROADMAP.md](ROADMAP.md) | Build phases and the open items flagged above |
+## Search
+
+The catalog is too big to page through inside a turn. Search runs on our index, fed by the [catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync).
+
+| Option | What | Status |
+|---|---|---|
+| B (primary) | Our index: embeddings plus structured filters (day, time, venue, level, tags). Top 5 through `search_sessions`. | Build it |
+| A (spike) | Kaltura knowledge base: one record, `buildIndexerObjects(['document'])`, one `uploadMarkdown` per session, poll indexing, then set `knowledge_ids` and `use_knowledge_base: 'on'` in one write | Proven pattern in the SDK's docs site. The spike tests scale, hourly churn and ranking. |
+
+Option B stays the default because ranking and filters stay in our code. A can replace it later without changing the tool or the UI.
+
+Derived data in the index:
+
+- Repeats: see the matching rule in [AWS-EVENTS-INTEGRATION.md § Session shape](AWS-EVENTS-INTEGRATION.md#session-shape).
+- Venue: map the free-text `venue` to the six known venues.
+- Travel: a static venue-to-venue minutes table. It stays provisional until AWS publishes 2026 transport details.
+
+## Runtime
+
+- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js`. Never `@latest`. The SDK isn't on npm, so Node code uses a git dependency on the same tag.
+- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.23.2` in the SDK repo once per subpath used (today `experience/index.js` and `management/index.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
+- Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
+- Token: the page reads `partnerId` and `widgetId` from `/api/config`, then calls `sessions.createWidgetToken({widgetId})` and `application.appInit(ks)`. `appInit` returns the session KS and the avatar URLs. No secret touches the browser.
+- `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()`, `startPlayback()`, `startTapToTalk()` and `capabilities` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
+- Media: `<video autoplay playsinline>` plus a separate `<audio autoplay>`. Video is H264 only, so leave `preferredVideoCodec` unset.
+- Start: `micStartMode: 'deferred'`, then `startMic()` from a tap. On a `playback_blocked` warning, show a tap control that calls `startPlayback()`.
+- Background: `hiddenGraceMs` stays at 30 s. On return to the foreground, reconnect quietly (see [EXPERIENCE-UX.md § Network and backgrounding](EXPERIENCE-UX.md#network-and-backgrounding)). If the OS kills the tab first, the backend's idle timeout cleans up. We accept that gap.
+- `setAudioOutput` returns `false` without `setSinkId`, as on iOS. Don't show a speaker picker there.
+- Bad networks: TURN over TCP 443 (`turns:HOST:443?transport=tcp`) first, then `switchMode('chat')`. The app can't cap avatar downlink. `setAsrBandwidth` caps only the uplink.
+- Voice and chat share one thread through `KalturaAgentSession.switchMode()`. `switchMode` buffers up to 8 `sendText` calls. Call `switchMode('avatar')` only from a real tap, because the browser needs a gesture to grant the mic.
+
+The SDK ships no CSS. All styling is ours (see [DESIGN.md](DESIGN.md)).

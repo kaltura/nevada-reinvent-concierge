@@ -1,0 +1,10 @@
+{
+  "name": "marquee-pair",
+  "version": "0.0.0",
+  "description": "Connect your AWS Events account to Marquee. Runs the sign-in on this computer and hands the tokens to Marquee.",
+  "type": "module",
+  "bin": { "marquee-pair": "index.mjs" },
+  "files": ["index.mjs"],
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

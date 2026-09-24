@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Marquee</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#121212">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- SDK pinned to v1.23.2. Integrity from the SDK repo:
+       node tools/sri-map.mjs --entry src/experience/index.js --tag v1.23.2
+       node tools/sri-map.mjs --entry src/management/index.js --tag v1.23.2 -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js",
+      "@kaltura/intelligent-agents/management": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js"
+    },
+    "integrity": {
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/errors.js": "sha384-Uxnna9KkpfjdegWsj4D9Bm039Wkk8bW+oE7DhuKIE12ErUDyA40wm528HGq488SO",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/http.js": "sha384-iET1Q64YELSPD4mr4snAtBjCFzE8R4p+KMpgZA/54waJywXb/BF35qXZ+PVAYlXH",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/ids.js": "sha384-ctclewbHbgVBINOmBZmiQomiy4G5SrrqwGDu/15HDxqZFNLmQy9UvkhjOqw9B5pb",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/kaltura-media.js": "sha384-33jAoWe95OleUjPqktKJOtzrvBnU7XSMAh0qD7vRhVscm1c+5W4Qnldh98mc7JeN",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/knowledge-enums.js": "sha384-CCzm8CzHyoGNSfaUyleuThw/lcVaCVSd3AUA5ZIHR5lRy694GdWcjfbEiVsK03oL",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/net-guard.js": "sha384-3exH9irbJIydsbOUXrtEn4WV4M9PeoXoCeAhWS6HZTcet/q6dcoX+/sRirIOG4NW",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/opening.js": "sha384-rKlMb2LBEkGLh/sv4mQdC0Ii9l+RppragtUcGhQeUqKNsKgx7jwUB7Dk09woo6Ha",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/redact.js": "sha384-qFdQNaEUg3vZ2Qqtc3ZevpQXKAnQTVt0ipSdURM3CwtHnwLa/X8sVy1fAqTJ6xJ/",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/safety.js": "sha384-q+rSrLlZV1HR1klboqVTpVDUwWTvpsgRI9PMTn6R0ewlWrj1Y+j9Ud8LgK/CtSZm",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/session.js": "sha384-640HxC80M4ZfA3ahfAVawuM1nu529ayaXn8QOxMO0J/eNtJRfjrA50FIKXhY3z/3",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/site-keys.js": "sha384-h3/M5FtksiRbCpJlOSH3xSNGISELMBGWCDrekIc2Wnwf5XJvuBou9r/AwzgVAI6e",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/stream.js": "sha384-+v1UeG5Ze3VV9ZFoqDiUXp4VFztCxfF0t0fm32dS9nJosfRTO2YzZZBSC7pf0hdP",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/transport-guard.js": "sha384-kU+v6XPjzkByMvio97revZSKeZZm30mEi+4hg2EX09UkW34zm53ZsWx9brJbog2h",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/agent-session.js": "sha384-Qt1hbpAG/W/sljziUz0wz2NIcw4RbDhwB6R0dAjaiLHwh3G+Zl03+A/uIB6eQTpy",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/avatar-media.js": "sha384-uE5v4RBWDHv0Pb14I4EoaxJLS4h6uDvF+9dapfHhRY61hppFkVubaBFpHtOWTE4G",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/captions.js": "sha384-fX4uuix+FeiPOolXI0963vYDTNX8pOVbUc7EwFu3BuLcRdbYLWvbAVlH/2ckssrj",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chat-session.js": "sha384-DIY18CXWptwXym1JbXj3DEJ0wG7VgbqtN7q5hOKNTNtw3AX8R3cL0weIGcJTMOE9",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/emitter.js": "sha384-FXWiUAS7nnf7troeDYXzjWbLUocg9ATbq7KbVL0hYKiDuYjr1VVHhTZV50abNdCg",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js": "sha384-xAA/uQhrsFuN7yWCx+BCJsrgxuca30IwLrR1yO/XDeelT8Y5uJugrY5EgK9pTbw+",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/scripted-video-session.js": "sha384-euYVxjnsMs3aRND5izy+E2DhLdYlvGTvl4Xm3pwl1Z8USo/hhGsTWBL4nfJfcwm2",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/session-complete.js": "sha384-3uMsVpUGbROtXxMNHQ42sCqqNKfLzBWd3JXFktkwGFFGQSVqYClYMSe6TRtWC9LL",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/session.js": "sha384-ca5G9rrMDMWNWsRsU4mSw3Ln8dopaH/yG40ESyiQs+4W3MQnp4VcncBf8dos92qj",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/teardown.js": "sha384-Hn2DqPtBGwavsey3ZgcLdWEXPYw1B+u91b85n0Zlgx9jxcmZG5YeBWUXVu09u2sk",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/transcript.js": "sha384-2YgKVoBlbWBaAVTxNWcASyKyVHo+xJN/+cCefiOprbsQHeogZF20fZQ5ZgZ18425",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/wire.js": "sha384-mmlnp4hxXjWfGFblaBPfQqZ9pOvbjxd+lk0U4ejlpCINtZ5oUj8o9cbn7yKwbDbm",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/agents.js": "sha384-z4zEswLqgpJjxOIs7Zt47bTq5823o73bXZTE4xyN48m9qMM9MNWnlFcdaClMWyhf",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/application.js": "sha384-XLD0WXR5FPs+2yil0Lwz76ru8oIEeW63F7NWlo0/LGUjIoRyqpFBVLjPN4G5OTDs",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/avatar-sessions.js": "sha384-vKmQfv61J8UKQAoxlqCSlKSvJt00M6MnaFOo+tB/cMKqOt4yNIatoDZmOSy4KR/+",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/avatars.js": "sha384-sbmAQEx+fZAhe2OIftyQnAfE0pNwNJ6Q2Nx+Mng4uTsBE8Ga+7ZgKjhorpmmGGNs",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/capabilities.js": "sha384-TLVh5I3sA2O3h2DvLhhzFgZ6kKeQIUhbZfgelP0eya/nWbBKPR3QTsuw2AlBrMPz",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/catalog.js": "sha384-MYCUr9CgyPTNo8orTaKvGh0lWWnxjDKhfhfd7fjO+BIeIJ6CTlYWDC9JblsFur+K",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/client.js": "sha384-QpiwG4GINfqPvk5Z1w/P8N6E3EtDWOxiR82H/syxsxPcsrgbn9r0bemAv7samfxV",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/conversations.js": "sha384-UECNVDDXHY8f0BLXXzkm775CHL9zMPxkWvKzmdR/4des1bxBA0M6CaQRfDwY1B5h",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/crm-recipes.js": "sha384-qWCyeHPIcXZ1pXR3ajw5zfxcfEX7uecxzle7uZX9TyTu+c5PXN6OI+aqt3MyzOZP",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/email-templates.js": "sha384-VKEmTp0uUKL1UrrRyG5hBDPQiVpSxV+yfZ7xWyzVO6zV7RlN3bU2NWk5bj4RpFge",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js": "sha384-ECezZuQ8iTkpokomnvLc+GWqDgnUoMpJ5qJFJOY3YJAcdSRVxJ5RN466mueynyNr",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/insight-settings.js": "sha384-9FLhuUB2/umu2ZTptSY2pPpOGxH4F9Reffr8og/sqtQ8cL3/znLHM+2lW0b29iWf",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-body.js": "sha384-o46GH2wY6zsXCkjzKPcTA0PahpWzYbGr6fkbaZacSOTs14jX9AGgUsrMHSZjXzNV",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-config.js": "sha384-wgmoGzrWr/Nc8pJ0kIRhkj43Xr+RuVOF7/mU2b6heZCFd9EAScYR4QJ1BfiW6Arc",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellects.js": "sha384-M8MOe0M+dY4LgXPl3CvTDIynMM+gK8trZ4j+l4FR163IKdLmOq5T+nLdLAR8yQug",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/ks-inspect.js": "sha384-ISBtJOAvek24nV4iPZ4VUErGbMDu7Z/yUzRccbeXd2zY2EAJiFHyZauW5YT0VorJ",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/lifecycle.js": "sha384-T5TqZboJNvlvKVuIPeGEHiF153MFUpkNylpFuTZ4SHz0LpjYKHgM+BDnvJYUsxv8",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/paginate.js": "sha384-HhF+i/cooQZHaaJ4SMkJdqxqX6ts3zSN+aS+BH0qE+9Wg8MhP3lXlzc3AZ8UEIFN",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/prompt-lint.js": "sha384-g3qTp3/MQeE9h3O9lXU7+BXL6HlodfC3u2Mpr7HHvD7iOhfAGC78ckRENoP5eW2K",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/provision.js": "sha384-I2l7+c8JN3GON7ZcFVB/v7CxNCpCZfzQDPed7Nxt7DNNJHVMRB+uRj4L9xxr0ryg",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/secrets.js": "sha384-/K5ADbfEafozp6VWbRInlxDvHGyJg6Wke/8jR0r1lRnSuwtM3qkuYvyjAn9OjMqP",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/set-forced-language.js": "sha384-MUNwvv10FycIx3bRAszks6bqywgFDYRnitUe4jcGq9yOwwhx8nsTTWV5moaCK2Na",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/site-nav.js": "sha384-056jPG4Tq7iCllBrJrFcOHxqGKjbT1/wSqKLCRekJkv1RLLOc4nWf4F6QzuQai3D",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/skills.js": "sha384-0cPL55NnO6yxYhSkOX/4RCfKWWMH0FZV8fdAueJxspjV/0nYbcXXuh4x60Ak6vOB",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/tools.js": "sha384-FzUmu5GpM9F+LtKo2Jh4OyWXNrAvOZHaVvfjwvFPPTTd+AN5ICDsDK6iu+OoLkMd"
+    }
+  }
+  </script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+    integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"></script>
+  <script type="module" src="app.js"></script>
+</head>
+
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <defs>
+      <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0033B4" />
+        <stop offset=".4" stop-color="#6B4FFF" />
+        <stop offset=".7" stop-color="#9A83FE" />
+        <stop offset="1" stop-color="#FB81CE" />
+      </linearGradient>
+      <symbol id="mark" viewBox="0 0 32 32">
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="#02010A" stroke="url(#glow)" stroke-width="1.5" />
+        <g fill="url(#glow)">
+          <circle cx="8" cy="4.5" r="1.3" /><circle cx="13.3" cy="4.5" r="1.3" /><circle cx="18.7" cy="4.5" r="1.3" /><circle cx="24" cy="4.5" r="1.3" />
+          <circle cx="8" cy="27.5" r="1.3" /><circle cx="13.3" cy="27.5" r="1.3" /><circle cx="18.7" cy="27.5" r="1.3" /><circle cx="24" cy="27.5" r="1.3" />
+          <circle cx="4.5" cy="11" r="1.3" /><circle cx="4.5" cy="16" r="1.3" /><circle cx="4.5" cy="21" r="1.3" />
+          <circle cx="27.5" cy="11" r="1.3" /><circle cx="27.5" cy="16" r="1.3" /><circle cx="27.5" cy="21" r="1.3" />
+        </g>
+        <text x="16" y="21" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="14" fill="#fff">M</text>
+      </symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10v1a7 7 0 0 1-14 0v-1" /><path d="M12 18v4" />
+      </symbol>
+      <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+        <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />
+      </symbol>
+    </defs>
+  </svg>
+
+  <a class="skip-link" href="#main">Skip to schedule</a>
+
+  <div class="app">
+    <header class="top-bar">
+      <svg class="mark" role="img" aria-label="Marquee"><use href="#mark" /></svg>
+      <span class="name">Marquee</span>
+      <span class="pill"><span class="t-glow" id="countdown"></span></span>
+    </header>
+    <nav class="day-strip" aria-label="Days">
+      <button class="day" data-day="monday"><b>MON</b><span>30</span></button>
+      <button class="day" data-day="tuesday"><b>TUE</b><span>1</span></button>
+      <button class="day" data-day="wednesday"><b>WED</b><span>2</span></button>
+      <button class="day" data-day="thursday"><b>THU</b><span>3</span></button>
+      <button class="day" data-day="friday"><b>FRI</b><span>4</span></button>
+    </nav>
+    <main id="main" tabindex="-1">
+      <div class="stage" id="stage" hidden>
+        <video id="avatar-video" autoplay playsinline></video>
+      </div>
+      <section class="card-stack" id="cards" aria-label="Sessions" hidden></section>
+      <section class="timeline" id="timeline" aria-label="Schedule">
+        <span></span>
+        <p class="t-caption">Your week is wide open. Tap the mic and tell Marquee what you're here for.</p>
+      </section>
+    </main>
+    <footer>
+      <p class="caption-bar" id="captions" aria-live="polite"></p>
+      <div class="dock">
+        <button class="bubble" id="bubble" aria-label="Show Marquee"><span></span></button>
+        <button class="mic" id="mic" data-state="idle" aria-label="Talk to Marquee"><svg><use href="#i-mic" /></svg></button>
+        <button class="type-btn" id="type">Type</button>
+      </div>
+      <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
+    </footer>
+  </div>
+
+  <audio id="avatar-audio" autoplay></audio>
+  <div id="toasts" role="status" aria-live="polite"></div>
+
+  <dialog class="disclosure" id="disclosure" aria-labelledby="disclosure-text">
+    <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
+    <p class="t-section" id="disclosure-text" style="margin:0">Marquee is an AI concierge.</p>
+    <button class="btn btn-primary btn-block" id="disclosure-ok">Continue</button>
+    <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
+  </dialog>
+</body>
+
+</html>
