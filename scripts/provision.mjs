@@ -136,6 +136,9 @@ const CLIENT_TOOLS = [
     kind: str('reserve, favorite or swap'),
   }],
   ['show_recap', `Show the attendee's week recap card. ${ONCE}`, {}],
+  ['point_at', `Light up one session that is already on the screen while you talk about it. ${ONCE}`, {
+    sessionId: str('A session ID from the screen context'),
+  }],
 ].map(([name, description, args]) => tools.client({ name, description, args, waitForResponse: false }));
 
 async function upsertTool(admin, config, existing) {
@@ -157,7 +160,7 @@ for (const t of [...API_TOOLS, ...CLIENT_TOOLS]) toolIds[t.name] = await upsertT
 
 const intellectBody = {
   tool_ids: Object.values(toolIds),
-  // session_ref and returning are request variables. Without this they fail silently.
+  // session_ref, returning and page_context are request variables. Without this they fail silently.
   allow_client_variables: true,
   base_directive: readPrompt('base-directive'),
   opening_phrase: OPENING_PHRASE,
@@ -167,6 +170,8 @@ const intellectBody = {
     prompt('restrictedTopics', 'Never discuss these topics. Steer back to planning in one sentence:', readPrompt('restricted-topics')),
     prompt('goal', 'Your success is measured by this goal:', readPrompt('goal')),
     prompt('obeyRules', 'Rules you must obey without exception:', readPrompt('rules')),
+    // The page fills page_context through setDynamicPrompt. ARCHITECTURE.md § Runtime.
+    prompt('screen', 'What the attendee has on screen right now, as JSON with view, day, visible session IDs in order and the focused one:', '{{ page_context }}'),
   ],
   // All 16 capabilities, set once at create. Reasons: ARCHITECTURE.md § Agent configuration.
   capabilities: {
@@ -191,7 +196,7 @@ const intellectBody = {
 
 for (const [label, { findings }] of [
   ['persona', lintPersonaIdentity({ name: PERSONA_NAME, openingPhrase: OPENING_PHRASE, baseDirective: intellectBody.base_directive, prompts: intellectBody.prompts })],
-  ['prompt', lintPrompts(intellectBody.prompts, { allowClientVariables: true, knownVars: ['session_ref', 'returning'] })],
+  ['prompt', lintPrompts(intellectBody.prompts, { allowClientVariables: true, knownVars: ['session_ref', 'returning', 'page_context'] })],
 ]) {
   if (findings.length) console.warn(`⚠ ${label} lint:`, JSON.stringify(findings));
   else console.log(`✓ ${label} lint clean`);

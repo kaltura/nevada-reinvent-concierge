@@ -11,7 +11,7 @@ Phone or laptop browser            Our backend (Node)                 AWS Events
 ───────────────────────            ──────────────────                 ──────────────
 Marquee web app ──HTTPS──────────▶ Web API: session, pairing,
  (schedule canvas, cards,           catalog reads for the page
-  voice and chat UI)                Proxy: tool endpoints ───────────▶ GetSchedule, Reserve…
+  live avatar, composer)            Proxy: tool endpoints ───────────▶ GetSchedule, Reserve…
        │    ▲                       Token store (encrypted) ─refresh─▶ oauth.awsevents.com
        │    │ client tools          Sync job + search index ─────────▶ ListSessions (service login)
        │    │ (IDs only)                   ▲
@@ -54,7 +54,7 @@ The voice path starts from an anonymous widget KS, so `sys__user_id` is not boun
 
 1. The web app holds an HttpOnly visitor cookie from our backend.
 2. Before each conversation, the page asks `/api/session-ref` for an opaque, random, short-lived `session_ref`.
-3. The page passes it as a request variable. The agent is created with `allow_client_variables: true`, because request variables fail silently without it.
+3. The page passes it as a request variable, next to `returning` and `page_context`. The agent is created with `allow_client_variables: true`, because request variables fail silently without it.
 4. Every `api` tool sends `X-Proxy-Key: {{secrets.PROXY_KEY}}`, `X-Session-Ref: {{ session_ref }}` and `X-Thread: {{ sys__thread_id }}`.
 5. The proxy checks the key, looks up the ref and pins the ref to the first thread ID it sees. A ref from another thread is refused.
 
@@ -93,14 +93,15 @@ One intellect for English with toggle push-to-talk. A second one is added only i
 |---|---|---|
 | `kaltura_genie_experiences` | `off` | Its injected instructions beat custom tools. The SDK's create-time check expects exactly `off`. |
 | `use_content_search`, `use_get_entry_content`, `use_related_files` | `disabled` | They default on and compete with `search_sessions` |
-| `generate_followup_questions` | `on` | Capabilities are per intellect, and the avatar session always requests this one. Chat shows the chips. The voice view doesn't render them. |
+| `generate_followup_questions` | `on` | Capabilities are per intellect, and the avatar session always requests this one. The chat fallback shows the SDK's chips. In avatar mode the page shows its own chips, picked from what's on screen. |
 | `include_sources` | `off` | Answers come from tools, not documents |
 | `use_knowledge_base` | `off` unless option A wins (see [Search](#search)) | |
 | `avatar` | `on` | |
 | `avatar_filler` | `off` | Its canned "looking that up" lines can't be steered by prompt. The page shows a thinking state instead. |
-| `use_web_search`, `video_gallery`, `external_video`, `show_link`, `avatar_show_content`, `screen_share_analysis`, `think_process` | `disabled` | We mount no GenUI renderer, and none of these fit |
+| `use_web_search`, `video_gallery`, `external_video`, `show_link`, `avatar_show_content`, `screen_share_analysis`, `think_process` | `disabled` | The avatar connection forces avatar-only output, so rich widgets never reach the page. Our client tools draw the screen instead. |
 | Voice input | Toggle push-to-talk (`isTapToTalk`), a per-agent backend setting with no SDK setter (see [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes)) | SDK advice for noisy, multi-speaker places. Toggle beats hold for TalkBack. |
 | Opening | Jinja: greeting if `sys__is_new_thread`, "Welcome back" if the page set `returning`, else `SILENT_OPENING` | The opening replays on every avatar join, including `switchMode`. The page sets `returning` only when it comes back from the background, and clears it by sending an empty string. |
+| Screen context | A `screen` prompt holding `{{ page_context }}`, filled by the page through `setDynamicPrompt` | Lets "book this one" resolve. Needs `allow_client_variables: true`. |
 | `requireDisclosureAck` | `true` | EU AI Act Art. 50. The page calls `acknowledgeDisclosure()` before kickoff. |
 | Avatar | Chosen from `avatars.listTemplates`, plus our background | There is no emotion API, so don't promise expressions |
 
@@ -135,6 +136,7 @@ Every client tool sets `waitForResponse: false`, because the wire default blocks
 | `highlight_conflict` | `sessionId`, `conflictsWith`, `options` | Conflict sheet with swap choices |
 | `celebrate_action` | `kind` | Small success moment (see [DESIGN.md § Motion](DESIGN.md#motion)) |
 | `show_recap` | none | Recap card (Phase 4) |
+| `point_at` | `sessionId` | Point ring on the card or block with that `data-session`. Jumps it into view only if it's off screen. |
 
 The system prompt caps each turn at one client-tool call followed by one to three spoken sentences. Each client tool's description repeats "call once, then speak, never retry". This is the SDK's fix for tool spirals.
 
@@ -162,11 +164,15 @@ Derived data in the index:
 - Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
 - Token: the page reads `partnerId` and `widgetId` from `/api/config`, then calls `sessions.createWidgetToken({widgetId})` and `application.appInit(ks)`. `appInit` returns the session KS and the avatar URLs. No secret touches the browser.
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()`, `startPlayback()`, `startTapToTalk()` and `capabilities` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
-- Media: `<video autoplay playsinline>` plus a separate `<audio autoplay>`. Video is H264 only, so leave `preferredVideoCodec` unset.
-- Start: `micStartMode: 'deferred'`, then `startMic()` from a tap. On a `playback_blocked` warning, show a tap control that calls `startPlayback()`.
+- Media: `<video autoplay playsinline muted>` plus a separate `<audio autoplay>`. With a separate audio element the video stream has no audio track, so `muted` costs nothing and helps iOS autoplay. Video is H264 only, so leave `preferredVideoCodec` unset.
+- The video element sits in one fixed frame and never moves in the DOM, because moving it pauses playback. Frame sizes change with CSS only (see [DESIGN.md § Avatar frame](DESIGN.md#avatar-frame)). When video stops, keep the last frame as a still.
+- Typed and tapped turns use `session.sendText(text)` in avatar mode. The avatar speaks the answer, so there is no mode switch. It interrupts Marquee mid-sentence, except during an uninterruptible line such as the opening, where the SDK holds it. It throws while a tap-to-talk capture is open and before the disclosure is accepted, so the page holds turns until the disclosure is accepted and refuses them during a capture. Taps send a label plus the session ID.
+- Screen context: one `syncScreen()` call site sends `setDynamicPrompt({view, day, visible, focused})` with session IDs only. Each call replaces the whole value, and it needs a connected session.
+- Mic level: the `localMicLevel` event lives on the transport, so wire it in `transportChanged`.
+- Start: `micStartMode: 'deferred'`, then `startMic()` from a tap. On a `playback_blocked` warning, the next tap anywhere calls `startPlayback()`.
 - Background: `hiddenGraceMs` stays at 30 s. On return to the foreground, reconnect quietly (see [EXPERIENCE-UX.md § Network and backgrounding](EXPERIENCE-UX.md#network-and-backgrounding)). If the OS kills the tab first, the backend's idle timeout cleans up. We accept that gap.
 - `setAudioOutput` returns `false` without `setSinkId`, as on iOS. Don't show a speaker picker there.
-- Bad networks: TURN over TCP 443 (`turns:HOST:443?transport=tcp`) first, then `switchMode('chat')`. The app can't cap avatar downlink. `setAsrBandwidth` caps only the uplink.
-- Voice and chat share one thread through `KalturaAgentSession.switchMode()`. `switchMode` buffers up to 8 `sendText` calls. Call `switchMode('avatar')` only from a real tap, because the browser needs a gesture to grant the mic.
+- Bad networks: TURN over TCP 443 (`turns:HOST:443?transport=tcp`) first, then `switchMode('chat')` as a fallback only. The app can't cap avatar downlink. `setAsrBandwidth` caps only the uplink.
+- The chat fallback shares the thread through `KalturaAgentSession.switchMode()`, which buffers up to 8 `sendText` calls. Call `switchMode('avatar')` only from a real tap, because the browser needs a gesture for audio and the mic.
 
 The SDK ships no CSS. All styling is ours (see [DESIGN.md](DESIGN.md)).

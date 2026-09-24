@@ -104,41 +104,57 @@
       <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
         <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />
       </symbol>
+      <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+      </symbol>
+      <symbol id="i-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M19 5a10 10 0 0 1 0 14" />
+      </symbol>
     </defs>
   </svg>
 
   <a class="skip-link" href="#main">Skip to schedule</a>
 
-  <div class="app">
+  <div class="app" id="app" data-avatar="stage">
     <header class="top-bar">
       <svg class="mark" role="img" aria-label="Marquee"><use href="#mark" /></svg>
       <span class="name">Marquee</span>
       <span class="pill"><span class="t-glow" id="countdown"></span></span>
     </header>
-    <nav class="day-strip" aria-label="Days">
-      <button class="day" data-day="monday"><b>MON</b><span>30</span></button>
-      <button class="day" data-day="tuesday"><b>TUE</b><span>1</span></button>
-      <button class="day" data-day="wednesday"><b>WED</b><span>2</span></button>
-      <button class="day" data-day="thursday"><b>THU</b><span>3</span></button>
-      <button class="day" data-day="friday"><b>FRI</b><span>4</span></button>
-    </nav>
+    <!-- Marquee's live video. It never moves in the DOM: moving it pauses playback. -->
+    <section class="avatar" id="avatar" data-voice="idle" aria-label="Marquee, AI avatar">
+      <svg class="mark avatar-mark" aria-hidden="true"><use href="#mark" /></svg>
+      <video id="avatar-video" autoplay playsinline muted></video>
+      <span class="ai-chip">AI</span>
+      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Marquee's voice"><svg><use href="#i-volume" /></svg></button>
+      <!-- Not a live region unless quiet mode is on: Marquee's voice already says these words. -->
+      <p class="captions" id="captions" aria-live="off"></p>
+    </section>
     <main id="main" tabindex="-1">
-      <div class="stage" id="stage" hidden>
-        <video id="avatar-video" autoplay playsinline></video>
-      </div>
+      <nav class="day-strip" aria-label="Days">
+        <button class="day" data-day="monday"><b>MON</b><span>30</span></button>
+        <button class="day" data-day="tuesday"><b>TUE</b><span>1</span></button>
+        <button class="day" data-day="wednesday"><b>WED</b><span>2</span></button>
+        <button class="day" data-day="thursday"><b>THU</b><span>3</span></button>
+        <button class="day" data-day="friday"><b>FRI</b><span>4</span></button>
+      </nav>
       <section class="card-stack" id="cards" aria-label="Sessions" hidden></section>
       <section class="timeline" id="timeline" aria-label="Schedule">
         <span></span>
-        <p class="t-caption">Your week is wide open. Tap the mic and tell Marquee what you're here for.</p>
+        <p class="t-caption">Your week is wide open. Tell Marquee what you're here for.</p>
       </section>
     </main>
-    <footer>
-      <p class="caption-bar" id="captions" aria-live="polite"></p>
-      <div class="dock">
-        <button class="bubble" id="bubble" aria-label="Show Marquee"><span></span></button>
-        <button class="mic" id="mic" data-state="idle" aria-label="Talk to Marquee"><svg><use href="#i-mic" /></svg></button>
-        <button class="type-btn" id="type">Type</button>
+    <footer class="composer-bar">
+      <div class="chips" id="chips" role="group" aria-label="Suggestions">
+        <button class="chip-btn" type="button" data-turn>Agentic AI</button>
+        <button class="chip-btn" type="button" data-turn>Serverless</button>
+        <button class="chip-btn" type="button" data-turn>First time here</button>
       </div>
+      <form class="composer" id="composer">
+        <input id="ask" type="text" placeholder="Ask Marquee" autocomplete="off" enterkeyhint="send" aria-label="Ask Marquee" disabled>
+        <button class="send" type="submit" aria-label="Send"><svg><use href="#i-send" /></svg></button>
+        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Marquee"><svg><use href="#i-mic" /></svg></button>
+      </form>
       <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
     </footer>
   </div>

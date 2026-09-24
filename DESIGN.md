@@ -6,13 +6,15 @@ How Marquee looks, moves and feels. Mobile first. What each screen does is in [E
 
 ## Idea
 
-A Las Vegas theatre marquee for your week. The show is your schedule, and Marquee is the host. Dark stage, a glowing keynote-hall gradient when Marquee talks, and small bright moments when something goes right.
+A Las Vegas theatre marquee for your week. Marquee is the host: a realistic avatar you plan with face to face. Your schedule is the show it presents. Dark stage, a glowing keynote-hall gradient around the host, and small bright moments when something goes right.
 
 | Principle | In practice |
 |---|---|
-| Your plan is the star | The schedule canvas fills the screen. The avatar steps aside when cards appear. |
-| Thumb first | Main actions sit in the bottom third. The mic is bottom centre. |
-| Glow means Marquee | The gradient appears only when Marquee is talking, listening or surprising you |
+| Face to face | Marquee is live on screen for the whole visit. It changes size but never hides or shrinks to an icon. |
+| Show and tell | When Marquee talks about a session, that session is on screen and glows. |
+| Talk, type or tap | Every input is a turn in one conversation. No mode to pick first. |
+| Thumb first | The composer and main actions sit in the bottom third |
+| Glow means Marquee | The gradient appears only around Marquee, on what it points at, and in surprise moments |
 | Calm, then a spark | Plain screens most of the time. Motion is saved for bookings, swaps and reveals. |
 
 ## Brand boundaries
@@ -53,7 +55,7 @@ Dark UI with AWS-style orange for the one main action per screen.
 
 ### Colour: event layer
 
-Sampled from AWS's own 2026 re:Invent art: deep navy and a blue to violet to pink glow. Use it only for Marquee moments (voice, wildcard, celebrate, countdown, recap).
+Sampled from AWS's own 2026 re:Invent art: deep navy and a blue to violet to pink glow. Use it only for Marquee moments (the avatar frame, point ring, wildcard, celebrate, countdown, recap).
 
 | Token | Hex |
 |---|---|
@@ -108,67 +110,124 @@ The contrast of bold with light echoes the event's wordmark style without copyin
 
 | Width | Layout |
 |---|---|
-| Under 600 px (phones) | One column. Day strip, timeline, bottom dock. |
-| 600 to 1023 px | Timeline on the left, cards on the right |
-| 1024 px and up | Full week grid, with avatar and chat in a right rail |
+| Under 600 px (phones) | One column: avatar frame, content, composer |
+| 600 to 1023 px | Avatar and composer in a 320 px left column. One day of content on the right. |
+| 1024 px and up | Avatar and composer in a 400 px left column. Full week grid on the right. |
 
-Phone home screen:
+Phone home screen, avatar at split size:
 
 ```
 ┌──────────────────────────────┐
 │ [M] Marquee        12 days ◆ │  top bar: mark, countdown
-├──────────────────────────────┤
+│ ╭──────────────────────────╮ │
+│ │ AI      (face)      vol  │ │  avatar frame, split size
+│ │ "Your 11:30 clashes.     │ │  captions on the frame
+│ │  Want me to fix it?"     │ │
+│ ╰──────────────────────────╯ │
 │  MON  TUE  WED  THU  FRI     │  day strip, today underlined
 │  30   ▔1▔   2    3    4      │
 ├──────────────────────────────┤
 │ 9:00 ┃ Keynote          MGM  │  solid = reserved
-│      ┃                       │
 │10:30 ┆ Serverless 301   WYN  │  outlined = favorite
 │      ├ 35 min walk ⚠ ────────┤  travel tag
-│11:30 ┃ Agents workshop  VEN ▌│  red edge = clash
+│11:30 ┃ Agents workshop  VEN ▌│  ring = Marquee points here
 │12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │  striped = personal time
-│      ╎ + Fill this gap       │
 ├──────────────────────────────┤
-│ "Your 11:30 clashes. Fix it?"│  caption bar
-│   ( ◉ )  bubble   [ Type ]   │  dock: avatar, mic, text
+│ [Fix my clash] [Fill Tue pm] │  suggestion chips
+│ ( Ask Marquee…        )  (◉) │  composer: text field, mic
 └──────────────────────────────┘
 ```
 
-- Use `100dvh` and `env(safe-area-inset-*)` so the dock clears the home bar and the notch.
-- The dock stays fixed. The timeline scrolls.
-- The avatar has two sizes. When it's talking with no cards on screen, it's a stage at the top (at least 40% of the height). When cards appear, it shrinks to a 72 px round bubble in the dock. Tapping the bubble brings the stage back.
+First run, avatar at stage size:
+
+```
+┌──────────────────────────────┐
+│ [M] Marquee        12 days ◆ │
+│ ╭──────────────────────────╮ │
+│ │ AI                  vol  │ │
+│ │                          │ │
+│ │          (face)          │ │  avatar frame, stage size
+│ │                          │ │
+│ │ "Hi, I'm Marquee. What   │ │
+│ │  are you here for?"      │ │
+│ ╰──────────────────────────╯ │
+│ [Agentic AI] [Serverless] [F │  chips send exactly this text
+│ ( Ask Marquee…        )  (◉) │
+└──────────────────────────────┘
+```
+
+Desktop:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ [M] Marquee                                    12 days ◆ │
+├──────────────────┬───────────────────────────────────────┤
+│ ╭──────────────╮ │  MON 30   TUE 1   WED 2   THU 3  FRI 4 │
+│ │ AI      vol  │ │  ┃ Keynote  ┆ Serv.   ┃ Agents          │
+│ │    (face)    │ │  ▒ Lunch   ┃ Work.   ┆ Data            │
+│ │ "captions"   │ │  Cards open in place.                  │
+│ ╰──────────────╯ │                                        │
+│ [chips]          │                                        │
+│ ( Ask… )     (◉) │                                        │
+└──────────────────┴───────────────────────────────────────┘
+```
+
+- Use `100dvh` and `env(safe-area-inset-*)` so the composer clears the home bar and the notch.
+- The composer stays fixed at the bottom. The content scrolls.
+
+### Avatar frame
+
+One frame holds Marquee's live video for the whole visit. The page changes its size with a `data-avatar` attribute. The video element never moves in the DOM, because moving it pauses playback.
+
+| Size (phone) | When | Box |
+|---|---|---|
+| `stage` | Nothing to show yet: first run and the morning greeting. Once content is on screen the frame stays at `split` or `tile`. | Full width, 56% of the height |
+| `split` | Cards, a day, the conflict sheet or the recap are on screen | Full width band, 30% of the height (at least 180 px) |
+| `tile` | The attendee scrolls content down, or reads a card's detail | 96 × 128 px, top right, over the content. Tap it to go back to `split`. |
+
+- Tablet and desktop always show the full frame in the left column. No `tile`.
+- `object-fit: cover` with `object-position: 50% 25%` keeps the face in the `split` crop. Tune it in the iPhone spike once we see the real stream shape.
+- An "AI" chip sits on the top left of the frame at every size. The voice toggle (quiet mode) sits top right, hidden at `tile`.
+- A sheet never covers the frame. In `split`, a sheet's top stops below the frame.
+- Before the first frame arrives, the frame shows the night gradient with the mark. When video stops (reconnect, chat fallback), the last frame stays as a still.
+- If the cut-out spike passes (see [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes)), Marquee stands on our night gradient with no box at `stage` size. Otherwise the avatar's own background shows inside the rounded frame.
 
 ## Components
 
 | Component | Look | Notes |
 |---|---|---|
 | Top bar | Mark, name, countdown pill | The countdown uses `--glow` text |
+| Avatar frame | Rounded `--radius-l` box on the night gradient, live video, "AI" chip, voice toggle, `--glow` edge | Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
+| Captions | Marquee's current sentence in `--text` on the frame's lower third, over a dark fade. Your own last line shows first in `--glow-lavender`. | Moves above the composer at `tile` size. Timing is per sentence, not per word. |
+| Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Marquee connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
+| Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen. A tap sends the chip's text as a turn. |
+| Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a card or block | Set by `point_at`. Fades after 4 s. |
 | Day strip | Five day chips with the day in 800 and the date in 300 | Swipe or tap. A dot marks days with a clash. |
 | Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas) |
-| Session card | Surface card: kicker (day, time, venue), title, level chip, seat band, two actions | Seat band: a 5-segment bar plus a text label, never colour alone |
+| Session card | Surface card: kicker (day, time, venue), title, level chip, seat band, two actions | Seat band: a 5-segment bar plus a text label, never colour alone. Actions are turns (see [EXPERIENCE-UX.md § Talk, type or tap](EXPERIENCE-UX.md#talk-type-or-tap)). |
 | Card stack | Horizontal snap scroll with a peek of the next card | Used by `show_sessions` |
-| Conflict sheet | Bottom sheet. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text above the buttons. |
-| Voice dock | Mic button (64 px) bottom centre, avatar bubble to the left, "Type" to the right | Mic states below |
-| Caption bar | One or two lines above the dock, `--muted` text, current word in `--text` | `CaptionService` |
-| Chat view | Bubbles plus follow-up chips in a horizontal row | Same cards as voice |
-| Text input | Pill field on `--elevated` that replaces the dock while typing, send button in `--primary` | 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
+| Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text above the buttons. |
 | Pairing screen | 6-character code in display type, QR code, "Copy command" button, 10-minute ring timer | Code in monospace, grouped 3 + 3 |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
 | Recap card | 9:16 poster on a `--glow` background with big numbers | See fun moments |
 
-Stacking, top first: disclosure dialog, conflict sheet, toast, dock, avatar stage, timeline. Only the dialog blocks input behind it.
+Stacking, top first: disclosure dialog, toast, avatar frame, conflict sheet, composer, content. Only the dialog blocks input behind it.
 
-### Voice states
+### Conversation states
 
-| State | Mic button | Avatar frame |
+The frame's glow shows what Marquee is doing. The mic button shows only your side.
+
+| State | Avatar frame | Mic button |
 |---|---|---|
-| Idle | Outline mic on `--elevated` | Still, thin border |
-| Listening | Filled `--primary`, ring pulses with the mic level | Soft `--glow` border |
-| Thinking | Three dots orbit the button | The glow turns slowly |
-| Speaking | Button shows "tap to interrupt" | The glow brightens with the audio level |
-| Muted or denied | Crossed mic, banner above the dock | Grey border |
-| Reconnecting | Spinner, "Reconnecting…" in the caption bar | Blurred last frame |
+| Idle | Slow breathing glow, 4 s cycle | Outline mic on `--elevated` |
+| Listening | The glow ring grows with your mic level | Filled `--primary`, pressed |
+| Thinking | Three dots on the frame's bottom edge | Outline mic |
+| Speaking | Glow brightens. Captions run. Typing or tapping interrupts. | Outline mic |
+| Quiet mode | Voice toggle crossed out. Video and captions carry on. | Unchanged |
+| Mic denied | Unchanged | Crossed mic, grey |
+| Reconnecting | Blurred last frame, "Reconnecting…" on the frame | Disabled |
+| Chat fallback | Last frame as a still, "Video paused" badge, "Try video" button | Hidden |
 
 ## Motion
 
@@ -178,14 +237,14 @@ Two speeds: quick for feedback, slower for delight.
 |---|---|---|
 | `--dur-fast` | 120 ms | Press, toggle |
 | `--dur-base` | 220 ms | Sheets, cards in and out |
-| `--dur-slow` | 420 ms | Day switch, stage and bubble change |
+| `--dur-slow` | 420 ms | Day switch, avatar frame size change |
 | `--dur-reveal` | 700 ms | Wildcard, celebrate |
 | `--ease-out` | `cubic-bezier(.2, .8, .2, 1)` | Things arriving |
 | `--ease-spring` | `cubic-bezier(.3, 1.4, .5, 1)` | Celebrate pop |
 
-- Use the View Transitions API (single document, Safari 18+) for day switches, card to detail, and stage to bubble. When it's missing, the change happens instantly.
-- Animate only `transform` and `opacity`.
-- Never move content the attendee is reading while Marquee speaks about it.
+- Use the View Transitions API (single document, Safari 18+) for day switches and card to detail. When it's missing, the change happens instantly.
+- Animate only `transform` and `opacity`. The avatar frame is the one exception: it animates its height, so the content below can reflow.
+- Never move content the attendee is reading while Marquee speaks about it. `point_at` scrolls only when the target is off screen, jumps there with no smooth scroll, and never while the attendee is scrolling.
 - With `prefers-reduced-motion: reduce`, every move becomes a fade of 150 ms or less. No bursts, pulses, orbits or confetti. State still shows through colour and text.
 
 ### Haptics
@@ -196,6 +255,8 @@ On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favori
 
 | Moment | What happens | Trigger |
 |---|---|---|
+| Hello | The first live frame fades in over the night gradient, the glow breathes once, and Marquee greets you | Disclosure accepted |
+| Pointing | Marquee says "this one has seats" and a ring lights that card | `point_at` |
 | Booked | The block fills from left to right. A small ring of bulbs flashes around it once. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
 | Swapped | The two blocks trade places in one move. Toast: "Swapped. Thursday 10:00, Wynn." | `kind: 'swap'` |
