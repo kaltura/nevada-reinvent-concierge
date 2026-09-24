@@ -1,10 +1,10 @@
-# Marquee
+# Juno
 
-Marquee, a live avatar concierge for AWS re:Invent attendees. Plan your week with it face to face: talk, type or tap, and it finds sessions, books them, fixes clashes and briefs you each morning. It shows and points at what it's talking about. Built on the Kaltura Intelligent Agents SDK and the AWS Events API.
+Juno, a live avatar concierge for AWS re:Invent attendees. Plan your week with her face to face: talk, type or tap, and she finds sessions, books them, fixes clashes and briefs you each morning. She shows and points at what she's talking about. Built on the Kaltura Intelligent Agents SDK and the AWS Events API.
 
 Not affiliated with or endorsed by AWS.
 
-"Marquee" is a working name. Clear it with a trademark search before any public use.
+"Juno" is a working name. Clear it with a trademark search before any public use.
 
 ## Docs
 
@@ -34,7 +34,7 @@ Not affiliated with or endorsed by AWS.
 Ranked, with sources, in [FEATURES.md § Awe moments](FEATURES.md#awe-moments-ranked).
 
 1. "That clashes, but it repeats Thursday at 10 and you're free. Want that?"
-2. "Book this one." Marquee knows what's on your screen, and lights up the card it's talking about.
+2. "Book this one." Juno knows what's on your screen, and lights up the card she's talking about.
 3. "Your next one is at MGM Grand. Leave by 2:50."
 4. "It's full. Here's a repeat with seats."
 5. A face-to-face morning briefing in event week.

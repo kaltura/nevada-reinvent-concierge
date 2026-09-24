@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * marquee-pair CODE: connect an AWS Events account to Marquee.
+ * juno-pair CODE: connect an AWS Events account to Juno.
  * Flow and rules: ARCHITECTURE.md § Pairing. OAuth facts: AWS-EVENTS-INTEGRATION.md § Authentication.
  *
- * Talks only to oauth.awsevents.com and MARQUEE_URL. Stores nothing on disk
+ * Talks only to oauth.awsevents.com and JUNO_URL. Stores nothing on disk
  * and prints nothing secret. No dependencies.
  */
 import { createServer } from 'node:http';
@@ -18,15 +18,15 @@ const PORTS = [8484, 8485, 8486, 8487, 8488, 8489];
 // 127.0.0.1, not localhost: localhost can resolve to ::1 while we listen on IPv4.
 const HOST = '127.0.0.1';
 const TIMEOUT_MS = 5 * 60 * 1000;
-const MARQUEE_URL = (process.env.MARQUEE_URL || 'https://marquee.example.com').replace(/\/$/, '');
+const JUNO_URL = (process.env.JUNO_URL || 'https://juno.example.com').replace(/\/$/, '');
 
-const fail = (msg) => { console.error(`marquee-pair: ${msg}`); process.exit(1); };
+const fail = (msg) => { console.error(`juno-pair: ${msg}`); process.exit(1); };
 const b64url = (buf) => buf.toString('base64url');
 
 const code = (process.argv[2] || '').replace(/[\s-]/g, '').toUpperCase();
-if (!/^[A-Z0-9]{6}$/.test(code)) fail('usage: npx marquee-pair CODE (the 6-character code on your phone)');
-const target = new URL(MARQUEE_URL);
-if (target.protocol !== 'https:' && target.hostname !== 'localhost' && target.hostname !== HOST) fail('MARQUEE_URL must use https');
+if (!/^[A-Z0-9]{6}$/.test(code)) fail('usage: npx juno-pair CODE (the 6-character code on your phone)');
+const target = new URL(JUNO_URL);
+if (target.protocol !== 'https:' && target.hostname !== 'localhost' && target.hostname !== HOST) fail('JUNO_URL must use https');
 
 const verifier = b64url(randomBytes(64)); // 86 characters, inside the 43 to 128 range
 const challenge = b64url(createHash('sha256').update(verifier).digest());
@@ -96,11 +96,11 @@ if (!tokenRes.ok) fail(`AWS refused the sign-in code (HTTP ${tokenRes.status}). 
 const { access_token, refresh_token, expires_in } = await tokenRes.json();
 if (!access_token || !refresh_token) fail('AWS sent no tokens. Run the command again.');
 
-const handoff = await fetch(`${MARQUEE_URL}/api/pair/complete`, {
+const handoff = await fetch(`${JUNO_URL}/api/pair/complete`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ code, access_token, refresh_token, expires_in }),
 });
 if (handoff.status === 404 || handoff.status === 410) fail('that code has expired. Get a new one on your phone.');
-if (!handoff.ok) fail(`Marquee could not save the connection (HTTP ${handoff.status}). Try again.`);
+if (!handoff.ok) fail(`Juno could not save the connection (HTTP ${handoff.status}). Try again.`);
 console.log('Connected. Go back to your phone.');

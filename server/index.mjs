@@ -1,5 +1,5 @@
 /**
- * Marquee backend: static web app, Web API and tool proxy. Design: ARCHITECTURE.md.
+ * Juno backend: static web app, Web API and tool proxy. Design: ARCHITECTURE.md.
  *
  * Built so far: static files, /api/config, visitor cookie and session_ref,
  * pairing codes, and the proxy's key check and thread pinning. Every tool
@@ -83,7 +83,7 @@ async function api(req, res, path) {
     while (pairs.has(code));
     const expires = Date.now() + PAIR_TTL_MS;
     pairs.set(code, { visitor: visitor(req, res), state: 'waiting', expires });
-    return send(res, 200, { code, expiresAt: new Date(expires).toISOString(), command: `npx marquee-pair ${code}` });
+    return send(res, 200, { code, expiresAt: new Date(expires).toISOString(), command: `npx juno-pair ${code}` });
   }
   const status = /^\/api\/pair\/status\/([A-Z0-9]{6})$/.exec(path);
   if (status && req.method === 'GET') {
@@ -142,4 +142,4 @@ createServer(async (req, res) => {
     console.error(e);
     if (!res.headersSent) send(res, 500, { error: 'server_error' });
   }
-}).listen(Number(PORT), () => console.log(`Marquee on http://localhost:${PORT}`));
+}).listen(Number(PORT), () => console.log(`Juno on http://localhost:${PORT}`));

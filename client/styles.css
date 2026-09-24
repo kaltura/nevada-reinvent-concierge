@@ -1,4 +1,4 @@
-/* Marquee design tokens and components. Values and rules: DESIGN.md. */
+/* Juno design tokens and components. Values and rules: DESIGN.md. */
 
 :root {
   color-scheme: dark;
@@ -17,7 +17,7 @@
   --success: #00A078;
   --warning: #E86925;
 
-  /* Event layer: Marquee moments only */
+  /* Event layer: Juno moments only */
   --night-1: #000036;
   --night-2: #010040;
   --night-3: #02010A;
@@ -171,7 +171,7 @@ button {
   overflow-y: auto; overscroll-behavior: contain;
   padding: var(--s-3) var(--s-4) var(--s-5);
   display: grid; grid-template-columns: 44px 1fr; gap: var(--s-2) var(--s-3);
-  align-content: start;
+  align-content: start; grid-auto-rows: max-content;
 }
 .timeline time { font-size: 13px; line-height: 18px; color: var(--muted); padding-top: var(--s-3); text-align: right; }
 
@@ -210,53 +210,77 @@ button {
   padding: 0 var(--s-4); color: var(--muted); width: 100%; text-align: left;
 }
 
-/* Avatar frame. Sizes and states: DESIGN.md § Avatar frame. */
+/* Avatar frame. Sizes and states: DESIGN.md § Avatar frame.
+   Keyed: Juno stands on the night gradient with no box. app.js sets
+   data-keyed and --bx, --by, --bw, --bh, the box she fills in the frame. */
 
 .avatar {
-  grid-area: avatar; position: relative; z-index: 2;
-  margin: var(--s-2) var(--s-4) 0; border-radius: var(--radius-l);
+  grid-area: avatar; position: relative; z-index: 2; isolation: isolate;
   height: 56dvh; overflow: hidden;
-  background: radial-gradient(120% 80% at 50% 100%, var(--night-2), var(--night-3));
+  background: radial-gradient(90% 70% at 50% 45%, var(--night-2), transparent 70%);
   transition: height var(--dur-slow) var(--ease-out);
+  --bx: 0; --by: 0; --bw: 1; --bh: 1; --zoom: .94; --headroom: 6%;
 }
-[data-avatar="split"] .avatar { height: max(30dvh, 180px); }
+[data-avatar="split"] .avatar { height: max(30dvh, 180px); --zoom: 1.1; }
 .avatar-mark { position: absolute; left: 50%; top: 40%; width: 56px; height: 56px; transform: translate(-50%, -50%); }
+[data-keyed="ready"] .avatar-mark { display: none; }
+
+/* Fallback when keying can't start: the plain video in a framed box. */
 .avatar video {
-  position: absolute; inset: 0; width: 100%; height: 100%;
+  position: absolute; z-index: 1; top: 0; bottom: 0; left: var(--s-4);
+  width: calc(100% - 2 * var(--s-4)); height: 100%; border-radius: var(--radius-l);
   object-fit: cover; object-position: 50% 25%;
 }
+/* The keyer reads the video, so hide it with opacity, never display: none. */
+.avatar[data-keyed] video { opacity: 0; }
 
-/* The glow edge. It breathes when idle and grows with the attendee's mic level. */
+.cutout {
+  position: absolute; z-index: 1; inset: 0; pointer-events: none;
+  mask-image: linear-gradient(#000 70%, transparent 97%);
+  opacity: 0; transition: opacity var(--dur-reveal) var(--ease-out);
+}
+[data-keyed="ready"] .cutout { opacity: 1; }
+/* Scale her box to --zoom of the frame height, centre it and crop the black margin. */
+.cutout canvas {
+  position: absolute; left: 50%; width: auto;
+  height: calc(100% * var(--zoom) / var(--bh));
+  top: calc(var(--headroom) - 100% * var(--zoom) * var(--by) / var(--bh));
+  transform: translateX(calc(-100% * (var(--bx) + var(--bw) / 2)));
+  clip-path: inset(calc(100% * var(--by)) calc(100% * (1 - var(--bx) - var(--bw))) calc(100% * (1 - var(--by) - var(--bh))) calc(100% * var(--bx)));
+}
+
+/* The aura behind her shoulders. It breathes when idle and grows with the attendee's mic level. */
 .avatar::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  padding: 2px; background: var(--glow);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  opacity: .6;
+  content: ""; position: absolute; z-index: 0; left: 50%; top: 55%; pointer-events: none;
+  height: 92%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, rgb(107 79 255 / .6), rgb(251 129 206 / .25) 45%, transparent 70%);
+  filter: blur(24px); opacity: .6;
+  transform: translate(-50%, -50%) scale(var(--aura, 1));
+  transition: transform var(--dur-fast) linear, opacity var(--dur-base);
 }
 .avatar[data-voice="idle"]::after { animation: breathe 4s ease-in-out infinite; }
-.avatar[data-voice="listening"]::after { opacity: 1; padding: calc(2px + 6px * var(--mic-level, 0)); }
-.avatar[data-voice="speaking"]::after { opacity: 1; }
+.avatar[data-voice="listening"]::after { opacity: 1; --aura: calc(1 + .25 * var(--mic-level, 0)); }
+.avatar[data-voice="speaking"]::after { opacity: 1; --aura: 1.08; }
 .avatar[data-voice="thinking"]::before {
-  content: ""; position: absolute; z-index: 1; left: 50%; bottom: var(--s-2);
+  content: ""; position: absolute; z-index: 2; left: 50%; bottom: var(--s-2);
   width: 36px; height: 8px; transform: translateX(-50%);
   background: radial-gradient(circle, var(--glow-lavender) 3px, transparent 3.5px) 0 0 / 12px 8px repeat-x;
   animation: blink 1.2s ease-in-out infinite;
 }
-.avatar[data-voice="reconnecting"] video { filter: blur(8px); }
+.avatar[data-voice="reconnecting"] :is(video, .cutout) { filter: blur(8px); }
 .avatar[data-voice="reconnecting"]::before {
-  content: "Reconnecting…"; position: absolute; z-index: 1; inset: 0;
+  content: "Reconnecting…"; position: absolute; z-index: 2; inset: 0;
   display: grid; place-items: center; font-weight: 600;
 }
 
 .ai-chip {
-  position: absolute; top: var(--s-3); left: var(--s-3);
+  position: absolute; z-index: 2; top: var(--s-3); left: calc(var(--s-4) + var(--s-3));
   padding: 2px var(--s-2); border-radius: 999px; background: rgb(0 0 0 / .55);
   font-size: 12px; line-height: 16px; font-weight: 800; letter-spacing: .08em;
 }
 
 .voice-toggle {
-  position: absolute; top: var(--s-1); right: var(--s-1);
+  position: absolute; z-index: 2; top: var(--s-1); right: calc(var(--s-4) + var(--s-1));
   border-radius: 50%; display: grid; place-items: center;
 }
 .voice-toggle svg { width: 22px; height: 22px; padding: 7px; box-sizing: content-box; border-radius: 50%; background: rgb(0 0 0 / .55); }
@@ -266,9 +290,9 @@ button {
   background: currentColor; transform: rotate(-45deg);
 }
 
-/* Captions: Marquee's sentence, with the attendee's last line above it. */
+/* Captions: Juno's sentence, with the attendee's last line above it. */
 .captions {
-  position: absolute; left: 0; right: 0; bottom: 0; margin: 0;
+  position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; margin: 0;
   padding: var(--s-7) var(--s-4) var(--s-5);
   background: linear-gradient(transparent, rgb(0 0 0 / .75) 45%);
   font-size: 17px; line-height: 24px; font-weight: 600; text-wrap: balance;
@@ -370,7 +394,7 @@ button {
 /* The sheet stops below the avatar frame at split size: top bar, frame, gap. */
 .sheet {
   position: fixed; z-index: 1; left: 0; right: 0; bottom: 0;
-  max-height: calc(100dvh - env(safe-area-inset-top) - 56px - max(30dvh, 180px) - var(--s-3)); overflow-y: auto;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 48px - max(30dvh, 180px) - var(--s-3)); overflow-y: auto;
   background: var(--surface); border-radius: var(--radius-l) var(--radius-l) 0 0;
   box-shadow: var(--sheet-shadow);
   padding: var(--s-2) var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom));
@@ -444,16 +468,30 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 @keyframes blink { 50% { opacity: .3; } }
 @keyframes point { from { outline-color: transparent; } 8%, 80% { outline-color: var(--glow-lavender); filter: drop-shadow(0 0 10px rgb(154 131 254 / .6)); } to { outline-color: transparent; } }
 
-/* Phones: the frame shrinks to a tile while the attendee scrolls */
+/* Phones: while the attendee scrolls, Juno docks as a round bubble in the
+   top bar, where the mark was. Tap it to go back to split. */
 
 @media (max-width: 599px) {
+  [data-avatar="tile"] .top-bar { padding-left: calc(var(--s-4) + 44px + var(--s-2)); }
+  [data-avatar="tile"] .top-bar .mark { display: none; }
   [data-avatar="tile"] .avatar {
-    position: fixed; z-index: 3; top: calc(env(safe-area-inset-top) + 56px); right: var(--s-3);
-    width: 96px; height: 128px; margin: 0; border-radius: var(--radius-m);
-    box-shadow: 0 8px 24px rgb(0 0 0 / .5); cursor: pointer;
+    position: fixed; z-index: 3; top: calc(env(safe-area-inset-top) + 2px); left: var(--s-4);
+    width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+    background: var(--night-2); box-shadow: 0 4px 16px rgb(0 0 0 / .5);
+    --zoom: 1.9; --headroom: 4%;
   }
-  [data-avatar="tile"] .ai-chip { top: var(--s-1); left: var(--s-1); }
-  [data-avatar="tile"] .voice-toggle { display: none; }
+  [data-avatar="tile"] .avatar video { left: 0; width: 100%; border-radius: 0; }
+  [data-avatar="tile"] .cutout { mask-image: none; }
+  [data-avatar="tile"] .avatar::after {
+    inset: 0; height: auto; top: 0; left: 0; transform: none; filter: none; background: none;
+    box-shadow: inset 0 0 0 calc(2px + 3px * var(--mic-level, 0)) var(--glow-violet); z-index: 2;
+  }
+  [data-avatar="tile"] .ai-chip {
+    top: auto; bottom: 2px; left: 50%; transform: translateX(-50%);
+    padding: 0 4px; font-size: 9px; line-height: 12px;
+  }
+  [data-avatar="tile"] .voice-toggle,
+  [data-avatar="tile"] .avatar::before { display: none; }
   /* --composer-h comes from app.js. */
   [data-avatar="tile"] .captions {
     position: fixed; left: var(--s-4); right: var(--s-4); bottom: calc(var(--composer-h, 160px) + var(--s-2));
@@ -465,7 +503,7 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 
 @media (min-width: 600px) {
   .app { grid-template: "top top" auto "avatar main" 1fr "composer main" auto / 320px 1fr; }
-  .app .avatar { height: auto; margin: var(--s-2) var(--s-4); }
+  .app .avatar { height: auto; --zoom: .62; --headroom: 12%; }
   .sheet { left: 320px; max-height: none; }
   .card-stack { grid-auto-columns: 320px; }
 }

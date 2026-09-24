@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Marquee</title>
+  <title>Juno</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#121212">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,12 +13,16 @@
   <link rel="stylesheet" href="styles.css">
   <!-- SDK pinned to v1.23.2. Integrity from the SDK repo:
        node tools/sri-map.mjs --entry src/experience/index.js --tag v1.23.2
-       node tools/sri-map.mjs --entry src/management/index.js --tag v1.23.2 -->
+       node tools/sri-map.mjs --entry src/management/index.js --tag v1.23.2
+       node tools/sri-map.mjs --entry src/experience/chroma-key.js --tag v1.23.2
+       chroma-key-video is pinned to v1.2.0. Its hash is openssl dgst -sha384 -binary of that file, base64. -->
   <script type="importmap">
   {
     "imports": {
       "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js",
-      "@kaltura/intelligent-agents/management": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js"
+      "@kaltura/intelligent-agents/management": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js",
+      "@kaltura/intelligent-agents/experience/chroma-key": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js",
+      "chroma-key-video": "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js"
     },
     "integrity": {
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/errors.js": "sha384-Uxnna9KkpfjdegWsj4D9Bm039Wkk8bW+oE7DhuKIE12ErUDyA40wm528HGq488SO",
@@ -37,6 +41,7 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/agent-session.js": "sha384-Qt1hbpAG/W/sljziUz0wz2NIcw4RbDhwB6R0dAjaiLHwh3G+Zl03+A/uIB6eQTpy",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/avatar-media.js": "sha384-uE5v4RBWDHv0Pb14I4EoaxJLS4h6uDvF+9dapfHhRY61hppFkVubaBFpHtOWTE4G",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/captions.js": "sha384-fX4uuix+FeiPOolXI0963vYDTNX8pOVbUc7EwFu3BuLcRdbYLWvbAVlH/2ckssrj",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js": "sha384-bbEsNVbIMZMdZe3d2glbY98NdZ6A3KvuUYTm1EErZDVIjec6t0EUlfz1qUcrWjla",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chat-session.js": "sha384-DIY18CXWptwXym1JbXj3DEJ0wG7VgbqtN7q5hOKNTNtw3AX8R3cL0weIGcJTMOE9",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/emitter.js": "sha384-FXWiUAS7nnf7troeDYXzjWbLUocg9ATbq7KbVL0hYKiDuYjr1VVHhTZV50abNdCg",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js": "sha384-xAA/uQhrsFuN7yWCx+BCJsrgxuca30IwLrR1yO/XDeelT8Y5uJugrY5EgK9pTbw+",
@@ -70,7 +75,8 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/set-forced-language.js": "sha384-MUNwvv10FycIx3bRAszks6bqywgFDYRnitUe4jcGq9yOwwhx8nsTTWV5moaCK2Na",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/site-nav.js": "sha384-056jPG4Tq7iCllBrJrFcOHxqGKjbT1/wSqKLCRekJkv1RLLOc4nWf4F6QzuQai3D",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/skills.js": "sha384-0cPL55NnO6yxYhSkOX/4RCfKWWMH0FZV8fdAueJxspjV/0nYbcXXuh4x60Ak6vOB",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/tools.js": "sha384-FzUmu5GpM9F+LtKo2Jh4OyWXNrAvOZHaVvfjwvFPPTTd+AN5ICDsDK6iu+OoLkMd"
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/tools.js": "sha384-FzUmu5GpM9F+LtKo2Jh4OyWXNrAvOZHaVvfjwvFPPTTd+AN5ICDsDK6iu+OoLkMd",
+      "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js": "sha384-Iez9q4Ek7o0C87RvWlZ+qARd/gDpL5Q9ye2veAPXByqSRqFDB78cedFWmgKbcnce"
     }
   }
   </script>
@@ -89,14 +95,8 @@
         <stop offset="1" stop-color="#FB81CE" />
       </linearGradient>
       <symbol id="mark" viewBox="0 0 32 32">
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="#02010A" stroke="url(#glow)" stroke-width="1.5" />
-        <g fill="url(#glow)">
-          <circle cx="8" cy="4.5" r="1.3" /><circle cx="13.3" cy="4.5" r="1.3" /><circle cx="18.7" cy="4.5" r="1.3" /><circle cx="24" cy="4.5" r="1.3" />
-          <circle cx="8" cy="27.5" r="1.3" /><circle cx="13.3" cy="27.5" r="1.3" /><circle cx="18.7" cy="27.5" r="1.3" /><circle cx="24" cy="27.5" r="1.3" />
-          <circle cx="4.5" cy="11" r="1.3" /><circle cx="4.5" cy="16" r="1.3" /><circle cx="4.5" cy="21" r="1.3" />
-          <circle cx="27.5" cy="11" r="1.3" /><circle cx="27.5" cy="16" r="1.3" /><circle cx="27.5" cy="21" r="1.3" />
-        </g>
-        <text x="16" y="21" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="14" fill="#fff">M</text>
+        <circle cx="16" cy="16" r="14.5" fill="#02010A" stroke="url(#glow)" stroke-width="2.5" />
+        <text x="16" y="21.5" text-anchor="middle" font-family="Inter, sans-serif" font-weight="800" font-size="16" fill="#fff">J</text>
       </symbol>
       <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10v1a7 7 0 0 1-14 0v-1" /><path d="M12 18v4" />
@@ -117,17 +117,19 @@
 
   <div class="app" id="app" data-avatar="stage">
     <header class="top-bar">
-      <svg class="mark" role="img" aria-label="Marquee"><use href="#mark" /></svg>
-      <span class="name">Marquee</span>
+      <svg class="mark" role="img" aria-label="Juno"><use href="#mark" /></svg>
+      <span class="name">Juno</span>
       <span class="pill"><span class="t-glow" id="countdown"></span></span>
     </header>
-    <!-- Marquee's live video. It never moves in the DOM: moving it pauses playback. -->
-    <section class="avatar" id="avatar" data-voice="idle" aria-label="Marquee, AI avatar">
+    <!-- Juno's live video. It never moves in the DOM: moving it pauses playback.
+         When keying works, the video is hidden and #cutout holds the keyed canvas. -->
+    <section class="avatar" id="avatar" data-voice="idle" aria-label="Juno, AI avatar">
       <svg class="mark avatar-mark" aria-hidden="true"><use href="#mark" /></svg>
       <video id="avatar-video" autoplay playsinline muted></video>
+      <div class="cutout" id="cutout"></div>
       <span class="ai-chip">AI</span>
-      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Marquee's voice"><svg><use href="#i-volume" /></svg></button>
-      <!-- Not a live region unless quiet mode is on: Marquee's voice already says these words. -->
+      <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Juno's voice"><svg><use href="#i-volume" /></svg></button>
+      <!-- Not a live region unless quiet mode is on: Juno's voice already says these words. -->
       <p class="captions" id="captions" aria-live="off"></p>
     </section>
     <main id="main" tabindex="-1">
@@ -141,7 +143,7 @@
       <section class="card-stack" id="cards" aria-label="Sessions" hidden></section>
       <section class="timeline" id="timeline" aria-label="Schedule">
         <span></span>
-        <p class="t-caption">Your week is wide open. Tell Marquee what you're here for.</p>
+        <p class="t-caption">Your week is wide open. Tell Juno what you're here for.</p>
       </section>
     </main>
     <footer class="composer-bar">
@@ -151,9 +153,9 @@
         <button class="chip-btn" type="button" data-turn>First time here</button>
       </div>
       <form class="composer" id="composer">
-        <input id="ask" type="text" placeholder="Ask Marquee" autocomplete="off" enterkeyhint="send" aria-label="Ask Marquee" disabled>
+        <input id="ask" type="text" placeholder="Ask Juno" autocomplete="off" enterkeyhint="send" aria-label="Ask Juno" disabled>
         <button class="send" type="submit" aria-label="Send"><svg><use href="#i-send" /></svg></button>
-        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Marquee"><svg><use href="#i-mic" /></svg></button>
+        <button class="mic" id="mic" type="button" data-state="idle" aria-pressed="false" aria-label="Talk to Juno"><svg><use href="#i-mic" /></svg></button>
       </form>
       <p class="disclaimer">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
     </footer>
@@ -164,7 +166,7 @@
 
   <dialog class="disclosure" id="disclosure" aria-labelledby="disclosure-text">
     <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
-    <p class="t-section" id="disclosure-text" style="margin:0">Marquee is an AI concierge.</p>
+    <p class="t-section" id="disclosure-text" style="margin:0">Juno is an AI concierge.</p>
     <button class="btn btn-primary btn-block" id="disclosure-ok">Continue</button>
     <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
   </dialog>

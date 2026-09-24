@@ -16,15 +16,15 @@ Each spike answers one question that could change the architecture.
 | System variables | Does `{{ sys__thread_id }}` resolve in a header, and does the backend refuse a client-sent `sys__*` value? | Real thread ID in the header. A spoofed value is dropped. |
 | Tool reach | Can the tool executor reach our proxy within 10 s? | 20 calls from a live session, all under 10 s |
 | Client tools | Do `show_sessions` and `highlight_conflict` fire once, with `waitForResponse: false`, and let the agent keep talking? | The page updates and speech continues in 10 of 10 test turns |
-| Pairing | Does `npx marquee-pair` complete PKCE on 8484 to 8489 and hand tokens to the backend? | One real Builder ID sign-in ends with a stored refresh token |
+| Pairing | Does `npx juno-pair` complete PKCE on 8484 to 8489 and hand tokens to the backend? | One real Builder ID sign-in ends with a stored refresh token |
 | Live bulk codes | What do real `BulkFailure` codes look like once seating opens? | Record each code seen. Update the [draft speech](AWS-EVENTS-INTEGRATION.md#bulk-results). |
 | Search option A | Can the Kaltura knowledge base hold the whole catalog, keep up with hourly changes and rank well? | 20 test queries rank as well as option B, or A is dropped |
 | Push-to-talk | Can our agent get `isTapToTalk: true`? The SDK's management API has no setting for it, so ask Kaltura. | `session.transport.capabilities.tapToTalk` is true on a live session. If not, ship open mic, with the mic button as mute. |
 | Screen context | Does `{{ page_context }}` from `setDynamicPrompt` reach the prompt on the avatar socket? | "Book this one" with a card open picks the right session in 10 of 10 turns |
-| Typed and tapped turns | Does `sendText` in avatar mode interrupt Marquee, and wait during the opening line? Does push-to-talk interrupt too? | 10 of 10 turns answered, none lost |
+| Typed and tapped turns | Does `sendText` in avatar mode interrupt Juno, and wait during the opening line? Does push-to-talk interrupt too? | 10 of 10 turns answered, none lost |
 | `point_at` | Does the agent call `point_at` alongside speech without breaking the one-tool-per-turn cap? | The ring lands on the right card in 8 of 10 turns, or drop the tool |
 | Avatar resize on iPhone | Does the video keep playing through `stage`, `split` and `tile` size changes? | 20 size changes with no freeze. If not, a fixed `split` with no `tile`. |
-| Cut-out avatar | Can a chroma-key library cut Marquee out on the night gradient at 30 fps? The SDK only attaches a library we bring, and the avatar video has a dark margin that stays after keying, so the page must crop it. | Smooth on an iPhone and a mid-range Android with no visible margin, or keep the framed box |
+| Keyed avatar | Does `attachChromaKeyAvatar` with `chroma-key-video` key Juno out at 30 fps, and does the page crop the dark margin the render leaves after keying? Needs a Juno visual with a solid green backdrop (see [DESIGN.md § Persona](DESIGN.md#persona)). | Smooth on an iPhone and a mid-range Android with no visible margin or green edge. If not, ship the framed video (see [DESIGN.md § Avatar frame](DESIGN.md#avatar-frame)). |
 | Expo noise | Does `createNoiseSuppressor` help ASR on a loud floor? | Fewer misheard turns in a recorded crowd-noise test |
 | Real iPhone | Avatar video, voice, typing, captions and reconnect on a real iPhone in Safari, on a slow network | A full planning conversation on the device. Automated browsers can't test iOS Safari. |
 
@@ -34,7 +34,7 @@ Each spike answers one question that could change the architecture.
 - Pairing helper, from the spike.
 - One agent, provisioned by `scripts/provision.mjs`, with every [capability](ARCHITECTURE.md#agent-configuration) set at create time.
 - All server tools and client tools.
-- Web app: disclosure, first run, avatar frame in all sizes, composer with toggle mic and text, chips and taps as turns, screen context and `point_at`, quiet mode, schedule canvas, session cards, conflict sheet, quiet reconnect with "Welcome back" after the background grace.
+- Web app: disclosure, first run, keyed avatar frame in all sizes with the framed fallback, composer with toggle mic and text, chips and taps as turns, screen context and `point_at`, quiet mode, schedule canvas, session cards, conflict sheet, quiet reconnect with "Welcome back" after the background grace.
 - Fill my gaps, see all times, wildcard.
 
 Check: one real, unscripted conversation. "What should I do Tuesday if I care about agentic AI?" → cards appear → "favorite the second one" → the canvas updates from a real `GetSchedule`. Then type "what else is on then?" with a card open, and tap Reserve on a card. After seating opens, repeat it with a reservation and a conflict swap.
@@ -59,7 +59,6 @@ Check: start with the avatar, drop to the chat fallback, go back. `threadContinu
 
 ## Phase 4: polish and launch
 
-- Cut-out avatar on the night gradient, if the spike passed.
 - Recap card with Web Share.
 - Optional morning push notification, behind a real-device test. On iOS it needs Home Screen install.
 - Accessibility pass against [EXPERIENCE-UX.md § Accessibility](EXPERIENCE-UX.md#accessibility).
@@ -77,7 +76,7 @@ See [FEATURES.md § Not in v1](FEATURES.md#not-in-v1).
 | Question | Who answers |
 |---|---|
 | Is there a terms-of-use page for the AWS Events API? Does it allow a hosted service that holds many attendees' tokens? | Ask AWS before a public launch |
-| Is "Marquee" free to use as a name? | Trademark search |
+| Is "Juno" free to use as a name? | Trademark search |
 | Can we show catalog data to visitors who haven't paired? The catalog is gated to registered attendees. | Ask AWS. Until then, see the risk below. |
 
 ## Risks
@@ -87,7 +86,7 @@ See [FEATURES.md § Not in v1](FEATURES.md#not-in-v1).
 | No terms of use for the API | Ask AWS early. Keep the pairing helper open source and the data use narrow. |
 | Our backend holds many attendees' tokens | Encrypt at rest, keep the key in an environment secret, delete on Disconnect and 7 days after the event |
 | Pre-pair browse shows gated catalog data from our service credential | If AWS says no, make pairing the first step and drop try-before-pair |
-| The name "Marquee" is taken | Clear it before any public use. The name lives in one place in the code. |
+| The name "Juno" is taken | Clear it before any public use. The name lives in one place in the code. |
 | Travel times change in 2026 | Keep the table provisional and update it when AWS publishes transport details |
 | Seating opens before Phase 1 is ready (API date Oct 8) | Ship Phase 1 favorites-first. Detect seating from the API, not the date. |
 | The Builder ID session ends before the 30-day refresh token does | A dead refresh means pair again. Say so in speech and show the pairing button. Measure the real lifetime in the pairing spike. |
@@ -96,4 +95,4 @@ See [FEATURES.md § Not in v1](FEATURES.md#not-in-v1).
 | A write fails with an unknown outcome | Never blind-retry. Reconcile through `GetSchedule` (see [AWS-EVENTS-INTEGRATION.md § Errors](AWS-EVENTS-INTEGRATION.md#errors)). |
 | The refresh token expires (30 days) | Tell the attendee in speech and show the pairing button |
 | Avatar video stalls on iOS when the frame resizes | Resize spike. Fallback: a fixed `split` frame and no `tile`. |
-| Marquee talks out loud in a quiet session room | Quiet mode mutes the voice. Captions and typing carry on. |
+| Juno talks out loud in a quiet session room | Quiet mode mutes the voice. Captions and typing carry on. |

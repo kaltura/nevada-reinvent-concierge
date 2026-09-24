@@ -1,9 +1,9 @@
 {
-  "name": "marquee-pair",
+  "name": "juno-pair",
   "version": "0.0.0",
-  "description": "Connect your AWS Events account to Marquee. Runs the sign-in on this computer and hands the tokens to Marquee.",
+  "description": "Connect your AWS Events account to Juno. Runs the sign-in on this computer and hands the tokens to Juno.",
   "type": "module",
-  "bin": { "marquee-pair": "index.mjs" },
+  "bin": { "juno-pair": "index.mjs" },
   "files": ["index.mjs"],
   "engines": { "node": ">=20" },
   "license": "MIT"

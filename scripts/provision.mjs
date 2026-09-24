@@ -1,5 +1,5 @@
 /**
- * Provision Marquee's one shared Kaltura agent: tools, intellect, avatar,
+ * Provision Juno's one shared Kaltura agent: tools, intellect, avatar,
  * agent and widget. Design: ARCHITECTURE.md § Agent configuration and § Tools.
  *
  * Run once per environment:  npm run provision
@@ -7,7 +7,7 @@
  *
  * Capabilities are cached for about 24 hours, so this script creates and
  * never updates. If server/agent.json exists it stops. Tools are upserted by
- * name, so use a Kaltura partner dedicated to Marquee.
+ * name, so use a Kaltura partner dedicated to Juno.
  */
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -19,9 +19,9 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'server', 'agent.json');
 
-const TAG = 'marquee';
-const DISPLAY_NAME = 'Marquee';
-const PERSONA_NAME = 'Marquee';
+const TAG = 'juno';
+const DISPLAY_NAME = 'Juno';
+const PERSONA_NAME = 'Juno';
 // Rendered on every avatar join, including switchMode. `returning` is a request
 // variable the page sets on return from the background and clears with ''.
 const OPENING_PHRASE =
@@ -37,7 +37,7 @@ const missing = Object.entries({
   KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, PUBLIC_BASE_URL, PROXY_KEY, KALTURA_VISUAL_ID, KALTURA_VOICE_ID,
 }).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) { console.error(`Set ${missing.join(', ')} in .env`); process.exit(2); }
-if (existsSync(OUT)) { console.error(`${OUT} exists. Marquee is already provisioned.`); process.exit(2); }
+if (existsSync(OUT)) { console.error(`${OUT} exists. Juno is already provisioned.`); process.exit(2); }
 
 const kaltura = new Management({ partnerId: Number(KALTURA_PARTNER_ID), adminSecret: KALTURA_ADMIN_SECRET });
 
@@ -226,7 +226,7 @@ const { agentId } = await kaltura.agents.create({
   avatarIds: [avatar.id],
   adminTags: [TAG],
   maxConversationLength: 900,
-  widgetConfig: { initialPage: { title: 'Plan your week with Marquee' }, layouts: { avatar: true, chat: true } },
+  widgetConfig: { initialPage: { title: 'Plan your week with Juno' }, layouts: { avatar: true, chat: true } },
 }, admin);
 console.log('✓ created agent', agentId);
 

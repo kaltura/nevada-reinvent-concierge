@@ -9,7 +9,7 @@ One shared Kaltura agent, plus our own backend. The backend holds every attendee
 ```
 Phone or laptop browser            Our backend (Node)                 AWS Events API
 ───────────────────────            ──────────────────                 ──────────────
-Marquee web app ──HTTPS──────────▶ Web API: session, pairing,
+Juno web app ──HTTPS──────────▶ Web API: session, pairing,
  (schedule canvas, cards,           catalog reads for the page
   live avatar, composer)            Proxy: tool endpoints ───────────▶ GetSchedule, Reserve…
        │    ▲                       Token store (encrypted) ─refresh─▶ oauth.awsevents.com
@@ -71,7 +71,7 @@ An unpaired visitor still gets a `session_ref`. Tools that need AWS then answer 
 A phone can't run a CLI or bind a loopback port, so pairing needs a laptop. The flow starts on the phone:
 
 1. The phone shows a 6-character code and a QR code, valid 10 minutes.
-2. On a laptop, the attendee runs `npx marquee-pair CODE`. The QR code opens a page with this command ready to copy.
+2. On a laptop, the attendee runs `npx juno-pair CODE`. The QR code opens a page with this command ready to copy.
 3. The helper binds the first free port from 8484 to 8489 and opens the AWS sign-in page with PKCE.
 4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS.
 5. The phone polls the pairing status, sees "paired", and syncs any shortlist made before pairing (see [EXPERIENCE-UX.md § First run](EXPERIENCE-UX.md#first-run)).
@@ -166,7 +166,7 @@ Derived data in the index:
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()`, `startPlayback()`, `startTapToTalk()` and `capabilities` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
 - Media: `<video autoplay playsinline muted>` plus a separate `<audio autoplay>`. With a separate audio element the video stream has no audio track, so `muted` costs nothing and helps iOS autoplay. Video is H264 only, so leave `preferredVideoCodec` unset.
 - The video element sits in one fixed frame and never moves in the DOM, because moving it pauses playback. Frame sizes change with CSS only (see [DESIGN.md § Avatar frame](DESIGN.md#avatar-frame)). When video stops, keep the last frame as a still.
-- Typed and tapped turns use `session.sendText(text)` in avatar mode. The avatar speaks the answer, so there is no mode switch. It interrupts Marquee mid-sentence, except during an uninterruptible line such as the opening, where the SDK holds it. It throws while a tap-to-talk capture is open and before the disclosure is accepted, so the page holds turns until the disclosure is accepted and refuses them during a capture. Taps send a label plus the session ID.
+- Typed and tapped turns use `session.sendText(text)` in avatar mode. The avatar speaks the answer, so there is no mode switch. It interrupts Juno mid-sentence, except during an uninterruptible line such as the opening, where the SDK holds it. It throws while a tap-to-talk capture is open and before the disclosure is accepted, so the page holds turns until the disclosure is accepted and refuses them during a capture. Taps send a label plus the session ID.
 - Screen context: one `syncScreen()` call site sends `setDynamicPrompt({view, day, visible, focused})` with session IDs only. Each call replaces the whole value, and it needs a connected session.
 - Mic level: the `localMicLevel` event lives on the transport, so wire it in `transportChanged`.
 - Start: `micStartMode: 'deferred'`, then `startMic()` from a tap. On a `playback_blocked` warning, the next tap anywhere calls `startPlayback()`.

@@ -2,7 +2,7 @@
 
 # AWS Events API integration
 
-The API contract Marquee depends on. `eventId` is `reinvent2026` everywhere. Sources: the [devguide](https://docs.aws.amazon.com/events/latest/devguide/) and the live spec at `https://api.awsevents.com/v1/openapi.json`. Every fact below was checked against both on 2026-09-23.
+The API contract Juno depends on. `eventId` is `reinvent2026` everywhere. Sources: the [devguide](https://docs.aws.amazon.com/events/latest/devguide/) and the live spec at `https://api.awsevents.com/v1/openapi.json`. Every fact below was checked against both on 2026-09-23.
 
 Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.md § Why a proxy](ARCHITECTURE.md#why-a-proxy)).
 

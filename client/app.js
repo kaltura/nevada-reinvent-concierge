@@ -1,16 +1,18 @@
 /**
- * Marquee web app shell. Runtime rules: ARCHITECTURE.md § Runtime.
+ * Juno web app shell. Runtime rules: ARCHITECTURE.md § Runtime.
  *
  * Built so far: widget token, one KalturaAgentSession in avatar mode with
- * Marquee live the whole visit, disclosure, talk, type or tap turns, captions,
- * quiet mode, screen context and client tools that fetch what they show from
- * our Web API. The Web API data routes return 501 until ROADMAP.md Phase 1,
- * so the tools only show a toast for now. Not built: the quiet reconnect with
- * `returning` after the background grace and the conflict sheet (Phase 1),
- * and the chat fallback (Phase 3).
+ * Juno live the whole visit and keyed out of her green backdrop, disclosure,
+ * talk, type or tap turns, captions, quiet mode, screen context and client
+ * tools that fetch what they show from our Web API. The Web API data routes
+ * return 501 until ROADMAP.md Phase 1, so the tools only show a toast for now.
+ * Not built: the quiet reconnect with `returning` after the background grace
+ * and the conflict sheet (Phase 1), and the chat fallback (Phase 3).
  */
 import { KalturaAgentSession, isSilentOpening, SILENT_OPENING_LABEL } from '@kaltura/intelligent-agents';
 import { Management } from '@kaltura/intelligent-agents/management';
+import { attachChromaKeyAvatar } from '@kaltura/intelligent-agents/experience/chroma-key';
+import { ChromaKeyVideo } from 'chroma-key-video';
 
 const $ = (id) => document.getElementById(id);
 const app = $('app');
@@ -83,7 +85,7 @@ const session = new KalturaAgentSession({
 let acknowledge;
 const disclosed = new Promise((resolve) => { acknowledge = resolve; });
 
-// Captions: the attendee's last line in lavender, then Marquee's sentence.
+// Captions: the attendee's last line in lavender, then Juno's sentence.
 let heard = '';
 function caption(said = '') {
   const you = document.createElement('span');
@@ -97,7 +99,7 @@ const capturing = (t) => (t.capabilities?.tapToTalk ? t.tapToTalkActive : t.micE
 function listening(on) {
   mic.dataset.state = on ? 'listening' : 'idle';
   mic.setAttribute('aria-pressed', on);
-  $('ask').placeholder = on ? 'Listening. Tap the mic to finish.' : 'Ask Marquee';
+  $('ask').placeholder = on ? 'Listening. Tap the mic to finish.' : 'Ask Juno';
   if (frame.dataset.voice !== 'speaking') frame.dataset.voice = on ? 'listening' : 'idle';
 }
 
@@ -112,7 +114,7 @@ function syncScreen(patch) {
 // stage, split or tile. DESIGN.md § Avatar frame.
 const size = (s) => { app.dataset.avatar = s; };
 
-// Typed and tapped turns. In avatar mode Marquee answers out loud.
+// Typed and tapped turns. In avatar mode Juno answers out loud.
 function say(text) {
   if (!text) return false;
   // sendText throws while a push-to-talk capture is open.
@@ -162,8 +164,62 @@ $('quiet').addEventListener('click', ({ currentTarget }) => {
   captions.setAttribute('aria-live', audio.muted ? 'polite' : 'off');
 });
 
+// Key Juno out of her green backdrop so she stands on the page, not in a box.
+// The render also frames her in an uneven black margin that keying keeps, so
+// sample 2.5 s of frames for where she is and let CSS crop to that. If keying
+// can't start (no WebGL or Canvas2D), the plain video shows in a framed box.
+// DESIGN.md § Avatar frame.
+function key(videoEl, transport) {
+  let player;
+  try {
+    player = attachChromaKeyAvatar({
+      session: transport, videoEl, ChromaKeyVideo, container: $('cutout'),
+      options: { autoTune: 'adaptive' },
+    });
+  } catch {
+    return;
+  }
+  frame.dataset.keyed = 'on';
+  player.addEventListener('started', () => {
+    // [left, top, right, bottom] as fractions of the frame.
+    const lit = [1, 1, 0, 0];
+    const her = [1, 1, 0, 0];
+    const grow = (box, x, y) => {
+      box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+      box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+    };
+    const timer = setInterval(() => {
+      const image = player.sampleFrame();
+      if (!image) return;
+      const { data, width, height } = image;
+      for (let i = 0; i < data.length; i += 4) {
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        if (Math.max(r, g, b) < 15) continue;
+        const x = ((i / 4) % width + 0.5) / width;
+        const y = (Math.floor(i / 4 / width) + 0.5) / height;
+        grow(lit, x, y);
+        if (!(g > r * 1.3 && g > b * 1.3)) grow(her, x, y);
+      }
+    }, 150);
+    setTimeout(() => {
+      clearInterval(timer);
+      // Pad for hair and hands, but never into the black margin.
+      const [x0, y0, x1, y1] = her.map((v, i) => (i < 2 ? Math.max(lit[i], v - 0.03) : Math.min(lit[i], v + 0.03)));
+      if ((x1 - x0) * (y1 - y0) < 0.04) {
+        player.destroy();
+        delete frame.dataset.keyed;
+        return;
+      }
+      for (const [name, v] of [['bx', x0], ['by', y0], ['bw', x1 - x0], ['bh', y1 - y0]]) frame.style.setProperty(`--${name}`, v.toFixed(3));
+      frame.dataset.keyed = 'ready';
+    }, 2500);
+  }, { once: true });
+}
+
 // Transport-only events and methods. The first transport attaches in connect().
 session.on('transportChanged', ({ transport }) => {
+  // The chat fallback's transport has no video.
+  if (transport.videoEl) key(transport.videoEl, transport);
   transport.on('disclosure', ({ disclosureText }) => {
     if (disclosureText) $('disclosure-text').textContent = disclosureText;
     $('disclosure').showModal();
@@ -193,17 +249,17 @@ mic.addEventListener('click', () => {
 session.on('warning', ({ code }) => {
   // No voice says these, so the toast sends them to screen readers too.
   if (code === 'playback_blocked') {
-    caption('Tap anywhere to hear Marquee.');
-    toast('Tap anywhere to hear Marquee.');
+    caption('Tap anywhere to hear Juno.');
+    toast('Tap anywhere to hear Juno.');
     document.addEventListener('click', () => session.transport.startPlayback(), { once: true, capture: true });
   }
   if (code === 'mic_permission_denied') {
     mic.dataset.state = 'off';
-    caption('Mic is off. You can still type, and Marquee answers out loud.');
+    caption('Mic is off. You can still type, and Juno answers out loud.');
     toast('Mic is off. You can still type.');
   }
 });
-// The frame shows Marquee's side. The mic button shows only the attendee's.
+// The frame shows Juno's side. The mic button shows only the attendee's.
 session.on('responsePending', () => { frame.dataset.voice = 'thinking'; });
 session.on('responseSettled', () => { if (frame.dataset.voice === 'thinking') frame.dataset.voice = 'idle'; });
 session.on('avatarStartTalking', () => { frame.dataset.voice = 'speaking'; });
@@ -219,10 +275,10 @@ session.on('transcript', ({ type, text }) => {
   }
   if (type === 'final' && text !== SILENT_OPENING_LABEL && !isSilentOpening(text)) caption(text);
 });
-session.on('error', () => toast('Marquee hit a snag. Try again.'));
+session.on('error', () => toast('Juno hit a snag. Try again.'));
 
 // Client tools: IDs in, page data from our Web API. Args: ARCHITECTURE.md § Tools.
-// Marquee stays on screen: tools size the frame, never hide it.
+// Juno stays on screen: tools size the frame, never hide it.
 session.onToolCall('show_sessions', async ({ sessionIds, title }) => {
   const data = await show('/api/sessions', { ids: sessionIds });
   if (!data) return;
@@ -264,4 +320,4 @@ session.onToolCall('point_at', ({ sessionId }) => {
 
 countdown();
 // A failed connect can't be retried on the same session. Reload builds a new one.
-await session.connect().catch(() => toast("Couldn't reach Marquee. Reload to try again."));
+await session.connect().catch(() => toast("Couldn't reach Juno. Reload to try again."));
