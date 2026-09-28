@@ -4,3 +4,4 @@ screenshots/
 server/agent.json
 server/evals/.cache/
 .claude/
+/*.png
