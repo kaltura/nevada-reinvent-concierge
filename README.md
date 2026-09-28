@@ -31,7 +31,7 @@ Open the app at the URL `npm start` prints, then pair a laptop with `npm run pai
 |---|---|
 | `npm start` | Runs the Web API and proxy server |
 | `npm run provision` | Creates the Kaltura agent, tools and widget; writes `server/agent.json`. Stops if that file already exists. |
-| `npm run update-prompts` | Pushes prompt changes in `prompts/` to the existing agent |
+| `npm run update-prompts` | Pushes prompt changes in `prompts/` to the existing agent. `base-directive.md` needs `npm run provision` instead. |
 | `npm run pair` | Starts the pairing helper for a local laptop |
 | `npm test` | Runs the unit test suite (`server/test/*.test.mjs`) |
 | `npm run eval` | Runs the agent evals against a running local server |

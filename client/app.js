@@ -1020,7 +1020,7 @@ $('connect').addEventListener('click', () => {
   openPairing(() => loadSchedule(lastDay));
 });
 
-// Pairing: a 6-character code the attendee enters via `npx nevada-pair` on a
+// Pairing: a 6-character code the attendee enters in the pairing helper on a
 // laptop with AWS Builder ID sign-in. Runs on the gate, before the avatar
 // experience exists at all. EXPERIENCE-UX.md § First run.
 let pairingTimer = null;

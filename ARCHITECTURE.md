@@ -33,7 +33,7 @@ Paired device ──scan/tap QR or link──▶ phone loads /?handoff=TOKEN, co
 | Sync job and index | Catalog snapshot, search, repeats, venue mapping | `server/` |
 | Pairing helper | Single-purpose CLI. Runs PKCE and hands tokens to the backend. | `pair/` |
 | Provisioning | Creates the agent, tools and prompts once | `scripts/provision.mjs` |
-| Prompt updates | Pushes edited `prompts/*.md` to the already-live intellect | `scripts/update-prompts.mjs` |
+| Prompt updates | Pushes edited `prompts/*.md` (except `base-directive.md`) to the already-live intellect | `scripts/update-prompts.mjs` |
 
 ## Why a proxy
 
@@ -136,7 +136,7 @@ One intellect for English with an open mic. A second one is added only if a Phas
 
 Capabilities are cached for about 24 hours, so set them all in `intellects.create()`. Never create and then update.
 
-Prompt text has no such cache. After editing any `prompts/*.md` file, run `npm run update-prompts` (`kaltura.intellects.setPrompts`, a read-merge-write) to push it to the live intellect. No re-provisioning needed.
+Prompt text has no such cache. After editing a `prompts/*.md` file, run `npm run update-prompts` (`kaltura.intellects.setPrompts`, a read-merge-write) to push it to the live intellect. No re-provisioning needed. The exception is `base-directive.md`: only `npm run provision` sets it.
 
 ## Tools
 
@@ -199,18 +199,18 @@ Derived data in the index:
 |---|---|---|
 | `session.mjs` | Gets a paired cookie by reusing `/api/pair/start` and `/api/pair/status`, caching it. Pairing needs a real AWS Builder ID sign-in, so this prints the pairing command and waits for a human to run it; an eval never signs in itself. Also mints a fresh unpaired cookie for the connect-gate case. | `server/evals/` |
 | `expectations.mjs` | Rule-check primitives: did the right tool fire, with what args, does the reply contain or exclude given text. | `server/evals/` |
-| `judge.mjs` | Shells out to the `claude` CLI (`--bare --print --output-format json --tools ''`) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. No new dependency, no new API key. | `server/evals/` |
+| `judge.mjs` | Shells out to the `claude` CLI (`-p --model haiku --output-format json --tools ''`, no permissions) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. No new dependency, no new API key. | `server/evals/` |
 | `cases.mjs` | About 55 cases: one per tool, `rules.md` compliance, restricted topics, multi-turn flows, edge cases. | `server/evals/` |
-| `runner.mjs` | Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and reverts any real AWS write a case made by diffing `/api/schedule` before and after. | `server/evals/` |
+| `runner.mjs` | Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
 
-Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS test account is paired. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time.
+Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS test account is paired. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
 
 Set `EVAL_NONINTERACTIVE=1` (used in CI, [.github/workflows/evals.yml](.github/workflows/evals.yml)) to skip every case that needs a paired account instead of printing a pairing command and waiting for a human; a skipped case is reported as skipped, never as passed. Outside CI, `session.mjs` caches the paired cookie at `server/evals/.cache/paired-cookie.json` (gitignored, owner-only permissions) so a human only has to pair once per machine.
 
 ## Runtime
 
-- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js`. Never `@latest`. The SDK isn't on npm, so Node code uses a git dependency on the same tag.
-- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.23.2` in the SDK repo once per subpath used (today `experience/index.js` and `experience/chroma-key.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
+- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js`. Never `@latest`. The SDK isn't on npm, so Node code uses a GitHub tarball of the commit that tag points to.
+- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.23.2` in the SDK repo once per subpath used (today `experience/index.js`, `experience/chroma-key.js` and `experience/noise-suppressor.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
 - Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
 - Token: the page posts to `/api/agent/init` and gets the session KS and the avatar URLs (see [§ Identity](#identity)). No secret touches the browser.
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()` and `startPlayback()` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
