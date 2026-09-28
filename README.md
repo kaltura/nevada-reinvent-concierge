@@ -17,13 +17,27 @@ Phase 1: one attendee, end to end, localhost only. See [ROADMAP.md](ROADMAP.md) 
 ## Quick start
 
 ```sh
-cp .env.example .env    # fill it in, never commit it
+cp -n .env.example .env # then fill it in (see Configure), never commit it
 npm install
 npm run provision       # creates the agent, tools and widget; run once
 npm start
 ```
 
 Open the app at the URL `npm start` prints, then pair a laptop with `npm run pair`.
+
+## Configure
+
+All config lives in `.env`, set once by whoever runs the server. Attendees never touch it: they only pair.
+
+| Variable | Needed by | How to get it |
+|---|---|---|
+| `TOKEN_ENC_KEY` | `npm start` | Run `openssl rand -base64 32`. Keep the same value: a new key gives every attendee a new Kaltura `userId`. |
+| `KALTURA_PARTNER_ID` | `npm start`, `provision`, `update-prompts`, `eval` | Your Kaltura account's partner ID |
+| `KALTURA_ADMIN_SECRET` | `npm start`, `provision`, `update-prompts`, `eval` | Your Kaltura account's admin secret. It stays on the server. |
+| `KALTURA_VISUAL_ID`, `KALTURA_VOICE_ID` | `npm run provision` | Avatar look and voice IDs, from `avatars.listTemplates` |
+| `PORT`, `HOST`, `PUBLIC_ORIGIN` | `npm start`, optional | See the comments in `.env.example`. Set `PUBLIC_ORIGIN` when serving through a tunnel or proxy. |
+
+`npm start` exits with `Set <NAME> in .env` if a required value is missing.
 
 ## npm scripts
 
