@@ -205,7 +205,7 @@ Derived data in the index:
 
 Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS test account is paired. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
 
-Set `EVAL_NONINTERACTIVE=1` (used in CI, [.github/workflows/evals.yml](.github/workflows/evals.yml)) to skip every case that needs a paired account or the LLM judge. A skipped case is reported as skipped, never as passed. The judge runs only locally, with Claude Code. Outside CI, `session.mjs` caches the paired cookie at `server/evals/.cache/paired-cookie.json` (gitignored, owner-only permissions) so a human only has to pair once per machine.
+Evals run only locally, with Claude Code as the judge, never in CI: pairing needs a human sign-in, and the catalog loads only after pairing. `session.mjs` caches the paired cookie at `server/evals/.cache/paired-cookie.json` (gitignored, owner-only permissions) so a human only has to pair once per machine.
 
 ## Runtime
 

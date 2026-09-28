@@ -5,10 +5,6 @@
  * ARCHITECTURE.md § Evals.
  *
  * Usage: npm run eval [-- --grep "name substring"]
- *
- * Set EVAL_NONINTERACTIVE=1 (CI) to skip every case that needs a paired AWS
- * account or the LLM judge, instead of waiting for a human to pair or calling
- * the claude CLI. A skipped case is reported as SKIPPED, never as passed.
  */
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -24,7 +20,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASE_URL = `http://localhost:${process.env.PORT || 8080}`;
 const CONCURRENCY = 4;
 const TURN_TIMEOUT_MS = 45_000;
-const NONINTERACTIVE = process.env.EVAL_NONINTERACTIVE === '1';
 
 /** A hung upstream call (AWS, the intellect) must not wedge the whole serialized run forever. */
 function withTimeout(promise, ms, label) {
@@ -155,9 +150,6 @@ function withPairedLock(fn) {
 }
 
 function runCase(kase) {
-  if (NONINTERACTIVE && (kase.paired !== false || kase.judge?.length)) {
-    return Promise.resolve({ name: kase.name, failures: [], skipped: 'needs a paired AWS account or the LLM judge; not available with EVAL_NONINTERACTIVE=1' });
-  }
   return kase.paired === false ? runCaseBody(kase) : withPairedLock(() => runCaseBody(kase));
 }
 
@@ -247,13 +239,9 @@ const cases = grep ? CASES.filter((c) => c.name.includes(grep)) : CASES;
 console.log(`Running ${cases.length} eval case(s) against intellect ${configId} at ${BASE_URL}...\n`);
 
 let failed = 0;
-let skipped = 0;
 const results = await mapLimit(cases, CONCURRENCY, async (kase) => {
   const r = await runCase(kase);
-  if (r.skipped) {
-    skipped += 1;
-    console.log(`○ ${r.name} (skipped: ${r.skipped})`);
-  } else if (r.failures.length) {
+  if (r.failures.length) {
     failed += 1;
     console.log(`✗ ${r.name}`);
     for (const f of r.failures) console.log(`    ${f}`);
@@ -263,8 +251,7 @@ const results = await mapLimit(cases, CONCURRENCY, async (kase) => {
   return r;
 });
 
-const ran = results.length - skipped;
-console.log(`\n${ran - failed}/${ran} passed${skipped ? `, ${skipped} skipped` : ''}.`);
+console.log(`\n${results.length - failed}/${results.length} passed.`);
 // Not process.exit(): stdout to a pipe/file is async, and exit() can cut off
 // buffered writes before they flush. Confirmed live: a 55-case run reached
 // this point with failed=0 but the redirected log held none of the ✓/✗ lines.
