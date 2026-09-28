@@ -23,7 +23,7 @@ Runs the unit suite in `server/test/*.test.mjs`. No live credentials needed. Kee
 
 ## Evals
 
-`npm run eval` drives the real Kaltura agent against a real AWS Events account and needs live credentials, a paired AWS test account and the `claude` CLI as the judge. Maintainers run evals; you don't need to run them to send a pull request.
+`npm run eval` drives the real Kaltura agent against a real AWS Events account and needs live credentials, a paired AWS test account and the `claude` CLI as the judge. Maintainers run evals; you don't need to run them to send a pull request. If you add or change a case, `npm test` checks that it's well formed.
 
 ## Pull requests
 
