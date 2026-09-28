@@ -428,7 +428,6 @@ button {
   display: flex; gap: var(--s-2); overflow-x: auto; scrollbar-width: none;
   margin: 0 calc(-1 * var(--s-4)); padding: 0 var(--s-4);
 }
-.chips:empty { display: none; }
 .chip-btn {
   flex: none; padding: 0 var(--s-4); border-radius: 999px; white-space: nowrap;
   background: var(--surface); font-size: 15px; font-weight: 600;

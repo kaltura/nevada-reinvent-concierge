@@ -146,21 +146,17 @@ function renderTimeline({ day, blocks, clashDays, recommended }) {
   }
 }
 
-// Picks from what's on screen (DESIGN.md § Suggestion chips), not a fixed
-// list: a clash or a gap on the day being viewed outranks a generic topic,
-// since fixing those is more useful than a track name the attendee may
-// already have picked. Falls back to real top tracks from the synced
-// catalog, then "First time here" only while nothing's booked yet.
+// Picks from what's on screen (DESIGN.md § Suggestion chips): a clash or a
+// gap on the day being viewed, or favorites with no time yet. With none of
+// those, the row stays hidden.
 function renderChips(data) {
   const gap = data.blocks?.find((b) => b.kind === 'gap' && !b.travel && b.minutes >= 30);
   const suggestions = [
     data.clashDays?.includes(data.day) && { text: 'Fix my clash', turn: 'Help me fix the clash in my schedule.' },
     gap && { text: 'Fill that gap', turn: 'Suggest something to fill the gap in my schedule.' },
     data.unscheduledFavorites?.length && { text: 'Schedule my favorites', turn: 'Help me find times for my favorited sessions.' },
-    data.topics?.[0] && { text: data.topics[0], turn: data.topics[0] },
-    data.topics?.[1] && { text: data.topics[1], turn: data.topics[1] },
-    (data.reserved?.length || data.favorites?.length) ? null : { text: 'First time here', turn: 'First time here' },
   ].filter(Boolean);
+  $('chips').hidden = !suggestions.length;
   for (const [i, btn] of $('chips').querySelectorAll('button').entries()) {
     const s = suggestions[i];
     if (!s) { btn.hidden = true; continue; }
