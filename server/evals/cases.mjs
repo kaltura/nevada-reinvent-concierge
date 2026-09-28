@@ -398,6 +398,7 @@ export const CASES = [
   },
 
   // G. Unpaired (connect-gate) case. Touches no AWS state, runs outside the paired lock.
+  // Search needs a loaded catalog, so on a fresh server pair once first (a full run does).
   {
     name: 'unpaired: search works, booking asks to connect',
     paired: false,

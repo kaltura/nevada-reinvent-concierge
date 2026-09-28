@@ -64,7 +64,7 @@ Every proxy call is same-origin: the page's own `fetch('/tools/${name}')` carrie
 Rules:
 
 - Never forward `sys__ks`. Never put an AWS token in a request variable, prompt or tool config.
-- An unpaired visitor's cookie still resolves. Tools that need AWS then answer "pair to connect your schedule", and search still works.
+- An unpaired visitor's cookie still resolves. Tools that need AWS then answer "pair to connect your schedule". Search still works once the catalog has loaded (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
 
 ## Pairing
 
