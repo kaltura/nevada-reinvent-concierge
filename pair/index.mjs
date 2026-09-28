@@ -4,11 +4,14 @@
  * Flow and rules: ARCHITECTURE.md § Pairing. OAuth facts: AWS-EVENTS-INTEGRATION.md § Authentication.
  *
  * Talks only to oauth.awsevents.com and NEVADA_URL. Stores nothing on disk
- * and prints nothing secret. No dependencies.
+ * and prints nothing secret. No dependencies besides the vendored
+ * qrcode.cjs (same file, same pinned version, already trusted in
+ * client/index.html's SRI hash — not a new thing to trust).
  */
 import { createServer } from 'node:http';
 import { randomBytes, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import qrcode from './qrcode.cjs';
 
 const AUTHORIZE = 'https://oauth.awsevents.com/oauth2/authorize';
 const TOKEN = 'https://oauth.awsevents.com/oauth2/token';
@@ -24,7 +27,7 @@ const fail = (msg) => { console.error(`nevada-pair: ${msg}`); process.exit(1); }
 const b64url = (buf) => buf.toString('base64url');
 
 const code = (process.argv[2] || '').replace(/[\s-]/g, '').toUpperCase();
-if (!/^[A-Z0-9]{6}$/.test(code)) fail('usage: npx nevada-pair CODE (the 6-character code on your phone)');
+if (!/^[A-Z0-9]{6}$/.test(code)) fail('usage: npx nevada-pair CODE (the 6-character code Nevada showed you)');
 const target = new URL(NEVADA_URL);
 if (target.protocol !== 'https:' && target.hostname !== 'localhost' && target.hostname !== HOST) fail('NEVADA_URL must use https');
 
@@ -50,30 +53,72 @@ function openBrowser(url) {
 }
 
 const page = (title, body) => `<!doctype html><meta charset="utf-8"><title>${title}</title>` +
-  `<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center">` +
-  `<div><h1>${title}</h1><p>${body}</p><p style="font-size:12px;color:#ccc">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
+  `<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center;padding:16px;box-sizing:border-box">` +
+  `<div style="max-width:360px"><h1>${title}</h1><p>${body}</p><p style="font-size:12px;color:#ccc">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
+
+// Two separate single-use links (server/index.mjs § /api/pair/complete), so
+// clicking the button and scanning the QR each work on their own — neither
+// one uses up the other. No raw AWS token is ever in this page or either
+// URL: both carry only an opaque handoff token the backend already holds
+// tokens for. AWS-EVENTS-INTEGRATION.md § Authentication.
+const successPage = (openUrl, qrUrl) => {
+  const qr = qrcode(0, 'M');
+  qr.addData(qrUrl);
+  qr.make();
+  return `<!doctype html><meta charset="utf-8"><title>Connected</title>` +
+    `<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center;padding:16px;box-sizing:border-box">` +
+    `<div style="max-width:360px"><h1>Connected</h1>` +
+    `<p>Open Nevada here, or scan the code below with your phone.</p>` +
+    `<a href="${openUrl}" style="display:block;margin:20px 0;padding:14px;border-radius:10px;background:#fff;color:#121212;text-decoration:none;font-weight:600">Open Nevada</a>` +
+    `<div style="background:#fff;padding:8px;border-radius:8px;display:inline-block">${qr.createSvgTag(6, 8)}</div>` +
+    `<p style="font-size:12px;color:#ccc;margin-top:24px">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
+};
 
 const { server, port } = await listen(PORTS).catch((e) => fail(e.message));
 // Sent byte-for-byte the same to authorize and to the token exchange.
 const redirectUri = `http://${HOST}:${port}/callback`;
 
-const authCode = await new Promise((resolve, reject) => {
+await new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error('sign-in timed out after 5 minutes. Run the command again.')), TIMEOUT_MS);
-  server.on('request', (req, res) => {
+  server.on('request', async (req, res) => {
     const url = new URL(req.url, redirectUri);
     if (url.pathname !== '/callback') { res.writeHead(404).end(); return; }
     const done = (ok, msg) => {
       res.writeHead(ok ? 200 : 400, { 'Content-Type': 'text/html; charset=utf-8' })
-        .end(page(ok ? 'Almost there' : 'Sign-in failed', msg));
+        .end(page(ok ? 'Connected' : 'Sign-in failed', msg));
+      clearTimeout(timer);
+    };
+    const doneSuccess = (openUrl, qrUrl) => {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(successPage(openUrl, qrUrl));
       clearTimeout(timer);
     };
     if (url.searchParams.get('state') !== state) { done(false, 'This sign-in did not start here. Run the command again.'); reject(new Error('state mismatch')); return; }
     const err = url.searchParams.get('error');
     if (err) { done(false, 'AWS did not sign you in. Run the command again.'); reject(new Error(`AWS returned ${err}`)); return; }
-    const c = url.searchParams.get('code');
-    if (!c) { done(false, 'AWS sent no code. Run the command again.'); reject(new Error('no code in callback')); return; }
-    done(true, 'You can close this tab and go back to your phone.');
-    resolve(c);
+    const authCode = url.searchParams.get('code');
+    if (!authCode) { done(false, 'AWS sent no code. Run the command again.'); reject(new Error('no code in callback')); return; }
+
+    const tokenRes = await fetch(TOKEN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, redirect_uri: redirectUri, code: authCode, code_verifier: verifier }),
+    }).catch(() => null);
+    if (!tokenRes || !tokenRes.ok) { done(false, `AWS refused the sign-in code${tokenRes ? ` (HTTP ${tokenRes.status})` : ''}. Run the command again.`); reject(new Error('token exchange failed')); return; }
+    const { access_token, refresh_token, expires_in } = await tokenRes.json();
+    if (!access_token || !refresh_token) { done(false, 'AWS sent no tokens. Run the command again.'); reject(new Error('no tokens in response')); return; }
+
+    const complete = await fetch(`${NEVADA_URL}/api/pair/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, access_token, refresh_token, expires_in }),
+    }).catch(() => null);
+    if (complete && (complete.status === 404 || complete.status === 410)) { done(false, 'That code expired. Get a new one and run the command again.'); reject(new Error('pair code expired')); return; }
+    if (!complete || !complete.ok) { done(false, `Nevada could not save the connection${complete ? ` (HTTP ${complete.status})` : ''}. Try again.`); reject(new Error('pair/complete failed')); return; }
+    const { handoffUrl, qrUrl } = await complete.json().catch(() => ({}));
+    if (!handoffUrl || !qrUrl) { done(false, 'Nevada did not send a way to continue. Try again.'); reject(new Error('missing handoff urls')); return; }
+
+    doneSuccess(handoffUrl, qrUrl);
+    resolve();
   });
 
   const auth = new URL(AUTHORIZE);
@@ -86,21 +131,4 @@ const authCode = await new Promise((resolve, reject) => {
   openBrowser(auth.href);
 }).catch((e) => { server.close(); fail(e.message); });
 server.close();
-
-const tokenRes = await fetch(TOKEN, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, redirect_uri: redirectUri, code: authCode, code_verifier: verifier }),
-});
-if (!tokenRes.ok) fail(`AWS refused the sign-in code (HTTP ${tokenRes.status}). Run the command again.`);
-const { access_token, refresh_token, expires_in } = await tokenRes.json();
-if (!access_token || !refresh_token) fail('AWS sent no tokens. Run the command again.');
-
-const handoff = await fetch(`${NEVADA_URL}/api/pair/complete`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ code, access_token, refresh_token, expires_in }),
-});
-if (handoff.status === 404 || handoff.status === 410) fail('that code has expired. Get a new one on your phone.');
-if (!handoff.ok) fail(`Nevada could not save the connection (HTTP ${handoff.status}). Try again.`);
-console.log('Connected. Go back to your phone.');
+console.log('Connected.');

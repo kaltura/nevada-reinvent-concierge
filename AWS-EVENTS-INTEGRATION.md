@@ -78,6 +78,7 @@ Repeat sessions: in the 2025 catalog, repeats carried a `[REPEAT]` title suffix 
 - Follow `nextToken` until it is absent. It is the only end signal.
 - Pages hold up to 250 items and can come back short before the end.
 - `totalCount` is on every page. If it changes mid-walk, the catalog changed. Walk again.
+- Confirmed against a live call: `ListSessions` holds the page's sessions under `items`, not `sessions`.
 
 ## Quotas
 
