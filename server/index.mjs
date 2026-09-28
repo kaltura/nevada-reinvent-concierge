@@ -379,9 +379,6 @@ async function api(req, res, path) {
       // them once, outside the grid, or a favorite just vanishes.
       unscheduledFavorites: favoriteCards.filter((s) => !s.day),
       focus: focusIds ?? null,
-      // Real top tracks from the synced catalog, for the suggestion chips
-      // (no enums to pick from, AWS-EVENTS-INTEGRATION.md § Session shape).
-      topics: catalog.topTracks(6),
       // The attendee's own top topic from what they've reserved or favorited,
       // for a personalized opening line. See OPENING_PHRASE in scripts/provision.mjs.
       topInterest: catalog.topTopic(excludeIds),

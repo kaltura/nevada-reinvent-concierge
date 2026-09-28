@@ -268,7 +268,7 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Floats over the page, draggable. Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
 | Captions | Nevada's current sentence in `--text` on a fixed bar above the composer, over a dark pill. Your own last line shows first in `--glow-lavender`. | Independent of the frame's size and position. Timing is per sentence, not per word. |
 | Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
-| Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen. A tap sends the chip's text as a turn. |
+| Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen: a clash, a gap or favorites with no time. With none of those, the row is hidden. A tap sends the chip's turn text. |
 | Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a block | Set by `point_at`. Fades after 4 s. |
 | Day strip | Five day chips with the day in 800 and the date in 300 | Tap to switch days. A dot marks days with a clash. |
 | Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas). `show_sessions` results render as dashed blocks in their real day and time, same as a topic-based pick. |
