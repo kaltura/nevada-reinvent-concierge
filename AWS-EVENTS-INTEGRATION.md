@@ -2,7 +2,7 @@
 
 # AWS Events API integration
 
-The API contract Nevada depends on. `eventId` is `reinvent2026` everywhere. Sources: the [devguide](https://docs.aws.amazon.com/events/latest/devguide/) and the live spec at `https://api.awsevents.com/v1/openapi.json`. Every fact below was checked against both on 2026-09-23.
+The API contract Nevada depends on. `eventId` is `reinvent2026` everywhere. Sources: the [devguide](https://docs.aws.amazon.com/events/latest/devguide/) and the live spec at `https://api.awsevents.com/v1/openapi.json`.
 
 Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.md § Why a proxy](ARCHITECTURE.md#why-a-proxy)).
 
@@ -12,7 +12,7 @@ Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.m
 |---|---|
 | Flow | OAuth 2.0 Authorization Code + PKCE, via AWS Builder ID |
 | Client | Shared public client, `client_id` `7vmom55m1qstvq8i71ph127bfq`, no secret. AWS publishes it. |
-| Redirect | Exactly `http://localhost:{port}/callback` or `http://127.0.0.1:{port}/callback`, port 8484 to 8489. No wildcards. Any other value gets `redirect_mismatch` (confirmed with a live probe). |
+| Redirect | Exactly `http://localhost:{port}/callback` or `http://127.0.0.1:{port}/callback`, port 8484 to 8489. No wildcards. Any other value gets `redirect_mismatch`. |
 | Hosted redirect | None. The devguide says sign-in "has to run locally". |
 | Authorize | `https://oauth.awsevents.com/oauth2/authorize`, with `scope=openid email events/access`, `identity_provider=AWSBuilderID`, `code_challenge_method=S256` |
 | Token | `https://oauth.awsevents.com/oauth2/token`, for both the code exchange and `grant_type=refresh_token` |
@@ -78,7 +78,7 @@ Repeat sessions: in the 2025 catalog, repeats carried a `[REPEAT]` title suffix 
 - Follow `nextToken` until it is absent. It is the only end signal.
 - Pages hold up to 250 items and can come back short before the end.
 - `totalCount` is on every page. If it changes mid-walk, the catalog changed. Walk again.
-- Confirmed against a live call: `ListSessions` holds the page's sessions under `items`, not `sessions`.
+- `ListSessions` holds the page's sessions under `items`, not `sessions` as the field name might suggest.
 
 ## Quotas
 
@@ -108,7 +108,7 @@ Live attendee traffic is far below these limits. The sync job is the only heavy 
 
 Writes have no idempotency key. After any write with an unknown outcome, call `GetSchedule` and send only what is still missing. Never re-send blind. A blind `CreatePersonalTime` retry makes a duplicate.
 
-AWS's two sources disagree on retrying `404`s. The devguide errors page says a `404` on `CancelReservation` or `DisassociateFavorite` means "already done" and is safe. The OpenAPI descriptions say those two are not safe blind retries, and say `DeletePersonalTime` is. We don't pick a side: every uncertain removal is reconciled through `GetSchedule`.
+Per the devguide, a `404` on any removal operation (`CancelReservation`, `DisassociateFavorite`, `DeletePersonalTime`) means the item is already gone. Treat it as success and it's safe to retry blind. We still reconcile every uncertain write through `GetSchedule` as a second layer, since a reconcile also catches a write whose outcome is unclear for reasons other than a `404`.
 
 ## Bulk results
 
@@ -142,13 +142,13 @@ Personal time is UTC, but `sessionTime` is local Las Vegas time (PST, UTC-8 in D
 
 ## Event facts
 
-From the official re:Invent FAQ and site, checked 2026-09-23.
+From AWS's own re:Invent site.
 
 | Fact | Value |
 |---|---|
 | Dates | Mon Nov 30 to Fri Dec 4, 2026, Las Vegas |
 | Venues | Caesars Forum, Caesars Palace, Encore, MGM Grand, The Venetian, Wynn. Mandalay Bay is gone, and the campus moves north. |
-| Scale | 60,000+ attendees, 450+ partners. 47% of 2025 attendees were first-timers. |
+| Scale | 60,000+ attendees, per AWS. Sponsor and partner counts vary by page; read the Expo listing rather than quoting a number here. |
 | Catalog | Live and growing. AWS quotes different counts on different pages, so never state a number. Read `totalCount`. |
 | Security content | Folded in. Security day is Thu Dec 3 at the Wynn. |
 | Keynotes | Several across the week. CEO Matt Garman's keynote is Tue Dec 1, morning. |

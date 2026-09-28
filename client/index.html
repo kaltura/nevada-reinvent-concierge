@@ -7,20 +7,27 @@
   <title>Nevada</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#121212">
+  <!-- Scoped to what a meta tag can safely restrict without a live server and
+       real Kaltura credentials to test against: script-src, connect-src and
+       frame-ancestors need the avatar's own runtime WebRTC/WebSocket origins,
+       which only exist once a session connects, and frame-ancestors only
+       works as an HTTP header anyway. Those stay open until a header can set
+       them. This line only closes off styles, fonts, plugins, the page's own
+       base URL and its forms, none of which the avatar needs to load. -->
+  <meta http-equiv="Content-Security-Policy" content="style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <!-- SDK pinned to v1.23.2. Integrity from the SDK repo:
        node tools/sri-map.mjs --entry src/experience/index.js --tag v1.23.2
-       node tools/sri-map.mjs --entry src/management/index.js --tag v1.23.2
        node tools/sri-map.mjs --entry src/experience/chroma-key.js --tag v1.23.2
+       node tools/sri-map.mjs --entry src/experience/noise-suppressor.js --tag v1.23.2
        chroma-key-video is pinned to v1.2.0. Its hash is openssl dgst -sha384 -binary of that file, base64. -->
   <script type="importmap">
   {
     "imports": {
       "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js",
-      "@kaltura/intelligent-agents/management": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js",
       "@kaltura/intelligent-agents/experience/chroma-key": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js",
       "@kaltura/intelligent-agents/experience/noise-suppressor": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/noise-suppressor.js",
       "chroma-key-video": "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js"
@@ -30,13 +37,11 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/http.js": "sha384-iET1Q64YELSPD4mr4snAtBjCFzE8R4p+KMpgZA/54waJywXb/BF35qXZ+PVAYlXH",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/ids.js": "sha384-ctclewbHbgVBINOmBZmiQomiy4G5SrrqwGDu/15HDxqZFNLmQy9UvkhjOqw9B5pb",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/kaltura-media.js": "sha384-33jAoWe95OleUjPqktKJOtzrvBnU7XSMAh0qD7vRhVscm1c+5W4Qnldh98mc7JeN",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/knowledge-enums.js": "sha384-CCzm8CzHyoGNSfaUyleuThw/lcVaCVSd3AUA5ZIHR5lRy694GdWcjfbEiVsK03oL",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/net-guard.js": "sha384-3exH9irbJIydsbOUXrtEn4WV4M9PeoXoCeAhWS6HZTcet/q6dcoX+/sRirIOG4NW",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/opening.js": "sha384-rKlMb2LBEkGLh/sv4mQdC0Ii9l+RppragtUcGhQeUqKNsKgx7jwUB7Dk09woo6Ha",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/redact.js": "sha384-qFdQNaEUg3vZ2Qqtc3ZevpQXKAnQTVt0ipSdURM3CwtHnwLa/X8sVy1fAqTJ6xJ/",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/safety.js": "sha384-q+rSrLlZV1HR1klboqVTpVDUwWTvpsgRI9PMTn6R0ewlWrj1Y+j9Ud8LgK/CtSZm",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/session.js": "sha384-640HxC80M4ZfA3ahfAVawuM1nu529ayaXn8QOxMO0J/eNtJRfjrA50FIKXhY3z/3",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/site-keys.js": "sha384-h3/M5FtksiRbCpJlOSH3xSNGISELMBGWCDrekIc2Wnwf5XJvuBou9r/AwzgVAI6e",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/stream.js": "sha384-+v1UeG5Ze3VV9ZFoqDiUXp4VFztCxfF0t0fm32dS9nJosfRTO2YzZZBSC7pf0hdP",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/transport-guard.js": "sha384-kU+v6XPjzkByMvio97revZSKeZZm30mEi+4hg2EX09UkW34zm53ZsWx9brJbog2h",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/agent-session.js": "sha384-Qt1hbpAG/W/sljziUz0wz2NIcw4RbDhwB6R0dAjaiLHwh3G+Zl03+A/uIB6eQTpy",
@@ -61,9 +66,7 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/catalog.js": "sha384-MYCUr9CgyPTNo8orTaKvGh0lWWnxjDKhfhfd7fjO+BIeIJ6CTlYWDC9JblsFur+K",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/client.js": "sha384-QpiwG4GINfqPvk5Z1w/P8N6E3EtDWOxiR82H/syxsxPcsrgbn9r0bemAv7samfxV",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/conversations.js": "sha384-UECNVDDXHY8f0BLXXzkm775CHL9zMPxkWvKzmdR/4des1bxBA0M6CaQRfDwY1B5h",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/crm-recipes.js": "sha384-qWCyeHPIcXZ1pXR3ajw5zfxcfEX7uecxzle7uZX9TyTu+c5PXN6OI+aqt3MyzOZP",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/email-templates.js": "sha384-VKEmTp0uUKL1UrrRyG5hBDPQiVpSxV+yfZ7xWyzVO6zV7RlN3bU2NWk5bj4RpFge",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js": "sha384-ECezZuQ8iTkpokomnvLc+GWqDgnUoMpJ5qJFJOY3YJAcdSRVxJ5RN466mueynyNr",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/insight-settings.js": "sha384-9FLhuUB2/umu2ZTptSY2pPpOGxH4F9Reffr8og/sqtQ8cL3/znLHM+2lW0b29iWf",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-body.js": "sha384-o46GH2wY6zsXCkjzKPcTA0PahpWzYbGr6fkbaZacSOTs14jX9AGgUsrMHSZjXzNV",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-config.js": "sha384-wgmoGzrWr/Nc8pJ0kIRhkj43Xr+RuVOF7/mU2b6heZCFd9EAScYR4QJ1BfiW6Arc",
@@ -75,7 +78,6 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/provision.js": "sha384-I2l7+c8JN3GON7ZcFVB/v7CxNCpCZfzQDPed7Nxt7DNNJHVMRB+uRj4L9xxr0ryg",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/secrets.js": "sha384-/K5ADbfEafozp6VWbRInlxDvHGyJg6Wke/8jR0r1lRnSuwtM3qkuYvyjAn9OjMqP",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/set-forced-language.js": "sha384-MUNwvv10FycIx3bRAszks6bqywgFDYRnitUe4jcGq9yOwwhx8nsTTWV5moaCK2Na",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/site-nav.js": "sha384-056jPG4Tq7iCllBrJrFcOHxqGKjbT1/wSqKLCRekJkv1RLLOc4nWf4F6QzuQai3D",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/skills.js": "sha384-0cPL55NnO6yxYhSkOX/4RCfKWWMH0FZV8fdAueJxspjV/0nYbcXXuh4x60Ak6vOB",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/tools.js": "sha384-FzUmu5GpM9F+LtKo2Jh4OyWXNrAvOZHaVvfjwvFPPTTd+AN5ICDsDK6iu+OoLkMd",
       "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js": "sha384-Iez9q4Ek7o0C87RvWlZ+qARd/gDpL5Q9ye2veAPXByqSRqFDB78cedFWmgKbcnce"
@@ -220,10 +222,11 @@
   <dialog class="disclosure" id="pair-success" aria-labelledby="pair-success-title">
     <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
     <p class="t-title" id="pair-success-title" style="margin:0">You're connected</p>
-    <p class="t-caption" style="margin:0">Scan this with your phone to keep talking with Nevada there, or continue here.</p>
-    <span class="pair-qr" id="pair-qr" aria-hidden="true"></span>
-    <code class="t-caption" id="pair-handoff-link" style="font-family: var(--mono); word-break: break-all"></code>
+    <p class="t-caption" style="margin:0">Keep talking with Nevada here, or get a one-time link for your phone.</p>
+    <span class="pair-qr" id="pair-qr" aria-hidden="true" hidden></span>
+    <button class="btn btn-block" id="pair-show-qr" type="button">Show a QR for my phone</button>
     <button class="btn btn-primary btn-block" id="pair-continue-here" type="button">Continue here</button>
+    <button class="btn btn-block" id="pair-disconnect" type="button">Disconnect this AWS account</button>
     <p class="disclaimer" style="margin:0">Not affiliated with or endorsed by AWS.</p>
   </dialog>
 </body>

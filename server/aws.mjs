@@ -9,6 +9,7 @@ const BASE = 'https://api.awsevents.com/v1';
 const EVENT_ID = 'reinvent2026';
 const TOKEN_URL = 'https://oauth.awsevents.com/oauth2/token';
 const REVOKE_URL = 'https://oauth.awsevents.com/oauth2/revoke';
+const USERINFO_URL = 'https://oauth.awsevents.com/oauth2/userInfo';
 const CLIENT_ID = '7vmom55m1qstvq8i71ph127bfq';
 
 export class AwsError extends Error {
@@ -30,12 +31,28 @@ export async function refreshAccessToken(refreshToken) {
   return res.json(); // { access_token, refresh_token?, expires_in }
 }
 
+/** @returns {Promise<boolean>} whether AWS confirmed the revoke. */
 export async function revokeRefreshToken(refreshToken) {
-  await fetch(REVOKE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: CLIENT_ID, token: refreshToken }),
-  }).catch((e) => console.error('revoke failed:', e.message));
+  try {
+    const res = await fetch(REVOKE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: CLIENT_ID, token: refreshToken }),
+    });
+    if (!res.ok) console.error(`revoke failed: AWS ${res.status}`);
+    return res.ok;
+  } catch (e) {
+    console.error('revoke failed:', e.message);
+    return false;
+  }
+}
+
+/** The attendee's stable AWS account id (`sub`), or null if AWS rejects the token. */
+export async function getUserSub(accessToken) {
+  const res = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => null);
+  if (!res?.ok) return null;
+  const { sub } = await res.json().catch(() => ({}));
+  return typeof sub === 'string' && sub ? sub : null;
 }
 
 async function call(accessToken, method, path, body) {
@@ -58,8 +75,8 @@ async function call(accessToken, method, path, body) {
 const path = (p) => `/events/${EVENT_ID}${p}`;
 
 // GetSchedule wraps its body as {schedule}, ReserveSessions/AssociateFavorites
-// as {result}. Unwrap here so callers get the inner shape straight away —
-// confirmed against the live openapi.json, not a guess like the request body.
+// as {result}. Unwrap here so callers get the inner shape directly, confirmed
+// against the live openapi.json.
 export const getSchedule = async (token) => (await call(token, 'GET', path('/schedule'))).schedule;
 export const reserveSessions = async (token, ids) => (await call(token, 'POST', path('/reservations'), { sessionIds: ids })).result;
 export const cancelReservation = (token, id) => call(token, 'DELETE', path(`/reservations/${encodeURIComponent(id)}`));
@@ -106,6 +123,7 @@ function dedupedRefresh(visitor, refreshToken) {
 export async function withToken(tokenStore, visitor, fn) {
   const tokens = tokenStore.get(visitor);
   if (!tokens) return { paired: false };
+  tokenStore.touch(visitor);
   try {
     return { paired: true, result: await fn(tokens.access_token) };
   } catch (e) {
@@ -117,7 +135,9 @@ export async function withToken(tokenStore, visitor, fn) {
     if (!fresh) { tokenStore.delete(visitor); return { paired: false, expired: true }; }
     // AWS can omit refresh_token when it doesn't rotate it; keep the old one
     // instead of overwriting it with undefined and breaking the next refresh.
-    tokenStore.set(visitor, { ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
+    // Carry pairingId and userId forward too, or a refreshed record would fall
+    // out of its pairing's Disconnect group and lose its Kaltura identity.
+    tokenStore.set(visitor, { ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token, pairingId: tokens.pairingId, userId: tokens.userId });
     try {
       return { paired: true, result: await fn(fresh.access_token) };
     } catch (e2) {

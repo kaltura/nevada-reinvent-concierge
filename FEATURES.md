@@ -2,34 +2,9 @@
 
 # Features
 
-What Nevada must beat, where it wins, and what's in or out. Market facts were checked on 2026-09-23.
+What Nevada does, and its planned feature set.
 
-## The baseline: AWS's own app
-
-The official AWS Events app is what every attendee already has. It's good, and it already uses AI:
-
-- AI session picks based on role and interests
-- An AI assistant for questions
-- Reservations, schedule-change alerts and calendar sync
-- Maps with turn-by-turn directions between venues, and live shuttle times
-
-So "it has AI" is not a reason to use Nevada. Sources: the [re:Invent FAQ](https://aws.amazon.com/events/reinvent/faqs/) (Mobile App section) and AWS's [Know Before You Go](https://builder.aws.com/content/35iYepTKrrpDlEVwLGuPPfJ6X4y/know-before-you-go-attending-reinvent-2025-in-person) guide.
-
-Other event apps (Swapcard, Brella, Grip and similar) share one feature set: matchmaking, suggestion lists and meeting booking. Digital-human kiosks such as [RAVATAR](https://ravatar.com/) are built for single visits at a booth or sign, not a plan that lasts a week.
-
-## Where Nevada wins
-
-| Nevada does | The official app |
-|---|---|
-| Plans with you face to face. A realistic avatar you can talk to, type to or tap, and it shows and points at what it means. | Tap and scroll, and a text assistant |
-| Knows what's on your screen. "Book this one" just works. | Every action is a new search or tap |
-| Solves clashes. It finds a repeat that fits, offers a swap and books it after you say yes. | You search for repeats yourself. Attendees [complain about it](https://www.reddit.com/r/aws/comments/1h6ustk/reinvent_2024_pet_peeves/). |
-| Speaks first. Morning briefing, seating-open nudge, travel warnings. | Push alerts on changes |
-| Surprises you on request (wildcard) | Suggests more of the same |
-
-Early mover: the AWS Events API and MCP server went public on 2026-09-23. An AWS developer advocate published a [how-to](https://builder.aws.com/content/3JjrKKy63DJ80xhHTHd50DUIoxx/how-to-plan-reinvent-2026-with-the-new-aws-events-api-and-mcp-server) the same day. It plans through an AI assistant over MCP. We found no hosted avatar concierge on the API yet. Say only that, and recheck it before any launch copy.
-
-White space: we found no conference app that resolves a clash against real, API-backed reservations with a spoken swap. General calendar apps already detect conflicts, so keep the claim this narrow.
+Nevada plans your event week face to face. Talk, type or tap, and she finds sessions, books them, resolves clashes and briefs you each morning. She shows and points at what she's talking about on screen.
 
 ## Awe moments, ranked
 
@@ -54,7 +29,7 @@ White space: we found no conference app that resolves a clash against real, API-
 | Favorites, reservations, personal time | 1 | Reservations switch on when seating opens |
 | Schedule canvas | 1 | |
 | Conflict swap | 1 | |
-| Try before pairing, then QR or code pairing | 1 | |
+| Terminal pairing code, then QR handoff to a phone | 1 | The connect gate blocks all use until pairing succeeds; there's no try-before-pairing mode |
 | Fill my gaps, see all times, wildcard | 1 | |
 | Travel check | 2 | Needs the 2026 venue data |
 | Morning briefing (in-app) | 2 | |

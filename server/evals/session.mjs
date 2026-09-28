@@ -1,9 +1,9 @@
 /**
  * Pairing bootstrap for evals: reuses the app's own /api/pair/* endpoints,
  * never a separate login path. Pairing needs a real AWS Builder ID sign-in,
- * so this prints the pairing command and waits — the human runs it, never us.
+ * so this prints the pairing command and waits. The human runs it, never us.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,12 +39,21 @@ function loadCache() {
   try { return JSON.parse(readFileSync(CACHE_FILE, 'utf8')).cookie; } catch { return null; }
 }
 
+// The cached cookie is a live bearer credential for the real AWS test
+// account, valid for as long as the server process runs. Keep it readable
+// only by the owner.
 function saveCache(cookie) {
-  mkdirSync(dirname(CACHE_FILE), { recursive: true });
-  writeFileSync(CACHE_FILE, JSON.stringify({ cookie }, null, 2));
+  const dir = dirname(CACHE_FILE);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // The mode on mkdirSync/writeFileSync only applies when they create the
+  // path; if the directory or file already existed with looser permissions,
+  // chmod them explicitly so the bearer credential stays owner-only.
+  chmodSync(dir, 0o700);
+  writeFileSync(CACHE_FILE, JSON.stringify({ cookie }, null, 2), { mode: 0o600 });
+  chmodSync(CACHE_FILE, 0o600);
 }
 
-/** A fresh, never-paired visitor cookie — for cases exercising the unpaired gate. */
+/** A fresh, never-paired visitor cookie, for cases exercising the unpaired gate. */
 export async function unpairedCookie(baseUrl) {
   const { cookie } = await postJson(baseUrl, '/api/schedule', {});
   return cookie;

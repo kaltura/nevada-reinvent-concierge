@@ -1,10 +1,14 @@
 /**
  * Live eval runner. Drives the real shared intellect (server/agent.json's
- * configId) through server/evals/cases.mjs, over a real KalturaChatSession —
- * same tool-dispatch contract as client/app.js, minus the DOM. Design:
+ * configId) through server/evals/cases.mjs, over a real KalturaChatSession,
+ * using the same tool-dispatch contract as client/app.js, minus the DOM. Design:
  * ARCHITECTURE.md § Evals.
  *
  * Usage: npm run eval [-- --grep "name substring"]
+ *
+ * Set EVAL_NONINTERACTIVE=1 (CI) to skip every case that needs a paired AWS
+ * account or the LLM judge, instead of waiting for a human to pair or calling
+ * the claude CLI. A skipped case is reported as SKIPPED, never as passed.
  */
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -20,6 +24,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BASE_URL = `http://localhost:${process.env.PORT || 8080}`;
 const CONCURRENCY = 4;
 const TURN_TIMEOUT_MS = 45_000;
+const NONINTERACTIVE = process.env.EVAL_NONINTERACTIVE === '1';
 
 /** A hung upstream call (AWS, the intellect) must not wedge the whole serialized run forever. */
 function withTimeout(promise, ms, label) {
@@ -82,7 +87,7 @@ async function scheduleSnapshot(cookie) {
 }
 
 // A case can misresolve a vague reference ("that favorite") onto something
-// that predates the run, not what the case itself just created — confirmed
+// that predates the run, not what the case itself just created. Confirmed
 // live: a real account's pre-existing favorites vanished this way. Cleanup
 // must be symmetric: undo new writes AND restore anything the case's turns
 // caused to go missing, not just diff away what's new.
@@ -102,7 +107,7 @@ async function cleanup(cookie, before, after) {
     if (!start) continue; // unparseable clock string: nothing safe to recreate from
     await apiFetch('/tools/add_personal_time', {
       // /api/schedule never exposes the original description, so this is a
-      // best-effort recreation, not exact — matters far less than getting the
+      // best-effort recreation, not exact. That matters far less than getting the
       // block back on the calendar at all.
       title: block.title, description: block.title, day: block.day,
       start, end: minutesToHHMM(minutesOf(start) + block.length),
@@ -150,11 +155,22 @@ function withPairedLock(fn) {
 }
 
 function runCase(kase) {
+  if (NONINTERACTIVE && (kase.paired !== false || kase.judge?.length)) {
+    return Promise.resolve({ name: kase.name, failures: [], skipped: 'needs a paired AWS account or the LLM judge; not available with EVAL_NONINTERACTIVE=1' });
+  }
   return kase.paired === false ? runCaseBody(kase) : withPairedLock(() => runCaseBody(kase));
 }
 
 async function runCaseBody(kase) {
-  const cookie = kase.paired === false ? await unpairedCookie(BASE_URL) : await getPairedCookie();
+  let cookie;
+  try {
+    cookie = kase.paired === false ? await unpairedCookie(BASE_URL) : await getPairedCookie();
+  } catch (e) {
+    // A rejected pairedCookiePromise (see getPairedCookie) stays rejected for
+    // every later case that awaits it. Report per case, and don't let one
+    // throw crash the whole concurrent run.
+    return { name: kase.name, failures: [`crashed: ${e.message}`] };
+  }
   const before = kase.paired === false ? null : await scheduleSnapshot(cookie);
 
   const conv = await kaltura.sessions.createConversationToken({ configId });
@@ -174,12 +190,12 @@ async function runCaseBody(kase) {
 
     for (const exp of kase.expect ?? []) {
       const { pass, detail } = exp.check(transcript);
-      if (!pass) failures.push(`rule: ${exp.description} — ${detail}`);
+      if (!pass) failures.push(`rule: ${exp.description}: ${detail}`);
     }
     for (const { turn, rubric } of kase.judge ?? []) {
       const text = transcript.turns.map((t, i) => `Turn ${i}: ${t.text}`).join('\n');
       const { pass, reason } = await judge(rubric, turn === undefined ? text : `Turn ${turn}: ${transcript.turns[turn]?.text ?? ''}`);
-      if (!pass) failures.push(`judge: ${rubric} — ${reason}`);
+      if (!pass) failures.push(`judge: ${rubric}: ${reason}`);
     }
   } catch (e) {
     failures.push(`crashed: ${e.message}`);
@@ -193,9 +209,24 @@ async function runCaseBody(kase) {
   return { name: kase.name, failures };
 }
 
+// Write cases run for real against whatever account this cookie pairs. Refuse
+// to touch an account that already has real state. Evals must run against a
+// dedicated, empty throwaway AWS test account, never someone's real week.
+async function assertEmptyAccount(cookie) {
+  const snap = await scheduleSnapshot(cookie);
+  if (!snap) throw new Error('could not read the paired account schedule, refusing to run write evals');
+  const dirty = snap.reservedIds.size || snap.favoriteIds.size || snap.personal.size;
+  if (dirty) {
+    throw new Error('paired account already has reservations, favorites or personal time and evals need an empty, dedicated test account');
+  }
+}
+
 let pairedCookiePromise = null;
 function getPairedCookie() {
-  pairedCookiePromise ??= pairedCookie(BASE_URL);
+  pairedCookiePromise ??= pairedCookie(BASE_URL).then(async (cookie) => {
+    await assertEmptyAccount(cookie);
+    return cookie;
+  });
   return pairedCookiePromise;
 }
 
@@ -216,9 +247,13 @@ const cases = grep ? CASES.filter((c) => c.name.includes(grep)) : CASES;
 console.log(`Running ${cases.length} eval case(s) against intellect ${configId} at ${BASE_URL}...\n`);
 
 let failed = 0;
+let skipped = 0;
 const results = await mapLimit(cases, CONCURRENCY, async (kase) => {
   const r = await runCase(kase);
-  if (r.failures.length) {
+  if (r.skipped) {
+    skipped += 1;
+    console.log(`○ ${r.name} (skipped: ${r.skipped})`);
+  } else if (r.failures.length) {
     failed += 1;
     console.log(`✗ ${r.name}`);
     for (const f of r.failures) console.log(`    ${f}`);
@@ -228,8 +263,9 @@ const results = await mapLimit(cases, CONCURRENCY, async (kase) => {
   return r;
 });
 
-console.log(`\n${results.length - failed}/${results.length} passed.`);
+const ran = results.length - skipped;
+console.log(`\n${ran - failed}/${ran} passed${skipped ? `, ${skipped} skipped` : ''}.`);
 // Not process.exit(): stdout to a pipe/file is async, and exit() can cut off
-// buffered writes before they flush — confirmed live, a 55-case run reached
+// buffered writes before they flush. Confirmed live: a 55-case run reached
 // this point with failed=0 but the redirected log held none of the ✓/✗ lines.
 process.exitCode = failed ? 1 : 0;

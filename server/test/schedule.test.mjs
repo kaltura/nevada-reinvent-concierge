@@ -79,7 +79,7 @@ test('buildTimeline does not add a spurious tight-gap tile between blocks that a
   // Overnight session 11pm-1am (crosses midnight, so its relative `end` is
   // 1500, past the 1440-minute day boundary). A 11:45pm favorite at a
   // different venue starts before that overnight session really ends, so
-  // they genuinely overlap — already covered by `clash`. A travel/gap tile
+  // they genuinely overlap, already covered by `clash`. A travel/gap tile
   // between two overlapping blocks is meaningless and shouldn't appear.
   const overnight = { sessionId: 'FFF666', title: 'Overnight hackathon judging', venue: 'MGM', isReservable: true, seatAvailability: 'available', sessionTime: { date: '2026-12-01', time: '23:00', length: 120 } };
   const lateFavorite = { sessionId: 'GGG777', title: 'Late show', venue: 'WYN', isReservable: true, seatAvailability: 'available', sessionTime: { date: '2026-12-01', time: '23:45', length: 15 } };
