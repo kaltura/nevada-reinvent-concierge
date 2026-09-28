@@ -199,7 +199,7 @@ Derived data in the index:
 |---|---|---|
 | `session.mjs` | Gets a paired cookie by reusing `/api/pair/start` and `/api/pair/status`, caching it. Pairing needs a real AWS Builder ID sign-in, so this prints the pairing command and waits for a human to run it; an eval never signs in itself. Also mints a fresh unpaired cookie for the connect-gate case. | `server/evals/` |
 | `expectations.mjs` | Rule-check primitives: did the right tool fire, with what args, does the reply contain or exclude given text. | `server/evals/` |
-| `judge.mjs` | Shells out to the `claude` CLI (`-p --model haiku --output-format json --tools ''`, no permissions) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. No new dependency, no new API key. | `server/evals/` |
+| `judge.mjs` | Shells out to the `claude` CLI (`-p --model haiku --output-format json --tools '' --bare`, no permissions) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. `--bare` skips OAuth logins, so the CLI needs `ANTHROPIC_API_KEY` or Bedrock credentials. No new npm dependency. | `server/evals/` |
 | `cases.mjs` | About 55 cases: one per tool, `rules.md` compliance, restricted topics, multi-turn flows, edge cases. | `server/evals/` |
 | `runner.mjs` | Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
 
