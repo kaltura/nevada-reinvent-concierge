@@ -1,7 +1,8 @@
 name: Evals
 
-# Manual only. Paired cases need a human AWS Builder ID sign-in, which CI
-# can't do, and this job needs KALTURA_ADMIN_SECRET, so it must never run on
+# Manual only. Paired cases need a human AWS Builder ID sign-in and LLM-judged
+# cases run locally with Claude Code, so CI runs only the rule-checked,
+# unpaired cases. This job needs KALTURA_ADMIN_SECRET, so it must never run on
 # pull_request or pull_request_target (a fork PR could read the secret).
 on:
   workflow_dispatch:
@@ -25,8 +26,6 @@ jobs:
         with:
           node-version: '24.x'
       - run: npm ci
-      - name: Install the claude CLI (LLM judge)
-        run: npm install -g @anthropic-ai/claude-code@2.1.283
       - name: Write server/agent.json
         run: printf '%s' "$AGENT_JSON" > server/agent.json
         env:
@@ -62,4 +61,3 @@ jobs:
           PORT: '8080'
           KALTURA_PARTNER_ID: ${{ secrets.KALTURA_PARTNER_ID }}
           KALTURA_ADMIN_SECRET: ${{ secrets.KALTURA_ADMIN_SECRET }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

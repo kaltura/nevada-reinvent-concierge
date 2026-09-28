@@ -7,8 +7,8 @@
  * Usage: npm run eval [-- --grep "name substring"]
  *
  * Set EVAL_NONINTERACTIVE=1 (CI) to skip every case that needs a paired AWS
- * account instead of printing a pairing command and waiting for a human. A
- * skipped case is reported as SKIPPED, never as passed.
+ * account or the LLM judge, instead of waiting for a human to pair or calling
+ * the claude CLI. A skipped case is reported as SKIPPED, never as passed.
  */
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -155,8 +155,8 @@ function withPairedLock(fn) {
 }
 
 function runCase(kase) {
-  if (kase.paired !== false && NONINTERACTIVE) {
-    return Promise.resolve({ name: kase.name, failures: [], skipped: 'needs a paired AWS account; not available with EVAL_NONINTERACTIVE=1' });
+  if (NONINTERACTIVE && (kase.paired !== false || kase.judge?.length)) {
+    return Promise.resolve({ name: kase.name, failures: [], skipped: 'needs a paired AWS account or the LLM judge; not available with EVAL_NONINTERACTIVE=1' });
   }
   return kase.paired === false ? runCaseBody(kase) : withPairedLock(() => runCaseBody(kase));
 }
