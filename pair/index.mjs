@@ -6,7 +6,7 @@
  * Talks only to oauth.awsevents.com and NEVADA_URL. Stores nothing on disk
  * and prints nothing secret. No dependencies besides the vendored
  * qrcode.cjs (same file, same pinned version, already trusted in
- * client/index.html's SRI hash — not a new thing to trust).
+ * client/index.html's SRI hash, so it is not a new thing to trust).
  */
 import { createServer } from 'node:http';
 import { randomBytes, createHash } from 'node:crypto';
@@ -57,19 +57,30 @@ const page = (title, body) => `<!doctype html><meta charset="utf-8"><title>${tit
   `<div style="max-width:360px"><h1>${title}</h1><p>${body}</p><p style="font-size:12px;color:#ccc">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
 
 // Two separate single-use links (server/index.mjs § /api/pair/complete), so
-// clicking the button and scanning the QR each work on their own — neither
+// clicking the button and scanning the QR each work on their own. Neither
 // one uses up the other. No raw AWS token is ever in this page or either
 // URL: both carry only an opaque handoff token the backend already holds
 // tokens for. AWS-EVENTS-INTEGRATION.md § Authentication.
-const successPage = (openUrl, qrUrl) => {
+// Trusts only a handoff link on NEVADA_URL's own origin and root path.
+// Rebuilding the href from the validated token (never the raw string from
+// the response) stops a spoofed or MITM'd server from injecting HTML or
+// pointing "Open Nevada" at a phishing page.
+function handoffHref(urlStr) {
+  const u = new URL(urlStr);
+  const handoff = u.searchParams.get('handoff');
+  if (u.origin !== target.origin || u.pathname !== '/' || !handoff) throw new Error('bad handoff URL');
+  return `${target.origin}/?handoff=${encodeURIComponent(handoff)}`;
+}
+
+const successPage = (openHref, qrHref) => {
   const qr = qrcode(0, 'M');
-  qr.addData(qrUrl);
+  qr.addData(qrHref);
   qr.make();
   return `<!doctype html><meta charset="utf-8"><title>Connected</title>` +
     `<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center;padding:16px;box-sizing:border-box">` +
     `<div style="max-width:360px"><h1>Connected</h1>` +
     `<p>Open Nevada here, or scan the code below with your phone.</p>` +
-    `<a href="${openUrl}" style="display:block;margin:20px 0;padding:14px;border-radius:10px;background:#fff;color:#121212;text-decoration:none;font-weight:600">Open Nevada</a>` +
+    `<a href="${openHref}" style="display:block;margin:20px 0;padding:14px;border-radius:10px;background:#fff;color:#121212;text-decoration:none;font-weight:600">Open Nevada</a>` +
     `<div style="background:#fff;padding:8px;border-radius:8px;display:inline-block">${qr.createSvgTag(6, 8)}</div>` +
     `<p style="font-size:12px;color:#ccc;margin-top:24px">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
 };
@@ -92,7 +103,13 @@ await new Promise((resolve, reject) => {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(successPage(openUrl, qrUrl));
       clearTimeout(timer);
     };
-    if (url.searchParams.get('state') !== state) { done(false, 'This sign-in did not start here. Run the command again.'); reject(new Error('state mismatch')); return; }
+    // A wrong state can come from any local process hitting this port, not
+    // just the real AWS redirect. Answer it and keep waiting for the real
+    // callback instead of aborting the whole sign-in.
+    if (url.searchParams.get('state') !== state) {
+      res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' }).end(page('Sign-in failed', 'This request did not start here.'));
+      return;
+    }
     const err = url.searchParams.get('error');
     if (err) { done(false, 'AWS did not sign you in. Run the command again.'); reject(new Error(`AWS returned ${err}`)); return; }
     const authCode = url.searchParams.get('code');
@@ -115,9 +132,23 @@ await new Promise((resolve, reject) => {
     if (complete && (complete.status === 404 || complete.status === 410)) { done(false, 'That code expired. Get a new one and run the command again.'); reject(new Error('pair code expired')); return; }
     if (!complete || !complete.ok) { done(false, `Nevada could not save the connection${complete ? ` (HTTP ${complete.status})` : ''}. Try again.`); reject(new Error('pair/complete failed')); return; }
     const { handoffUrl, qrUrl } = await complete.json().catch(() => ({}));
-    if (!handoffUrl || !qrUrl) { done(false, 'Nevada did not send a way to continue. Try again.'); reject(new Error('missing handoff urls')); return; }
+    // A busy server pairs the tab but sends no handoff links.
+    if (handoffUrl === null && qrUrl === null) {
+      done(true, 'Go back to the Nevada tab. It will open by itself.');
+      resolve();
+      return;
+    }
+    let openHref, qrHref;
+    try {
+      openHref = handoffHref(handoffUrl);
+      qrHref = handoffHref(qrUrl);
+    } catch {
+      done(false, 'Nevada did not send a way to continue. Try again.');
+      reject(new Error('missing or invalid handoff urls'));
+      return;
+    }
 
-    doneSuccess(handoffUrl, qrUrl);
+    doneSuccess(openHref, qrHref);
     resolve();
   });
 
@@ -126,6 +157,7 @@ await new Promise((resolve, reject) => {
     response_type: 'code', client_id: CLIENT_ID, redirect_uri: redirectUri, scope: SCOPE,
     identity_provider: 'AWSBuilderID', state, code_challenge: challenge, code_challenge_method: 'S256',
   });
+  console.log(`Connecting code ${code} to ${target.host}.`);
   console.log('Opening the AWS sign-in page. If it does not open, paste this into your browser:');
   console.log(auth.href);
   openBrowser(auth.href);

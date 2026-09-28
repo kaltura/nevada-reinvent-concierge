@@ -1,10 +1,10 @@
 /**
- * ~40-50 live eval cases against the shared intellect. Design: ARCHITECTURE.md
+ * About 55 live eval cases against the shared intellect. Design: ARCHITECTURE.md
  * § Evals. Case shape: { name, paired?: false, turns: [string], expect?: [...],
  * judge?: [{ turn?, rubric }] }. paired defaults to true (a real paired AWS
  * test account); set false only for the connect-gate case, which touches no
- * AWS state. Never hardcode real catalog session IDs — the catalog changes;
- * assert on tool calls, args and reply content instead.
+ * AWS state. Never hardcode real catalog session IDs, since the catalog
+ * changes. Assert on tool calls, args and reply content instead.
  */
 import {
   calledTool, notCalledTool, calledToolOnTurn, notCalledToolOnTurn,
@@ -84,8 +84,8 @@ export const CASES = [
     expect: [
       calledToolOnTurn(2, 'unfavorite_session'),
       // "that favorite" must resolve to the one just favorited this
-      // conversation, never a pre-existing favorite on the real account —
-      // confirmed live: a vague reference can misresolve onto the wrong session.
+      // conversation, never a pre-existing favorite on the real account.
+      // Confirmed live: a vague reference can misresolve onto the wrong session.
       custom('turn 2 unfavorites the session favorited on turn 1, not some other one', (t) => {
         const favorited = t.turns[1].toolCalls.find((c) => c.name === 'favorite_sessions')?.args?.ids ?? [];
         const removed = t.turns[2].toolCalls.find((c) => c.name === 'unfavorite_session')?.args?.id;
@@ -146,7 +146,7 @@ export const CASES = [
     name: 'show_sessions: dropped when time is unannounced',
     turns: ['Any updates on the keynote schedule?'],
     // event-facts.md documents exactly one real keynote detail (Matt Garman,
-    // Tue Dec 1 morning) alongside "the full schedule isn't announced" — citing
+    // Tue Dec 1 morning) alongside "the full schedule isn't announced". Citing
     // that one fact is correct, not invented. Only flag a different time/venue.
     judge: [{ turn: 0, rubric: 'Does the reply say the full keynote schedule and lineup are not announced yet, without inventing any time or venue beyond the one confirmed keynote (Matt Garman, Tuesday Dec 1 morning) that event-facts.md documents?' }],
   },
@@ -162,14 +162,14 @@ export const CASES = [
   {
     name: 'highlight_conflict: reserve into a clash',
     // A vague "at the same time" leaves Nevada to guess the slot from
-    // context, which it doesn't reliably do — pin both searches to the same
+    // context, which it doesn't reliably do. Pin both searches to the same
     // explicit day/time window instead (rule 10 already routes this into
     // day/from/to), so a real overlap is actually there to detect.
     turns: [
       'What is on Tuesday between 9am and 10am?', 'Reserve the first one.',
       'What else is on Tuesday between 9am and 10am, a different topic?', 'Reserve that one too.',
     ],
-    judge: [{ turn: 3, rubric: 'If, and only if, the two sessions have overlapping times, does the reply explicitly say they clash and ask which one the attendee wants? If their times do not overlap, any other reply is fine, including favoriting one because reserved seating is not open yet — that is not "silently picking one" since there was no clash to report.' }],
+    judge: [{ turn: 3, rubric: 'If, and only if, the two sessions have overlapping times, does the reply explicitly say they clash and ask which one the attendee wants? If their times do not overlap, any other reply is fine, including favoriting one because reserved seating is not open yet: that is not "silently picking one" since there was no clash to report.' }],
   },
   {
     name: 'celebrate_action: kind matches the action',
@@ -251,7 +251,7 @@ export const CASES = [
     name: 'restricted: AWS pricing question is steered back',
     turns: ['How much does re:Invent registration cost, and are there any discount codes?'],
     // restricted-topics.md's pricing bullet carries no sentence-count limit
-    // (only the general off-topic catch-all does) — judge content, not length.
+    // (only the general off-topic catch-all does). Judge content, not length.
     judge: [{ turn: 0, rubric: 'Does the reply decline to discuss pricing or discounts and steer back to planning the week, without inventing a price?' }],
   },
   {
@@ -298,7 +298,7 @@ export const CASES = [
     expect: [
       calledToolOnTurn(1, 'reserve_sessions'),
       // If seating isn't open yet, rule 22's fallback favorites it instead of
-      // reserving it — "cancel that" then correctly means unfavorite_session,
+      // reserving it, so "cancel that" then correctly means unfavorite_session,
       // not cancel_reservation. Check turn 2 against what turn 1 actually did.
       custom('turn 2 undoes whatever turn 1 actually did', (t) => {
         const stillClosed = (t.turns[1].text ?? '').toLowerCase().includes('open yet');
@@ -351,7 +351,7 @@ export const CASES = [
   {
     name: 'edge: asks to reserve a dozen sessions at once, none real',
     // Real-shaped but fabricated IDs (never real catalog data, so this stays
-    // stable across catalog changes) — plain "a1, a2..." reads as obvious
+    // stable across catalog changes). Plain "a1, a2..." reads as obvious
     // test junk and the model asks for clarification instead of passing the
     // whole list to the tool, which is what this case means to test.
     turns: [

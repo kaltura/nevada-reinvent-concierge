@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   AwsError, withToken, getSchedule, reserveSessions, associateFavorites,
-  cancelReservation, listSessions, getSession,
+  cancelReservation, listSessions, getSession, revokeRefreshToken,
 } from '../aws.mjs';
 
 function fakeFetch(t, body) {
@@ -12,7 +12,7 @@ function fakeFetch(t, body) {
 }
 
 // AWS wraps GetSchedule as {schedule} and the bulk write endpoints as
-// {result} — confirmed against the live openapi.json. A prior version of
+// {result}, confirmed against the live openapi.json. A prior version of
 // this file read the outer body straight through, so every favorite and
 // reservation silently no-opped while reporting a 200.
 test('getSchedule unwraps the {schedule} envelope', async (t) => {
@@ -89,9 +89,23 @@ test('getSession encodes the session id into the path', async (t) => {
   assert.equal(seenUrl, 'https://api.awsevents.com/v1/events/reinvent2026/sessions/A%20B%2FC');
 });
 
+test('revokeRefreshToken reports true only when AWS confirms the revoke', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+
+  globalThis.fetch = async () => ({ status: 200, ok: true, text: async () => '' });
+  assert.equal(await revokeRefreshToken('r1'), true);
+
+  globalThis.fetch = async () => ({ status: 400, ok: false, text: async () => '' });
+  assert.equal(await revokeRefreshToken('r1'), false);
+
+  globalThis.fetch = async () => { throw new Error('network down'); };
+  assert.equal(await revokeRefreshToken('r1'), false);
+});
+
 function fakeTokenStore(initial) {
   const map = new Map([['v1', initial]]);
-  return { get: (v) => map.get(v), set: (v, t) => map.set(v, t), delete: (v) => map.delete(v) };
+  return { get: (v) => map.get(v), set: (v, t) => map.set(v, t), delete: (v) => map.delete(v), touch: () => {} };
 }
 
 test('withToken dedupes concurrent refreshes for the same visitor', async (t) => {

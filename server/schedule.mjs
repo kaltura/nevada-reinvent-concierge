@@ -80,8 +80,8 @@ export function buildTimeline(day, reservedCards, favoriteCards, personalTime) {
       // Absolute minutes, not s.end/next.start directly: a block crossing
       // midnight (see absStart/absEnd above) can have `end` past 1440, and a
       // negative result here means a real overlap, already flagged as a
-      // clash above — a travel/gap tile between two overlapping blocks would
-      // be meaningless, so skip it instead of showing a bogus "tight" tag.
+      // clash above, and a travel/gap tile between two overlapping blocks
+      // would be meaningless, so skip it instead of showing a bogus "tight" tag.
       const gap = next.absStart - s.absEnd;
       if (gap >= 0) {
         const need = travelMinutes(s.venue, next.venue);

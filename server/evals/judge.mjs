@@ -1,7 +1,8 @@
 /**
  * LLM judge for subtler dimensions (helpfulness, tone, correctness) that rule
- * checks can't cover. Shells out to the `claude` CLI already installed in
- * this environment — no new dependency, no new API key.
+ * checks can't cover. Shells out to the `claude` CLI, so no new npm
+ * dependency. `--bare` skips OAuth logins: the CLI needs ANTHROPIC_API_KEY or
+ * Bedrock credentials.
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';

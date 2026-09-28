@@ -38,7 +38,7 @@ const BULK_SPEECH = {
   sessionNotReservable: () => "can't be reserved",
   insufficientAccess: () => "isn't included in your pass",
   timePassed: () => 'already started',
-  unknownSession: () => "isn't a session I recognize — search first, then try again with its real ID",
+  unknownSession: () => "isn't a session I recognize. Search first, then try again with its real ID",
 };
 function speakFailure(catalog, f) {
   const fn = BULK_SPEECH[f.code];
@@ -241,7 +241,7 @@ export const TOOL_HANDLERS = {
     }
     if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
     // Without this check, a fabricated id 404s AWS, then reconciliation below
-    // trivially finds it "gone" — a false-positive "Removed" for a session
+    // trivially finds it "gone", a false-positive "Removed" for a session
     // that was never favorited. Same bug and fix as delete_personal_time.
     if (!(schedOutcome.result?.favorites || []).includes(id)) {
       return { answer: "I can't find that in your favorites. Ask for your schedule to see current ones." };
@@ -286,8 +286,8 @@ export const TOOL_HANDLERS = {
     } catch (e) {
       if (!(e instanceof AwsError)) throw e;
       if (e.status === 409) {
-        // EXPERIENCE-UX.md § Lifecycle: "I'll keep this on your list" — make
-        // that true instead of just saying it.
+        // EXPERIENCE-UX.md § Lifecycle promises "I'll keep this on your list";
+        // make that true instead of just saying it.
         const favOutcome = await ctx.withToken((token) => associateFavorites(token, known)).catch(() => null);
         const kept = favOutcome?.paired ? (favOutcome.result?.successful ?? []) : [];
         if (!kept.length) return { answer: "Reserved seating isn't open yet." };
@@ -320,7 +320,7 @@ export const TOOL_HANDLERS = {
     }
     if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
     // Without this check, a fabricated id 404s AWS, then reconciliation below
-    // trivially finds it "gone" — a false-positive "Cancelled" for a session
+    // trivially finds it "gone", a false-positive "Cancelled" for a session
     // that was never reserved. Same bug and fix as delete_personal_time.
     if (!(schedOutcome.result?.reserved || []).includes(id)) {
       return { answer: "I can't find that reservation. Ask for your schedule to see current ones." };
@@ -376,7 +376,7 @@ export const TOOL_HANDLERS = {
       const outcome = await ctx.withToken((token) => createPersonalTime(token, { title, description, startDateTime, endDateTime }));
       if (!outcome.paired) return { answer: pairingMessage(outcome) };
       // CreatePersonalTime returns no ID (AWS-EVENTS-INTEGRATION.md § Personal
-      // time) — read it back so later update/delete calls have a real id
+      // time), so read it back so later update/delete calls have a real id
       // instead of the model guessing one.
       const schedOutcome = await ctx.withToken((token) => getSchedule(token)).catch(() => null);
       const created = schedOutcome?.paired
@@ -409,7 +409,7 @@ export const TOOL_HANDLERS = {
     const endTime = end ?? existingEnd.time;
     const finalTitle = title ?? existing.title;
     const finalDescription = description ?? existing.description;
-    // Only re-check duration when start or end actually changed — an edit that
+    // Only re-check duration when start or end actually changed. An edit that
     // only touches title/description on a block that already spans midnight
     // would otherwise be rejected forever, since its raw HH:MM duration looks negative.
     const timesChanged = start !== undefined || end !== undefined;
@@ -440,7 +440,7 @@ export const TOOL_HANDLERS = {
     if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
     // Without this check, a fabricated id (the model guessing instead of using
     // a real one) 404s AWS, then reconciliation below trivially finds it
-    // "gone" — a false-positive "Removed that block" for a block that never existed.
+    // "gone", a false-positive "Removed that block" for a block that never existed.
     const existing = (schedOutcome.result?.personalTime || []).some((p) => p.personalTimeId === id);
     if (!existing) return { answer: "I can't find that personal time block. Ask for your schedule to see current ones." };
     try {

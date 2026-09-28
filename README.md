@@ -4,18 +4,62 @@ Nevada, a live avatar concierge for AWS re:Invent attendees. Plan your week with
 
 Not affiliated with or endorsed by AWS.
 
-AWS reviews the name and brand before any public release.
+## Status
+
+Phase 1: one attendee, end to end, localhost only. See [ROADMAP.md](ROADMAP.md) for what's built and what's next.
+
+## Prerequisites
+
+- Node.js 20.6 or later
+- A Kaltura account with Intelligent Agents enabled
+- An AWS Builder ID, registered for the event, to test pairing
+
+## Quick start
+
+```sh
+cp .env.example .env    # fill it in, never commit it
+npm install
+npm run provision       # creates the agent, tools and widget; run once
+npm start
+```
+
+Open the app at the URL `npm start` prints, then pair a laptop with `npm run pair`.
+
+## npm scripts
+
+| Script | What it does |
+|---|---|
+| `npm start` | Runs the Web API and proxy server |
+| `npm run provision` | Creates the Kaltura agent, tools and widget; writes `server/agent.json`. Stops if that file already exists. |
+| `npm run update-prompts` | Pushes prompt changes in `prompts/` to the existing agent. `base-directive.md` needs `npm run provision` instead. |
+| `npm run pair` | Starts the pairing helper for a local laptop |
+| `npm test` | Runs the unit test suite (`server/test/*.test.mjs`) |
+| `npm run eval` | Runs the agent evals against a running local server |
+
+## Repo layout
+
+| Path | What |
+|---|---|
+| `client/` | Browser app: avatar session, composer, disclosure, captions, screen context, client tools. `client/prototype.html` is a static design reference. |
+| `server/` | Web API and proxy: server tools, encrypted token store, catalog sync and search, unit tests, evals. State is in memory, so a restart clears it. |
+| `pair/` | Laptop pairing CLI (`nevada-pair`) |
+| `scripts/` | `provision.mjs` creates the agent, tools and widget; `update-prompts.mjs` pushes prompt changes; `dev-pair.mjs` runs the pairing helper locally |
+| `prompts/` | Agent prompts, read by provisioning |
 
 ## Docs
 
 | Doc | Covers |
 |---|---|
-| [FEATURES.md](FEATURES.md) | What we must beat, where we win, ranked awe moments, feature menu |
+| [FEATURES.md](FEATURES.md) | What Nevada does, ranked awe moments, feature menu |
 | [EXPERIENCE-UX.md](EXPERIENCE-UX.md) | What the attendee sees and hears |
 | [DESIGN.md](DESIGN.md) | Look and feel: tokens, layout, components, motion |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Components, identity, pairing, agent config, tools |
 | [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md) | The AWS Events API contract we depend on |
-| [ROADMAP.md](ROADMAP.md) | Phases, spikes, open questions, risks |
+| [ROADMAP.md](ROADMAP.md) | Phases and spikes |
+| [SECURITY.md](SECURITY.md) | Supported versions and how to report a vulnerability |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
+| [LICENSE](LICENSE) | MIT license |
 
 ## Key decisions
 
@@ -23,7 +67,7 @@ AWS reviews the name and brand before any public release.
 |---|---|
 | One shared agent, plus our own backend proxy | The backend holds AWS tokens and does all AWS work. The agent never sees a token. |
 | Pair once on a laptop | AWS sign-in only redirects to `localhost` or `127.0.0.1` on ports 8484 to 8489. A phone can't do that. See [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing). |
-| Try before pairing | Attendees see good picks before the laptop step |
+| Hand off to a phone after pairing | Pairing needs a terminal, but the live conversation is nicer on a phone. See [ARCHITECTURE.md § Phone handoff](ARCHITECTURE.md#phone-handoff). |
 | Avatar always on screen. Talk, type or tap in one conversation. | The avatar is the product. No mode to pick, and a loud hall or a quiet room never blocks you. |
 | Mobile web in a normal Safari or Chrome tab | No app store. iOS Home Screen mode has known mic and Wake Lock bugs. |
 | Open mic, mic button just mutes | No push-to-talk to hold on a crowded floor. Noise handled by client-side suppression, not by gating the mic. |
@@ -39,23 +83,3 @@ Ranked, with sources, in [FEATURES.md § Awe moments](FEATURES.md#awe-moments-ra
 4. "It's full. Here's a repeat with seats."
 5. A face-to-face morning briefing in event week.
 6. A shareable recap card of your week.
-
-## Build state
-
-Phase 1 (one attendee, end to end) is built, localhost only. Build order and what's next are in [ROADMAP.md](ROADMAP.md).
-
-| Path | What | Runs today |
-|---|---|---|
-| `client/index.html`, `client/app.js` | Web app: widget token, avatar session, composer, disclosure, captions, screen context, all client tools | Yes |
-| `client/prototype.html` | Static design prototype of every screen | Open in a browser |
-| `server/` | Web API and proxy: all server tools, encrypted token store, catalog sync and search. State is in memory, so a restart clears it. | Yes |
-| `pair/` | Pairing helper | Yes, end to end: hands tokens to the backend, which stores them |
-| `prompts/` | Agent prompts | Read by provisioning |
-| `scripts/provision.mjs` | Creates the agent, tools and widget. Writes `server/agent.json`. | Yes. Run once. It stops if `server/agent.json` exists. |
-
-```sh
-cp .env.example .env    # fill it in, never commit it
-npm install
-npm run provision
-npm start
-```

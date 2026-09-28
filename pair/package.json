@@ -4,7 +4,7 @@
   "description": "Connect your AWS Events account to Nevada. Runs the sign-in on this computer and hands the tokens to Nevada.",
   "type": "module",
   "bin": { "nevada-pair": "index.mjs" },
-  "files": ["index.mjs"],
+  "files": ["index.mjs", "qrcode.cjs"],
   "engines": { "node": ">=20" },
   "license": "MIT"
 }
