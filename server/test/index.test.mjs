@@ -62,6 +62,9 @@ globalThis.fetch = async (url, opts = {}) => {
 
 const { default: server } = await import('../index.mjs');
 if (!server.listening) await new Promise((resolve) => server.once('listening', resolve));
+// Node 20.6 runs root after() hooks only once the loop is idle, so a ref'd
+// server would keep the run open forever and after() would never close it.
+server.unref();
 const base = `http://localhost:${server.address().port}`;
 
 let cookie;
