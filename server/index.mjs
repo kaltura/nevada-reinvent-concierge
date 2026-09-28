@@ -335,6 +335,8 @@ async function api(req, res, path) {
     const { day, focusIds, recap } = await readJson(req).catch(() => ({}));
     const v = visitor(req, res);
     if (!tokenStore.has(v)) return send(res, 200, { paired: false });
+    // The first load after pairing races the first sync. Without the catalog it has no picks.
+    await syncInFlight;
     const outcome = await withToken(tokenStore, v, (t) => getSchedule(t));
     if (!outcome.paired) return send(res, 200, { paired: false, expired: Boolean(outcome.expired) });
     const { reserved = [], favorites = [], personalTime = [] } = outcome.result ?? {};
@@ -398,6 +400,7 @@ async function tool(req, res, name) {
   if (args === null || typeof args !== 'object' || Array.isArray(args)) {
     return send(res, 200, { answer: "That didn't work. Try again in a moment." });
   }
+  await syncInFlight; // search and titles need the catalog
   try {
     const ctx = makeToolCtx(catalog, tokenStore, v);
     const result = await TOOL_HANDLERS[name](args, ctx);
