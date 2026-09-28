@@ -57,7 +57,7 @@ The home screen after pairing. On a phone it's one day at a time: a day strip (M
 
 The canvas redraws from `GetSchedule` after every change. Tapping a block asks Nevada to tell you more about it; she answers and points at it rather than opening anything new.
 
-Each session block shows its level and AWS session code, for example `L300 AIM301`. Hovering or tabbing to a favorite shows a × that removes it from favorites straight away, with no turn for Nevada.
+Each session block shows its level and AWS session code, for example `L300 AIM301`. Favorites and personal time carry a × that removes them after one confirm tap, with no turn for Nevada. On touch screens the × always shows. With a mouse or keyboard it shows on hover or focus. A favorite removed this way isn't suggested back in its old slot, unless Nevada shows it again.
 
 A favorite AWS hasn't scheduled yet has no day or time, so it can't go in the grid. It shows instead as a horizontal strip below the timeline, "Favorited, not yet scheduled", visible no matter which day is selected.
 

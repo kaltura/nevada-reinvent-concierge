@@ -104,17 +104,19 @@ function timelineBlockEl(b, opts = {}) {
       .filter(Boolean).flatMap((part, i) => (i ? [' · ', part] : [part]));
     const full = [b.clock, b.title, b.abbreviation, b.venue, b.level ? `Level ${b.level}` : null, b.seatAvailability].filter(Boolean).join(' · ');
     const content = [h('span', { class: 'title' }, b.title), meta.length ? h('span', { class: 'meta-compact' }, meta) : null];
-    if (b.kind === 'personal') return h('div', { class: 'block block-compact', 'data-state': 'personal', title: full }, ...content);
+    // The × is a sibling, not a child: a button can't hold another button.
+    const withRemove = (el, tool, id, label) => h('div', { class: 'block-wrap' }, el, h('button', {
+      class: 'block-remove', 'data-remove': tool, 'data-remove-id': id, 'aria-label': `${label}: ${b.title}`, title: label,
+    }, '×'));
+    if (b.kind === 'personal') {
+      return withRemove(h('div', { class: 'block block-compact', 'data-state': 'personal', title: full }, ...content),
+        'delete_personal_time', b.id, 'Remove from schedule');
+    }
     const block = h('button', {
       class: 'block block-compact', 'data-session': b.sessionId, 'data-state': b.kind, 'data-clash': b.clash,
       'data-turn': `Tell me more about ${b.title} (session ${b.sessionId})`, title: full,
     }, ...content);
-    // A sibling, not a child: a button can't hold another button.
-    return b.kind === 'favorite'
-      ? h('div', { class: 'block-wrap' }, block, h('button', {
-        class: 'unfavorite', 'data-unfavorite': b.sessionId, 'aria-label': `Remove ${b.title} from favorites`, title: 'Remove from favorites',
-      }, '×'))
-      : block;
+    return b.kind === 'favorite' ? withRemove(block, 'unfavorite_session', b.sessionId, 'Remove from favorites') : block;
   }
   // Every call site (renderTimeline, renderWeek) always passes compact: true,
   // so a non-compact block is never actually rendered by the live app. The
@@ -227,9 +229,13 @@ function syncScreen(patch) {
 // A fresh show_sessions call replaces this outright, same as the old card
 // list did.
 let highlighted = new Map();
+// Favorites removed with the ×. Without this, the server's topic picks refill
+// the same slot with the session just removed, so the tap looks like it did nothing.
+const dismissed = new Set();
 function withHighlights(day, recommended, blocks) {
   const known = new Set([...recommended.map((r) => r.sessionId), ...blocks.map((b) => b.sessionId).filter(Boolean)]);
-  return [...recommended, ...(highlighted.get(day) ?? []).filter((s) => !known.has(s.sessionId))];
+  return [...recommended, ...(highlighted.get(day) ?? []).filter((s) => !known.has(s.sessionId))]
+    .filter((s) => !dismissed.has(s.sessionId));
 }
 const DESKTOP_MQ = window.matchMedia('(min-width: 1024px)');
 function renderCurrentView() {
@@ -312,6 +318,17 @@ function confirmSheet(message) {
     document.addEventListener('keydown', onKey);
   });
 }
+// One extra tap before the tools that give something up: a misheard turn, a
+// model slip, or text injected through a fetched abstract could otherwise
+// cancel, swap or delete something real with no human in the loop beyond
+// prompts/rules.md's "clear yes" rule, which the model itself enforces and
+// can get wrong. The × on a block uses it too, since a stray tap on a phone is easy.
+const CONFIRM_BEFORE = new Map([
+  ['cancel_reservation', 'Cancel this reservation?'],
+  ['swap_reservation', 'Swap to the new session? This drops your old seat first.'],
+  ['delete_personal_time', 'Remove this from your schedule?'],
+  ['unfavorite_session', 'Remove this from your favorites?'],
+]);
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function renderRecap(recap) {
@@ -532,13 +549,17 @@ setInputEnabled(false);
 // Chips and card actions carry the turn text, e.g. "Reserve Multi-agent
 // systems in production (session ABC123)". EXPERIENCE-UX.md § Talk, type or tap.
 document.addEventListener('click', async ({ target }) => {
-  // A direct tap on the remove button, so no confirm step and no turn for Nevada.
-  const unfavorite = target.closest('[data-unfavorite]');
-  if (unfavorite) {
-    unfavorite.disabled = true;
-    const result = await api('/tools/unfavorite_session', { id: unfavorite.dataset.unfavorite })
+  // A block's ×: a confirm step, but no turn for Nevada.
+  const remove = target.closest('[data-remove]');
+  if (remove) {
+    const { remove: tool, removeId: id } = remove.dataset;
+    if (!(await confirmSheet(CONFIRM_BEFORE.get(tool)))) return;
+    remove.disabled = true;
+    const result = await api(`/tools/${tool}`, { id })
       .catch(() => ({ answer: "That didn't work. Try again in a moment." }));
-    toast(result.answer);
+    if (tool === 'unfavorite_session') dismissed.add(id);
+    // The answer names the session id for Nevada's sake. On screen it's noise.
+    toast(result.answer.replace(/ \(session [^)]+\)/, ''));
     loadSchedule(screen.day);
     return;
   }
@@ -823,6 +844,8 @@ session.onToolCall('show_sessions', async ({ sessionIds }) => {
   const data = await show('/api/sessions', { ids: sessionIds });
   if (!data || !lastSchedule) return;
   highlighted = new Map();
+  // Nevada chose to show these, so they show even if the × removed one earlier.
+  for (const id of sessionIds) dismissed.delete(id);
   for (const s of data.sessions) {
     if (!s.day) continue;
     if (!highlighted.has(s.day)) highlighted.set(s.day, []);
@@ -985,19 +1008,8 @@ let searchThisTurn = null;
 // so it only fires once the SDK's own reassurance has already had its turn.
 session.on('turnStart', () => { searchThisTurn = null; armToolFollowup(16000); });
 
-// One extra tap before the tools that give something up: a misheard turn, a
-// model slip, or text injected through a fetched abstract could otherwise
-// cancel, swap or delete something real with no human in the loop beyond
-// prompts/rules.md's "clear yes" rule, which the model itself enforces and
-// can get wrong. A decline still resolves the tool call, so Nevada can tell
-// the attendee it didn't happen instead of the turn going quiet.
-const CONFIRM_BEFORE = new Map([
-  ['cancel_reservation', 'Cancel this reservation?'],
-  ['swap_reservation', 'Swap to the new session? This drops your old seat first.'],
-  ['delete_personal_time', 'Remove this from your schedule?'],
-  ['unfavorite_session', 'Remove this from your favorites?'],
-]);
-
+// CONFIRM_BEFORE gates these calls. A decline still resolves the tool call,
+// so Nevada can tell the attendee it didn't happen instead of the turn going quiet.
 for (const name of SERVER_TOOLS) {
   session.onToolCall(name, async (args, call) => {
     let result;

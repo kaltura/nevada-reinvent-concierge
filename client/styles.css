@@ -249,18 +249,25 @@ button {
 }
 /* The session code (AIM301) rides small after the level. */
 .block-compact .code { font-size: 10px; letter-spacing: .04em; }
-/* Favorites swap the chevron for a remove button on hover or keyboard focus
-   (app.js timelineBlockEl). */
+/* Favorites and personal time carry a × that removes them (app.js
+   timelineBlockEl). Touch screens have no hover, so there it always shows,
+   in place of the chevron, with a finger-sized hit area. A mouse sees it on
+   hover and a keyboard on focus. */
 .block-wrap { position: relative; min-width: 0; }
-.unfavorite {
-  position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
-  width: 24px; height: 24px; min-width: 0; min-height: 0; border-radius: 50%;
-  color: var(--muted); font-size: 16px; line-height: 1;
-  opacity: 0; pointer-events: none;
+.block-wrap .block-compact { padding-right: 40px; }
+.block-wrap .block::after { visibility: hidden; }
+.block-remove {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; min-width: 0; min-height: 0;
+  color: var(--muted); font-size: 18px; line-height: 1;
 }
-.unfavorite:hover { color: var(--danger-text); background: var(--elevated); }
-.block-wrap:is(:hover, :focus-within) .unfavorite { opacity: 1; pointer-events: auto; }
-.block-wrap:is(:hover, :focus-within) .block::after { visibility: hidden; }
+@media (hover: hover) and (pointer: fine) {
+  .block-wrap .block-compact { padding-right: calc(var(--s-3) + 16px); }
+  .block-wrap:not(:hover, :focus-within) .block::after { visibility: visible; }
+  .block-remove { right: 2px; width: 24px; height: 24px; border-radius: 50%; opacity: 0; pointer-events: none; }
+  .block-remove:hover { color: var(--danger-text); background: var(--elevated); }
+  .block-wrap:is(:hover, :focus-within) .block-remove { opacity: 1; pointer-events: auto; }
+}
 /* Immediate feedback that a tap registered, cleared once Nevada's reply
    actually lands (app.js caption()) rather than after a guessed delay. */
 .block.pending { opacity: .5; }
