@@ -1,6 +1,9 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 /**
  * End-to-end through the real HTTP server: pairing completion, catalog sync,
@@ -13,6 +16,11 @@ import { randomBytes } from 'node:crypto';
 
 process.env.TOKEN_ENC_KEY = randomBytes(32).toString('base64');
 process.env.PORT = '0';
+process.env.KALTURA_PARTNER_ID = '123';
+process.env.KALTURA_ADMIN_SECRET = 'test-secret';
+const fixtureDir = mkdtempSync(join(tmpdir(), 'nevada-test-'));
+process.env.NEVADA_AGENT_JSON = join(fixtureDir, 'agent.json');
+writeFileSync(process.env.NEVADA_AGENT_JSON, JSON.stringify({ configId: 'cfg1', agentId: 'agent1' }));
 
 const AWS_SESSIONS = [{
   sessionId: 'AAA111', title: 'Deep dive on Lambda', venue: 'MGM Grand', isReservable: true,
@@ -25,9 +33,17 @@ const AWS_SESSIONS = [{
 
 let scheduleState = { reserved: [], favorites: [], personalTime: [] };
 const revokeCalls = [];
+const kalturaMints = []; // form fields of each session/start call
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, opts = {}) => {
   const u = String(url);
+  if (u === 'https://www.kaltura.com/api_v3/service/session/action/start') {
+    kalturaMints.push(Object.fromEntries(new URLSearchParams(opts.body)));
+    return Response.json('djJ8conv');
+  }
+  if (u === 'https://api.avatar.us.kaltura.ai/v1/application/appInit') {
+    return Response.json({ ks: 'djJ8init', conversationManagerUrl: 'wss://cm', srsBaseUrl: 'https://srs', turnServerUrl: 'turn:t', partnerId: 123 });
+  }
   if (!u.startsWith('https://api.awsevents.com/') && !u.startsWith('https://oauth.awsevents.com/')) return realFetch(url, opts);
   if (u === 'https://api.awsevents.com/v1/events/reinvent2026/sessions/EEE555') {
     return { status: 200, ok: true, text: async () => JSON.stringify({ sessionId: 'EEE555', title: 'Live-fetched session' }) };
@@ -57,6 +73,11 @@ globalThis.fetch = async (url, opts = {}) => {
     revokeCalls.push(new URLSearchParams(opts.body).get('token'));
     return { status: 200, ok: true, text: async () => '' };
   }
+  if (u === 'https://oauth.awsevents.com/oauth2/userInfo') {
+    // Each fake access token stands for its own attendee; 'bad' is one AWS rejects.
+    const t = opts.headers.Authorization.replace('Bearer ', '');
+    return t === 'bad' ? { status: 401, ok: false } : { status: 200, ok: true, json: async () => ({ sub: `sub-${t}` }) };
+  }
   throw new Error(`unmocked AWS call: ${opts.method || 'GET'} ${u}`);
 };
 
@@ -85,7 +106,7 @@ async function waitForCatalogSync() {
   throw new Error('catalog never synced');
 }
 
-after(() => { globalThis.fetch = realFetch; server.close(); });
+after(() => { globalThis.fetch = realFetch; server.close(); rmSync(fixtureDir, { recursive: true, force: true }); });
 
 test('pairing, reserve, schedule and cancel round-trip through the real server, AWS mocked', async () => {
   const { code } = await (await postJson('/api/pair/start', {})).json();
@@ -173,4 +194,58 @@ test('a tool call with no pairing asks to connect, and an unknown tool 404s', as
 
   const unknown = await postJson('/tools/not_a_real_tool', {});
   assert.equal(unknown.status, 404);
+});
+
+/** Pairs a fresh visitor as the attendee behind `accessToken`, then polls
+ * status once so the cookie rotates the way a real pairing tab's does. */
+async function pairAs(accessToken) {
+  cookie = undefined;
+  const { code } = await (await postJson('/api/pair/start', {})).json();
+  const complete = await (await postJson('/api/pair/complete', { code, access_token: accessToken, refresh_token: `r-${accessToken}`, expires_in: 3600 })).json();
+  assert.equal((await (await req(`/api/pair/status/${code}`)).json()).state, 'paired');
+  return complete;
+}
+async function mintedUserId() {
+  const res = await postJson('/api/agent/init', {});
+  assert.equal(res.status, 200);
+  return kalturaMints.at(-1).userId;
+}
+
+test('/api/agent/init refuses an unpaired visitor', async () => {
+  cookie = undefined;
+  const res = await postJson('/api/agent/init', {});
+  assert.equal(res.status, 401);
+  assert.deepEqual(await res.json(), { error: 'not_paired' });
+});
+
+test('/api/agent/init returns only what the browser needs from appInit', async () => {
+  await pairAs('tokA');
+  const res = await postJson('/api/agent/init', {});
+  assert.deepEqual(await res.json(), { ks: 'djJ8init', conversationManagerUrl: 'wss://cm', srsBaseUrl: 'https://srs', turnServerUrl: 'turn:t' });
+});
+
+test('/api/agent/init mints a KS for the agent under a pseudonymous userId', async () => {
+  await pairAs('tokA');
+  await mintedUserId();
+  const mint = kalturaMints.at(-1);
+  assert.match(mint.userId, /^aws-[\w-]{32}$/);
+  assert.ok(!mint.userId.includes('sub-tokA'));
+  assert.equal(mint.privileges, 'geniegpcid:cfg1,agentid:agent1');
+});
+
+test('the same AWS attendee gets the same userId across pairings, a different one does not', async () => {
+  await pairAs('tokA');
+  const first = await mintedUserId();
+  await pairAs('tokA');
+  assert.equal(await mintedUserId(), first);
+  await pairAs('tokB');
+  assert.notEqual(await mintedUserId(), first);
+});
+
+test('a phone handoff keeps the attendee userId', async () => {
+  const { handoffUrl } = await pairAs('tokA');
+  const own = await mintedUserId();
+  const consumed = await fetch(`${base}${new URL(handoffUrl).pathname}${new URL(handoffUrl).search}`, { method: 'POST', redirect: 'manual' });
+  cookie = consumed.headers.get('set-cookie').split(';')[0];
+  assert.equal(await mintedUserId(), own);
 });

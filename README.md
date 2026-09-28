@@ -40,7 +40,7 @@ Open the app at the URL `npm start` prints, then pair a laptop with `npm run pai
 
 | Path | What |
 |---|---|
-| `client/` | Browser app: widget token, avatar session, composer, disclosure, captions, screen context, client tools. `client/prototype.html` is a static design reference. |
+| `client/` | Browser app: avatar session, composer, disclosure, captions, screen context, client tools. `client/prototype.html` is a static design reference. |
 | `server/` | Web API and proxy: server tools, encrypted token store, catalog sync and search, unit tests, evals. State is in memory, so a restart clears it. |
 | `pair/` | Laptop pairing CLI (`nevada-pair`) |
 | `scripts/` | `provision.mjs` creates the agent, tools and widget; `update-prompts.mjs` pushes prompt changes; `dev-pair.mjs` runs the pairing helper locally |

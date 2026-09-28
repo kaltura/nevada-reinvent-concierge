@@ -9,6 +9,7 @@ const BASE = 'https://api.awsevents.com/v1';
 const EVENT_ID = 'reinvent2026';
 const TOKEN_URL = 'https://oauth.awsevents.com/oauth2/token';
 const REVOKE_URL = 'https://oauth.awsevents.com/oauth2/revoke';
+const USERINFO_URL = 'https://oauth.awsevents.com/oauth2/userInfo';
 const CLIENT_ID = '7vmom55m1qstvq8i71ph127bfq';
 
 export class AwsError extends Error {
@@ -44,6 +45,14 @@ export async function revokeRefreshToken(refreshToken) {
     console.error('revoke failed:', e.message);
     return false;
   }
+}
+
+/** The attendee's stable AWS account id (`sub`), or null if AWS rejects the token. */
+export async function getUserSub(accessToken) {
+  const res = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => null);
+  if (!res?.ok) return null;
+  const { sub } = await res.json().catch(() => ({}));
+  return typeof sub === 'string' && sub ? sub : null;
 }
 
 async function call(accessToken, method, path, body) {
@@ -126,9 +135,9 @@ export async function withToken(tokenStore, visitor, fn) {
     if (!fresh) { tokenStore.delete(visitor); return { paired: false, expired: true }; }
     // AWS can omit refresh_token when it doesn't rotate it; keep the old one
     // instead of overwriting it with undefined and breaking the next refresh.
-    // Carry the pairingId forward too, or a refreshed record would fall out
-    // of its pairing's Disconnect group.
-    tokenStore.set(visitor, { ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token, pairingId: tokens.pairingId });
+    // Carry pairingId and userId forward too, or a refreshed record would fall
+    // out of its pairing's Disconnect group and lose its Kaltura identity.
+    tokenStore.set(visitor, { ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token, pairingId: tokens.pairingId, userId: tokens.userId });
     try {
       return { paired: true, result: await fn(fresh.access_token) };
     } catch (e2) {

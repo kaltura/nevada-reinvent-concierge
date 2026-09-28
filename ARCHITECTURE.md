@@ -27,7 +27,7 @@ Paired device ──scan/tap QR or link──▶ phone loads /?handoff=TOKEN, co
 | Part | Job | Lives in |
 |---|---|---|
 | Web app | Mobile-first UI, SDK sessions, renders from our Web API | `client/` |
-| Web API | Visitor sessions, pairing codes, page data (`/api/schedule`, `/api/sessions`) | `server/` |
+| Web API | Visitor sessions, pairing codes, agent sessions (`/api/agent/init`), page data (`/api/schedule`, `/api/sessions`) | `server/` |
 | Proxy | One endpoint per agent tool. Resolves the attendee, calls AWS, shapes a short answer. | `server/` |
 | Token store | Refresh and access tokens per attendee, encrypted at rest | `server/` |
 | Sync job and index | Catalog snapshot, search, repeats, venue mapping | `server/` |
@@ -53,7 +53,13 @@ Other reasons:
 
 ## Identity
 
-The voice path starts from an anonymous widget KS, so `sys__user_id` is not bound there. Every proxy call is same-origin: the page's own `fetch('/tools/${name}')` carries the same HttpOnly visitor cookie every other Web API route already trusts (`/api/schedule`, `/api/pair/*`). There is no separate identity chain for tools, because Kaltura's cloud never calls our backend directly. There's no third party to authenticate.
+Each attendee's agent session carries their own Kaltura `userId`, so `sys__user_id` resolves and Kaltura sees the same attendee on every visit:
+
+1. At pairing, `/api/pair/complete` calls AWS `oauth2/userInfo` with the attendee's access token and reads their `sub`. It never trusts an id the helper sends. If AWS rejects the token, pairing fails with 401.
+2. The backend stores `aws-` plus a keyed HMAC-SHA256 of that `sub` (key derived from `TOKEN_ENC_KEY`) with the tokens. Kaltura never sees the AWS id itself. Rotating `TOKEN_ENC_KEY` gives every attendee a new `userId`, so Kaltura-side history starts over.
+3. `POST /api/agent/init` (paired visitors only) mints a conversation KS with that `userId` plus `agentid:<agentId>`, runs `application.appInit` on it, and returns only the session KS and the avatar URLs. The admin secret stays on the server.
+
+Every proxy call is same-origin: the page's own `fetch('/tools/${name}')` carries the same HttpOnly visitor cookie every other Web API route already trusts (`/api/schedule`, `/api/pair/*`). There is no separate identity chain for tools, because Kaltura's cloud never calls our backend directly. There's no third party to authenticate.
 
 Rules:
 
@@ -67,7 +73,7 @@ The app shows nothing but a connect gate until AWS pairing succeeds: no avatar, 
 1. The gate shows a 6-character code, valid 10 minutes, and a command to run.
 2. The attendee runs `npx nevada-pair CODE` on that device. Until that package is published, the pairing screen shows the interim command to copy instead: a local absolute path, so it only works on the machine already running the app.
 3. The helper binds the first free port from 8484 to 8489 and opens the AWS sign-in page with PKCE.
-4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS. The backend replies with two single-use handoff URLs, and the helper's success page shows a button for one ("Open Nevada", for continuing on this device) and a QR code for the other (for a phone). Either lands that device already paired even if it never shared a cookie with whoever started pairing (`npm run pair` starts pairing from a script, not a browser, so this is the case that matters most), and using one doesn't invalidate the other.
+4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS. The backend checks the access token with AWS and derives the attendee's `userId` (see [§ Identity](#identity)), then replies with two single-use handoff URLs, and the helper's success page shows a button for one ("Open Nevada", for continuing on this device) and a QR code for the other (for a phone). Either lands that device already paired even if it never shared a cookie with whoever started pairing (`npm run pair` starts pairing from a script, not a browser, so this is the case that matters most), and using one doesn't invalidate the other.
 5. Meanwhile the gate polls the pairing status. The first poll to see "paired" rotates the visitor cookie to a freshly minted id and moves the tokens onto it, so a cookie planted on that device before pairing started (session fixation) never ends up holding real tokens. The gate then starts the avatar experience for whichever device actually holds that cookie.
 
 The helper talks only to AWS and our backend. It stores nothing on disk, prints nothing secret, and exits. We publish its source.
@@ -97,6 +103,8 @@ What's protected:
 - The visitor cookie (`__Host-mq_v`) is `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` and carries no `Domain` attribute (the `__Host-` prefix, enforced by the browser). No script on the page, ours or a browser extension, can read it, no other site can ride along with it, and no subdomain can plant one that overrides it.
 - Every state-changing request checks `Sec-Fetch-Site` (falling back to `Origin` only when a browser sends neither) so a cross-site page can't ride the cookie into a real request, and every request checks the `Host` header against `PUBLIC_ORIGIN` (or the bound socket's own host and port) so DNS rebinding can't retarget it either.
 - AWS tokens live only in our backend's process, encrypted with a key from an environment secret. They never reach the browser or Kaltura's cloud.
+- The Kaltura admin secret lives only in the backend. The browser gets a session KS for one agent and one `userId`, and only after pairing.
+- Kaltura gets a pseudonymous `userId`, never the attendee's AWS id or email (see [§ Identity](#identity)).
 - Disconnecting revokes the refresh token at AWS and deletes every copy sharing that pairing's `pairingId` (see [§ Phone handoff](#phone-handoff)).
 - The Web API and pairing endpoints are rate-limited per client IP and route (`rateLimited()` in `server/index.mjs`).
 
@@ -202,9 +210,9 @@ Set `EVAL_NONINTERACTIVE=1` (used in CI, [.github/workflows/evals.yml](.github/w
 ## Runtime
 
 - Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js`. Never `@latest`. The SDK isn't on npm, so Node code uses a git dependency on the same tag.
-- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.23.2` in the SDK repo once per subpath used (today `experience/index.js` and `management/index.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
+- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.23.2` in the SDK repo once per subpath used (today `experience/index.js` and `experience/chroma-key.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
 - Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
-- Token: the page reads `partnerId` and `widgetId` from `/api/config`, then calls `sessions.createWidgetToken({widgetId})` and `application.appInit(ks)`. `appInit` returns the session KS and the avatar URLs. No secret touches the browser.
+- Token: the page posts to `/api/agent/init` and gets the session KS and the avatar URLs (see [§ Identity](#identity)). No secret touches the browser.
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()` and `startPlayback()` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
 - Expo-floor noise: `micConstraints: false` plus `noiseProcessor: createNoiseSuppressor({ thresholdDb: -50 })` from `@kaltura/intelligent-agents/experience/noise-suppressor`, both avatar config keys. Raw audio in, so the browser-native Tier-1 suppressor doesn't double-process the signal ahead of the SDK's own AudioWorklet gate.
 - Media: `<video autoplay playsinline muted>` plus a separate `<audio autoplay>`. With a separate audio element the video stream has no audio track, so `muted` costs nothing and helps iOS autoplay. Video is H264 only, so leave `preferredVideoCodec` unset.

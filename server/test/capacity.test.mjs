@@ -12,6 +12,8 @@ import { randomBytes } from 'node:crypto';
 
 process.env.TOKEN_ENC_KEY = randomBytes(32).toString('base64');
 process.env.PORT = '0';
+process.env.KALTURA_PARTNER_ID = '123';
+process.env.KALTURA_ADMIN_SECRET = 'test-secret';
 process.env.PAIR_MAX = '2';
 process.env.HANDOFF_MAX = '3';
 process.env.TOKEN_STORE_MAX = '1';
@@ -24,6 +26,11 @@ globalThis.fetch = async (url, opts = {}) => {
     return { status: 200, ok: true, text: async () => JSON.stringify({ items: [], totalCount: 0 }) };
   }
   if (u === 'https://oauth.awsevents.com/oauth2/revoke') return { status: 200, ok: true, text: async () => '' };
+  if (u === 'https://oauth.awsevents.com/oauth2/userInfo') {
+    // Each fake access token stands for its own attendee; 'bad' is one AWS rejects.
+    const t = opts.headers.Authorization.replace('Bearer ', '');
+    return t === 'bad' ? { status: 401, ok: false } : { status: 200, ok: true, json: async () => ({ sub: `sub-${t}` }) };
+  }
   throw new Error(`unmocked AWS call: ${opts.method || 'GET'} ${u}`);
 };
 

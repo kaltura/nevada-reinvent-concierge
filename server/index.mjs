@@ -21,23 +21,27 @@ import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes, randomInt, createHmac, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize, extname, relative } from 'node:path';
+import { Management } from '@kaltura/intelligent-agents/management';
 import { makeTokenStore } from './tokens.mjs';
 import { makeCatalog } from './catalog.mjs';
-import { withToken, getSchedule, revokeRefreshToken } from './aws.mjs';
+import { withToken, getSchedule, getUserSub, revokeRefreshToken } from './aws.mjs';
 import { TOOL_HANDLERS, makeToolCtx } from './tools.mjs';
 import { sessionCard, buildTimeline } from './schedule.mjs';
 import { EVENT_DAYS } from './dates.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
-const AGENT_JSON = join(ROOT, 'server', 'agent.json');
+// Tests point this at a fixture so they never read the real file.
+const AGENT_JSON = process.env.NEVADA_AGENT_JSON || join(ROOT, 'server', 'agent.json');
 const PAIR_SCRIPT = join(ROOT, 'pair', 'index.mjs');
 const {
   PORT = '8080', HOST = '127.0.0.1', PUBLIC_ORIGIN,
-  KALTURA_PARTNER_ID, TOKEN_ENC_KEY,
+  KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, TOKEN_ENC_KEY,
   PAIR_MAX = '2000', HANDOFF_MAX = '2000', TOKEN_STORE_MAX = '5000',
 } = process.env;
-if (!TOKEN_ENC_KEY) { console.error('Set TOKEN_ENC_KEY in .env'); process.exit(2); }
+for (const [name, value] of Object.entries({ TOKEN_ENC_KEY, KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET })) {
+  if (!value) { console.error(`Set ${name} in .env`); process.exit(2); }
+}
 
 const PAIR_TTL_MS = 10 * 60 * 1000;
 // No 0/O or 1/I, so a code read off a phone can't be mistyped.
@@ -53,6 +57,9 @@ const handoffs = new Map(); // token -> { visitor, expires }
 const HANDOFF_TTL_MS = 2 * 60 * 1000;
 const tokenStore = makeTokenStore(TOKEN_ENC_KEY);
 const catalog = makeCatalog();
+// Server-side only: the admin secret mints each attendee's agent session and
+// never reaches the browser. ARCHITECTURE.md § Identity.
+const kaltura = new Management({ partnerId: Number(KALTURA_PARTNER_ID), adminSecret: KALTURA_ADMIN_SECRET });
 
 const token = () => randomBytes(24).toString('base64url');
 
@@ -70,6 +77,12 @@ function validSignature(id, sig) {
   const got = Buffer.from(String(sig));
   return want.length === got.length && timingSafeEqual(want, got);
 }
+
+// The attendee's Kaltura userId: a keyed hash of their AWS `sub`, so Kaltura
+// sees the same id every visit but never the AWS id itself. Rotating
+// TOKEN_ENC_KEY changes every userId.
+const USER_ID_KEY = createHmac('sha256', Buffer.from(TOKEN_ENC_KEY, 'base64')).update('nevada-kaltura-user-id-v1').digest();
+const kalturaUserId = (sub) => `aws-${createHmac('sha256', USER_ID_KEY).update(sub).digest('base64url').slice(0, 32)}`;
 
 // Simple sliding-window rate limit per client IP and route, to blunt
 // unauthenticated brute-forcing and looped pairing/handoff calls.
@@ -190,10 +203,16 @@ function syncSoon(accessToken) {
 async function api(req, res, path) {
   if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
 
-  if (path === '/api/config' && req.method === 'GET') {
+  if (path === '/api/agent/init' && req.method === 'POST') {
+    if (rateLimited(req, 'agent/init', 10, 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
+    // Paired attendees only, so every agent session carries a real userId.
+    const userId = tokenStore.get(visitor(req, res))?.userId;
+    if (!userId) return send(res, 401, { error: 'not_paired' });
     if (!existsSync(AGENT_JSON)) return send(res, 503, { error: 'not_provisioned', fix: 'npm run provision' });
-    const { widgetId } = JSON.parse(readFileSync(AGENT_JSON, 'utf8'));
-    return send(res, 200, { partnerId: KALTURA_PARTNER_ID, widgetId });
+    const { configId, agentId } = JSON.parse(readFileSync(AGENT_JSON, 'utf8'));
+    const conv = await kaltura.sessions.createConversationToken({ configId, userId, extraPrivileges: `agentid:${agentId}` });
+    const { ks, conversationManagerUrl, srsBaseUrl, turnServerUrl } = await kaltura.application.appInit(conv.ks);
+    return send(res, 200, { ks, conversationManagerUrl, srsBaseUrl, turnServerUrl });
   }
   if (path === '/api/pair/start' && req.method === 'POST') {
     if (rateLimited(req, 'pair/start', 20, 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
@@ -227,7 +246,7 @@ async function api(req, res, path) {
       const tokens = tokenStore.get(p.visitor);
       if (tokens) {
         const expires_in = Math.max(1, Math.round((tokens.expiresAt - Date.now()) / 1000));
-        tokenStore.set(fresh, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in, pairingId: tokens.pairingId });
+        tokenStore.set(fresh, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in, pairingId: tokens.pairingId, userId: tokens.userId });
       }
       tokenStore.delete(p.visitor);
       // The handoffs /api/pair/complete just minted still point at the old id.
@@ -252,6 +271,12 @@ async function api(req, res, path) {
     if (typeof access_token !== 'string' || typeof refresh_token !== 'string' || !Number.isFinite(expires_in)) {
       return send(res, 400, { error: 'bad_request' });
     }
+    // Ask AWS who this is rather than trusting anything the helper sends.
+    // This also rejects a made-up access token before it takes the code.
+    const sub = await getUserSub(access_token);
+    if (!sub) return send(res, 401, { error: 'aws_rejected_token' });
+    // Another complete for this code may have won while we waited on AWS.
+    if (p.state !== 'waiting') return send(res, 409, { error: 'already_used' });
     // Drop anyone idle for a week before the hard cap, so an attendee who
     // never disconnects doesn't hold a slot forever and eventually lock out
     // every new pairing with a permanent 503.
@@ -259,7 +284,7 @@ async function api(req, res, path) {
     if (tokenStore.size() >= Number(TOKEN_STORE_MAX)) return send(res, 503, { error: 'too_busy' });
     p.state = 'paired';
     const pairingId = token();
-    tokenStore.set(p.visitor, { access_token, refresh_token, expires_in, pairingId });
+    tokenStore.set(p.visitor, { access_token, refresh_token, expires_in, pairingId, userId: kalturaUserId(sub) });
     syncSoon(access_token);
     // pair/index.mjs's sign-in tab is a different HTTP client than whoever
     // called /api/pair/start; it only shares that caller's cookie by luck
@@ -437,7 +462,7 @@ async function handoffConsume(req, res, code) {
     if (priorVisitor && priorVisitor !== h.visitor) tokenStore.delete(priorVisitor);
     const v = rotateVisitor(res);
     const expires_in = Math.max(1, Math.round((from.expiresAt - Date.now()) / 1000));
-    tokenStore.set(v, { access_token: from.access_token, refresh_token: from.refresh_token, expires_in, pairingId: from.pairingId });
+    tokenStore.set(v, { access_token: from.access_token, refresh_token: from.refresh_token, expires_in, pairingId: from.pairingId, userId: from.userId });
   }
   // A link already used or opened after HANDOFF_TTL_MS has no `from`. Say so
   // instead of a bare redirect: the gate looks identical either way, so the

@@ -1,16 +1,15 @@
 /**
  * Nevada web app shell. Runtime rules: ARCHITECTURE.md § Runtime.
  *
- * Built so far: widget token, one KalturaAgentSession in avatar mode with
- * Nevada live the whole visit and keyed out of her green backdrop, disclosure,
- * talk, type or tap turns, captions, quiet mode, screen context, pairing,
+ * Built so far: a per-attendee agent session from the server, one
+ * KalturaAgentSession in avatar mode with Nevada live the whole visit and
+ * keyed out of her green backdrop, disclosure, talk, type or tap turns, captions, quiet mode, screen context, pairing,
  * the quiet reconnect with `returning` after the background grace, and the
  * client tools that render cards, the schedule timeline, the conflict sheet
  * and the recap poster from our Web API.
  * Not built: the chat fallback (Phase 3).
  */
 import { KalturaAgentSession, isSilentOpening, SILENT_OPENING_LABEL } from '@kaltura/intelligent-agents';
-import { Management } from '@kaltura/intelligent-agents/management';
 import { attachChromaKeyAvatar } from '@kaltura/intelligent-agents/experience/chroma-key';
 import { createNoiseSuppressor } from '@kaltura/intelligent-agents/experience/noise-suppressor';
 import { ChromaKeyVideo } from 'chroma-key-video';
@@ -357,10 +356,8 @@ countdown();
 // for the very first opening. scripts/provision.mjs § OPENING_PHRASE.
 const scheduleData = await loadSchedule();
 
-const { partnerId, widgetId } = await api('/api/config');
-const kaltura = new Management({ partnerId: Number(partnerId) });
-const widget = await kaltura.sessions.createWidgetToken({ widgetId });
-const init = await kaltura.application.appInit(widget.ks);
+// The server mints this session with the attendee's own userId. ARCHITECTURE.md § Identity.
+const init = await api('/api/agent/init', {});
 
 session = new KalturaAgentSession({
   token: init.ks,

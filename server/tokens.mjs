@@ -26,7 +26,7 @@ export function makeTokenStore(encKeyBase64) {
   }
 
   return {
-    /** @param {string} visitor @param {{access_token,refresh_token,expires_in,pairingId?}} tok */
+    /** @param {string} visitor @param {{access_token,refresh_token,expires_in,pairingId?,userId?}} tok */
     set(visitor, tok) {
       store.set(visitor, encrypt({
         access_token: tok.access_token,
@@ -36,6 +36,8 @@ export function makeTokenStore(encKeyBase64) {
         // original device plus any phone handoff copies), so Disconnect can
         // find and remove all of them, not just the caller's own copy.
         pairingId: tok.pairingId,
+        // The attendee's Kaltura userId, a pseudonym. server/index.mjs § kalturaUserId.
+        userId: tok.userId,
         lastUsed: Date.now(),
       }));
     },

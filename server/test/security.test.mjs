@@ -13,6 +13,8 @@ import { request as httpRequest } from 'node:http';
 
 process.env.TOKEN_ENC_KEY = randomBytes(32).toString('base64');
 process.env.PORT = '0';
+process.env.KALTURA_PARTNER_ID = '123';
+process.env.KALTURA_ADMIN_SECRET = 'test-secret';
 
 const revokeCalls = [];
 const realFetch = globalThis.fetch;
@@ -28,6 +30,11 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u === 'https://oauth.awsevents.com/oauth2/revoke' && opts.method === 'POST') {
     revokeCalls.push(new URLSearchParams(opts.body).get('token'));
     return { status: 200, ok: true, text: async () => '' };
+  }
+  if (u === 'https://oauth.awsevents.com/oauth2/userInfo') {
+    // Each fake access token stands for its own attendee; 'bad' is one AWS rejects.
+    const t = opts.headers.Authorization.replace('Bearer ', '');
+    return t === 'bad' ? { status: 401, ok: false } : { status: 200, ok: true, json: async () => ({ sub: `sub-${t}` }) };
   }
   throw new Error(`unmocked AWS call: ${opts.method || 'GET'} ${u}`);
 };
@@ -82,6 +89,20 @@ test('/api/pair/complete rejects malformed token fields', async () => {
   const { code } = await startRes.json();
   const res = await postJson('/api/pair/complete', { code, access_token: 1, refresh_token: 'r', expires_in: 3600 }, { headers: { Cookie: cookie } });
   assert.equal(res.status, 400);
+});
+
+test('/api/pair/complete rejects a token AWS does not accept, and the code stays usable', async (t) => {
+  const startRes = await postJson('/api/pair/start', {});
+  const cookie = cookieOf(startRes);
+  const { code } = await startRes.json();
+
+  const rejected = await postJson('/api/pair/complete', { code, access_token: 'bad', refresh_token: 'r', expires_in: 3600 }, { headers: { Cookie: cookie } });
+  assert.equal(rejected.status, 401);
+  assert.equal((await rejected.json()).error, 'aws_rejected_token');
+
+  const retry = await postJson('/api/pair/complete', { code, access_token: 'good', refresh_token: 'r', expires_in: 3600 }, { headers: { Cookie: cookie } });
+  assert.equal(retry.status, 200);
+  t.after(() => postJson('/api/pair/disconnect', {}, { headers: { Cookie: cookie } }));
 });
 
 test('rejects a cross-site tool call before it reaches the handler', async () => {
@@ -200,7 +221,7 @@ test('a spoofed Host header is refused with 421', async () => {
   // fetch() treats Host as a forbidden header and always sends the real
   // connection host instead, so this needs a raw request to actually spoof it.
   const status = await new Promise((resolve, reject) => {
-    const r = httpRequest(`${base}/api/config`, { headers: { Host: 'evil.example:1234' } }, (res) => {
+    const r = httpRequest(`${base}/`, { headers: { Host: 'evil.example:1234' } }, (res) => {
       res.resume();
       resolve(res.statusCode);
     });

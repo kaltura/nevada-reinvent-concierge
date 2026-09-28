@@ -38,11 +38,12 @@ jobs:
         env:
           PORT: '8080'
           KALTURA_PARTNER_ID: ${{ secrets.KALTURA_PARTNER_ID }}
+          KALTURA_ADMIN_SECRET: ${{ secrets.KALTURA_ADMIN_SECRET }}
           TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
       - name: Wait for the server
         run: |
           for _ in $(seq 1 30); do
-            curl -sf http://localhost:8080/api/config -o /dev/null && exit 0
+            curl -sf http://localhost:8080/ -o /dev/null && exit 0
             sleep 1
           done
           echo "server did not come up within 30s" >&2
