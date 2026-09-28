@@ -33,7 +33,7 @@ function timeSlot(kind, item) {
   return {
     date: item.sessionTime.date, start, end: start + (Number(item.sessionTime.length) || 60), kind,
     sessionId: item.sessionId, title: item.title, venue: item.venue, seatAvailability: item.seatAvailability,
-    level: item.level,
+    level: item.level, abbreviation: item.abbreviation,
   };
 }
 
@@ -73,7 +73,7 @@ export function buildTimeline(day, reservedCards, favoriteCards, personalTime) {
     blocks.push({
       kind: s.kind, sessionId: s.sessionId, id: s.id, title: s.title, venue: s.venue,
       clock: formatClock(minutesToTime(s.start)), length: s.end - s.start, clash: Boolean(s.clash),
-      seatAvailability: s.seatAvailability, level: s.level,
+      seatAvailability: s.seatAvailability, level: s.level, abbreviation: s.abbreviation,
     });
     const next = slots[i + 1];
     if (next) {

@@ -36,6 +36,11 @@ test('buildTimeline orders blocks and inserts a travel tag for a tight gap', () 
   assert.equal(timeline.blocks[2].sessionId, 'BBB222');
 });
 
+test('buildTimeline keeps the session code on session blocks', () => {
+  const timeline = buildTimeline('tuesday', [sessionCard({ ...LAMBDA, abbreviation: 'SVS401' })], [], []);
+  assert.equal(timeline.blocks[0].abbreviation, 'SVS401');
+});
+
 test('buildTimeline drops a favorite with no sessionTime instead of erroring', () => {
   const unscheduled = sessionCard({ sessionId: 'DDD444', title: 'TBD panel' });
   const timeline = buildTimeline('tuesday', [sessionCard(LAMBDA)], [unscheduled], []);

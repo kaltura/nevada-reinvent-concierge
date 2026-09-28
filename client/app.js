@@ -98,15 +98,23 @@ function timelineBlockEl(b, opts = {}) {
     // The row truncates or clips at narrow widths (5-up week columns, phones),
     // so the full title/time/venue always rides along as a native tooltip and
     // the title itself wraps to two lines instead of hiding past an ellipsis.
-    const meta = [opts.inlineClock !== false ? b.clock : null, b.venue, b.level ? `L${b.level}` : null, b.seatAvailability].filter(Boolean).join(' · ');
-    const full = [b.clock, b.title, b.venue, b.level ? `Level ${b.level}` : null, b.seatAvailability].filter(Boolean).join(' · ');
-    const content = [h('span', { class: 'title' }, b.title), meta ? h('span', { class: 'meta-compact' }, meta) : null];
-    return b.kind === 'personal'
-      ? h('div', { class: 'block block-compact', 'data-state': 'personal', title: full }, ...content)
-      : h('button', {
-        class: 'block block-compact', 'data-session': b.sessionId, 'data-state': b.kind, 'data-clash': b.clash,
-        'data-turn': `Tell me more about ${b.title} (session ${b.sessionId})`, title: full,
-      }, ...content);
+    const levelCode = (b.level || b.abbreviation) && h('span', {},
+      b.level ? `L${b.level} ` : null, b.abbreviation ? h('small', { class: 'code' }, b.abbreviation) : null);
+    const meta = [opts.inlineClock !== false ? b.clock : null, b.venue, levelCode, b.seatAvailability]
+      .filter(Boolean).flatMap((part, i) => (i ? [' · ', part] : [part]));
+    const full = [b.clock, b.title, b.abbreviation, b.venue, b.level ? `Level ${b.level}` : null, b.seatAvailability].filter(Boolean).join(' · ');
+    const content = [h('span', { class: 'title' }, b.title), meta.length ? h('span', { class: 'meta-compact' }, meta) : null];
+    if (b.kind === 'personal') return h('div', { class: 'block block-compact', 'data-state': 'personal', title: full }, ...content);
+    const block = h('button', {
+      class: 'block block-compact', 'data-session': b.sessionId, 'data-state': b.kind, 'data-clash': b.clash,
+      'data-turn': `Tell me more about ${b.title} (session ${b.sessionId})`, title: full,
+    }, ...content);
+    // A sibling, not a child: a button can't hold another button.
+    return b.kind === 'favorite'
+      ? h('div', { class: 'block-wrap' }, block, h('button', {
+        class: 'unfavorite', 'data-unfavorite': b.sessionId, 'aria-label': `Remove ${b.title} from favorites`, title: 'Remove from favorites',
+      }, '×'))
+      : block;
   }
   // Every call site (renderTimeline, renderWeek) always passes compact: true,
   // so a non-compact block is never actually rendered by the live app. The
@@ -119,7 +127,7 @@ function timelineBlockEl(b, opts = {}) {
 function suggestedBlock(s) {
   return {
     kind: 'suggested', sessionId: s.sessionId, title: s.title, venue: s.venue, clock: s.clock,
-    level: s.level, seatAvailability: s.seatAvailability,
+    level: s.level, abbreviation: s.abbreviation, seatAvailability: s.seatAvailability,
   };
 }
 
@@ -194,10 +202,7 @@ function renderUnscheduled(list = []) {
   const section = $('unscheduled');
   if (!list.length) { section.hidden = true; $('unscheduled-list').replaceChildren(); return; }
   section.hidden = false;
-  $('unscheduled-list').replaceChildren(...list.map((s) => h('button', {
-    class: 'block block-compact', 'data-session': s.sessionId, 'data-state': 'favorite',
-    'data-turn': `Tell me more about ${s.title} (session ${s.sessionId})`,
-  }, h('span', { class: 'title' }, s.title), s.venue ? h('span', { class: 'meta-compact' }, s.venue) : null)));
+  $('unscheduled-list').replaceChildren(...list.map((s) => timelineBlockEl({ ...s, kind: 'favorite' }, { compact: true })));
 }
 
 // Set once startExperience() runs, which only happens after pairing. The
@@ -526,7 +531,17 @@ function setInputEnabled(on) {
 setInputEnabled(false);
 // Chips and card actions carry the turn text, e.g. "Reserve Multi-agent
 // systems in production (session ABC123)". EXPERIENCE-UX.md § Talk, type or tap.
-document.addEventListener('click', ({ target }) => {
+document.addEventListener('click', async ({ target }) => {
+  // A direct tap on the remove button, so no confirm step and no turn for Nevada.
+  const unfavorite = target.closest('[data-unfavorite]');
+  if (unfavorite) {
+    unfavorite.disabled = true;
+    const result = await api('/tools/unfavorite_session', { id: unfavorite.dataset.unfavorite })
+      .catch(() => ({ answer: "That didn't work. Try again in a moment." }));
+    toast(result.answer);
+    loadSchedule(screen.day);
+    return;
+  }
   const button = target.closest('[data-turn]');
   if (!button) return;
   // Tapping a block sends a spoken turn with no other feedback until Nevada
