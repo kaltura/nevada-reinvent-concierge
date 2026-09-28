@@ -62,7 +62,7 @@ const DAY = str('Event day, e.g. "tuesday". Omit for the whole week.', false);
 const API_TOOLS = [
   ['get_topics', 'The most common topics/tracks in the catalog right now. Call this for "what topics/tracks are available" instead of guessing. Works before the account is connected.', {}],
   ['search_sessions', 'Find sessions in the catalog. Returns the top 5 with IDs. Works before the account is connected.', {
-    query: str('Topic or keywords only, e.g. "serverless" or "kubernetes at scale". Leave out entirely for a request that is only about day, time, venue or level — use day/from/to/venue/level for those, never put a time-of-day word like "morning" or "afternoon" here', false),
+    query: str('Topic or keywords only, e.g. "serverless" or "kubernetes at scale". Leave out entirely for a request that is only about day, time, venue or level: use day/from/to/venue/level for those, never put a time-of-day word like "morning" or "afternoon" here', false),
     day: DAY,
     from: str('Earliest start, local time "HH:MM"', false),
     to: str('Latest end, local time "HH:MM"', false),

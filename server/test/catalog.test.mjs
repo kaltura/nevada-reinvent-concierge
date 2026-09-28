@@ -155,7 +155,7 @@ test('search with no query orders results chronologically', () => {
 
 test('a query that matches no session content falls back to the day/time filtered pool', () => {
   // Mirrors a live agent bug: asking for "Tuesday morning" put day:'tuesday',
-  // to:'12:00' and query:'morning' — no session tokenizes to the word
+  // to:'12:00' and query:'morning', but no session tokenizes to the word
   // "morning", so a hard query filter wiped out two real 9am/9:30am matches.
   const catalog = makeCatalog();
   catalog.seed(FIXTURES);

@@ -5,9 +5,11 @@
  * search (option B: our own lexical index, no embedding provider configured),
  * and all 12 server tool handlers calling the AWS Events API through server/aws.mjs.
  * State is in memory, so a restart forgets everything (tokens, catalog, refs).
+ * Binds to localhost only by default (see HOST below); the other Phase 1
+ * relaxations here (no auth beyond pairing, no persistence) all assume that.
  *
  * The catalog sync job is meant to run on its own AWS service registration
- * (AWS-EVENTS-INTEGRATION.md § Catalog sync) — we don't have one. For local
+ * (AWS-EVENTS-INTEGRATION.md § Catalog sync), which we don't have. For local
  * testing we opportunistically sync using the first attendee's access token
  * right after pairing, since ListSessions only needs a registered attendee's
  * token, not specifically a service one. Replace with a dedicated credential
@@ -16,9 +18,9 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes, randomInt, createHmac, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize, extname } from 'node:path';
+import { dirname, join, normalize, extname, relative } from 'node:path';
 import { makeTokenStore } from './tokens.mjs';
 import { makeCatalog } from './catalog.mjs';
 import { withToken, getSchedule, revokeRefreshToken } from './aws.mjs';
@@ -30,7 +32,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
 const AGENT_JSON = join(ROOT, 'server', 'agent.json');
 const PAIR_SCRIPT = join(ROOT, 'pair', 'index.mjs');
-const { PORT = '8080', KALTURA_PARTNER_ID, TOKEN_ENC_KEY } = process.env;
+const {
+  PORT = '8080', HOST = '127.0.0.1', PUBLIC_ORIGIN,
+  KALTURA_PARTNER_ID, TOKEN_ENC_KEY,
+  PAIR_MAX = '2000', HANDOFF_MAX = '2000', TOKEN_STORE_MAX = '5000',
+} = process.env;
 if (!TOKEN_ENC_KEY) { console.error('Set TOKEN_ENC_KEY in .env'); process.exit(2); }
 
 const PAIR_TTL_MS = 10 * 60 * 1000;
@@ -39,13 +45,67 @@ const PAIR_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const TOOLS = new Set(Object.keys(TOOL_HANDLERS));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
-const pairs = new Map(); // code → { visitor, state, expires }
-const handoffs = new Map(); // token → { visitor, expires }
-const HANDOFF_TTL_MS = 5 * 60 * 1000;
+const pairs = new Map(); // code -> { visitor, state, expires }
+const handoffs = new Map(); // token -> { visitor, expires }
+// A handoff token is a bearer credential for the whole AWS session (whoever
+// holds it can consume it and take over that pairing), so the window it
+// stays valid in is kept short.
+const HANDOFF_TTL_MS = 2 * 60 * 1000;
 const tokenStore = makeTokenStore(TOKEN_ENC_KEY);
 const catalog = makeCatalog();
 
 const token = () => randomBytes(24).toString('base64url');
+
+// Signs the visitor cookie so a client can't forge an arbitrary value: only
+// an id this server minted and signed is ever accepted back. That alone
+// doesn't stop session fixation (an attacker could still visit first, get a
+// validly signed cookie of their own, and plant that on a shared device
+// ahead of a victim), so /api/pair/status also rotates the id the moment a
+// pairing it's watching turns "paired" (see below), the same way handoffConsume
+// already does for a phone handoff.
+const COOKIE_KEY = createHmac('sha256', Buffer.from(TOKEN_ENC_KEY, 'base64')).update('nevada-visitor-cookie-v1').digest();
+const sign = (id) => createHmac('sha256', COOKIE_KEY).update(id).digest('base64url').slice(0, 16);
+function validSignature(id, sig) {
+  const want = Buffer.from(sign(id));
+  const got = Buffer.from(String(sig));
+  return want.length === got.length && timingSafeEqual(want, got);
+}
+
+// Simple sliding-window rate limit per client IP and route, to blunt
+// unauthenticated brute-forcing and looped pairing/handoff calls.
+const rateBuckets = new Map(); // `${ip}:${route}` -> timestamps
+function rateLimited(req, route, max, windowMs) {
+  const key = `${req.socket.remoteAddress}:${route}`;
+  const now = Date.now();
+  const recent = (rateBuckets.get(key) || []).filter((t) => now - t < windowMs);
+  recent.push(now);
+  rateBuckets.set(key, recent);
+  // A distinct IP:route key never gets removed just by going quiet, so an
+  // unbounded number of one-off clients would otherwise grow this forever.
+  // Once it's large, sweep out anything with no activity inside this call's
+  // own window instead of waiting for a dedicated timer.
+  if (rateBuckets.size > 10000) {
+    for (const [k, v] of rateBuckets) if (!v.some((t) => now - t < windowMs)) rateBuckets.delete(k);
+  }
+  return recent.length > max;
+}
+
+// Origin/Sec-Fetch-Site check for state-changing requests. Both headers are
+// browser-only, so a server-to-server caller (the pair helper posting to
+// /api/pair/complete) sends neither and passes through untouched.
+//
+// Sec-Fetch-Site is the authority whenever a browser sends it: it can't be
+// spoofed by a page, unlike Origin, which a same-origin form POST can send as
+// the literal string "null" (for example when Referrer-Policy: no-referrer
+// is set, as it is here). Falling back to comparing that "null" against our
+// own origin would wrongly reject the request, so only fall back to Origin
+// when Sec-Fetch-Site is absent entirely.
+function sameOrigin(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site) return site === 'same-origin' || site === 'none';
+  const o = req.headers.origin;
+  return !o || o === origin(req);
+}
 
 function send(res, status, body, headers = {}) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers });
@@ -61,39 +121,84 @@ function readJson(req, limit = 16 * 1024) {
   });
 }
 
+function issueVisitorCookie(res, id) {
+  // __Host- (requires Secure, Path=/, no Domain, all already true here) stops
+  // a sibling subdomain or a plain-HTTP sibling port from ever setting this
+  // cookie on our behalf.
+  res.setHeader('Set-Cookie', `__Host-mq_v=${id}.${sign(id)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24 * 60}`);
+}
+
+/** The visitor id on this request, only if it carries our own signature. */
+function peekVisitor(req) {
+  const found = /(?:^|;\s*)__Host-mq_v=([\w-]{32})\.([\w-]+)/.exec(req.headers.cookie || '');
+  return found && validSignature(found[1], found[2]) ? found[1] : null;
+}
+
 function visitor(req, res) {
-  const found = /(?:^|;\s*)mq_v=([\w-]{32})/.exec(req.headers.cookie || '');
-  if (found) return found[1];
+  const found = peekVisitor(req);
+  if (found) return found;
   const id = token();
-  res.setHeader('Set-Cookie', `mq_v=${id}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24 * 60}`);
+  issueVisitorCookie(res, id);
+  return id;
+}
+
+/** Mint a fresh visitor id and set it, ignoring any id already on the
+ * request. Used when binding tokens to a browser (handoff) so a cookie an
+ * attacker planted ahead of time can't end up holding the real tokens. */
+function rotateVisitor(res) {
+  const id = token();
+  issueVisitorCookie(res, id);
   return id;
 }
 
 function sweep(map) { const now = Date.now(); for (const [k, v] of map) if (v.expires < now) map.delete(k); }
 
-// Behind a tunnel or proxy, req.headers.host is still the real public host,
-// but the scheme isn't: cloudflared and friends terminate TLS and forward
-// plain HTTP, setting X-Forwarded-Proto for us to recover it.
+// Set PUBLIC_ORIGIN once deployed behind a tunnel or proxy: req.headers.host
+// is still the real public host, but req.headers['x-forwarded-proto'] is
+// only as trustworthy as whatever sits in front of us, and an attacker's
+// browser controls both on a direct request. PUBLIC_ORIGIN is trusted
+// because only the operator sets it.
 function origin(req) {
+  if (PUBLIC_ORIGIN) return PUBLIC_ORIGIN;
   return `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
 }
 
+// Refuse any request whose Host doesn't match where we actually are, so a
+// DNS-rebinding page (an attacker-controlled domain that resolves to
+// 127.0.0.1) can't reach the unauthenticated pairing endpoints through a
+// victim's browser using a spoofed Host. With PUBLIC_ORIGIN set, only that
+// host is allowed; otherwise only the usual local hostnames on our own port.
+function hostAllowed(req) {
+  if (PUBLIC_ORIGIN) return req.headers.host === new URL(PUBLIC_ORIGIN).host;
+  // req.socket.localPort, not the PORT env var: PORT can be '0' (let the OS
+  // pick, as the tests do), in which case only the socket knows the real port.
+  const port = req.socket.localPort;
+  return ['localhost', '127.0.0.1', '[::1]'].map((h) => `${h}:${port}`).includes(req.headers.host);
+}
+
+let syncInFlight = null;
+
 /** First-pairing-only opportunistic sync. See file header. */
 function syncSoon(accessToken) {
-  if (catalog.size() > 0) return;
-  catalog.sync(accessToken)
+  if (catalog.size() > 0 || syncInFlight) return;
+  syncInFlight = catalog.sync(accessToken)
     .then(({ count, totalCount }) => console.log(`catalog sync: ${count} of ${totalCount} sessions`))
-    .catch((e) => console.error('catalog sync failed:', e.message));
+    .catch((e) => console.error('catalog sync failed:', e.message))
+    .finally(() => { syncInFlight = null; });
 }
 
 async function api(req, res, path) {
+  if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
+
   if (path === '/api/config' && req.method === 'GET') {
     if (!existsSync(AGENT_JSON)) return send(res, 503, { error: 'not_provisioned', fix: 'npm run provision' });
     const { widgetId } = JSON.parse(readFileSync(AGENT_JSON, 'utf8'));
     return send(res, 200, { partnerId: KALTURA_PARTNER_ID, widgetId });
   }
   if (path === '/api/pair/start' && req.method === 'POST') {
+    if (rateLimited(req, 'pair/start', 20, 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
     sweep(pairs);
+    if (pairs.size >= Number(PAIR_MAX)) return send(res, 503, { error: 'too_busy' });
     let code;
     do code = Array.from({ length: 6 }, () => PAIR_ALPHABET[randomInt(PAIR_ALPHABET.length)]).join('');
     while (pairs.has(code));
@@ -103,29 +208,61 @@ async function api(req, res, path) {
     // real origin. req.headers.host is whatever host the browser actually
     // used, so this stays correct once deployed publicly too.
     // `npx nevada-pair` only works once that package is published; until
-    // then run the local script directly so pairing actually works.
-    const command = `NEVADA_URL=${origin(req)} node "${PAIR_SCRIPT}" ${code}`;
+    // then run the local script directly, from the repo root, so pairing
+    // actually works.
+    const command = `NEVADA_URL=${origin(req)} node "${relative(ROOT, PAIR_SCRIPT)}" ${code}`;
     return send(res, 200, { code, expiresAt: new Date(expires).toISOString(), command });
   }
   const status = /^\/api\/pair\/status\/([A-Z0-9]{6})$/.exec(path);
   if (status && req.method === 'GET') {
     const p = pairs.get(status[1]);
     if (!p || p.visitor !== visitor(req, res) || p.expires < Date.now()) return send(res, 200, { state: 'expired' });
+    // The first poll to see "paired" rotates the visitor id, so a cookie an
+    // attacker planted on this device before pairing started (session
+    // fixation) never ends up holding the real tokens: only the freshly
+    // minted id this response sets does.
+    if (p.state === 'paired' && !p.rotated) {
+      p.rotated = true;
+      const fresh = rotateVisitor(res);
+      const tokens = tokenStore.get(p.visitor);
+      if (tokens) {
+        const expires_in = Math.max(1, Math.round((tokens.expiresAt - Date.now()) / 1000));
+        tokenStore.set(fresh, { access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in, pairingId: tokens.pairingId });
+      }
+      tokenStore.delete(p.visitor);
+      // The handoffs /api/pair/complete just minted still point at the old id.
+      for (const h of handoffs.values()) if (h.visitor === p.visitor) h.visitor = fresh;
+      p.visitor = fresh;
+    }
     return send(res, 200, { state: p.state });
   }
   if (path === '/api/pair/complete' && req.method === 'POST') {
+    if (rateLimited(req, 'pair/complete', 30, 10 * 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
     sweep(pairs);
     const body = await readJson(req).catch(() => null);
     if (!body) return send(res, 400, { error: 'bad_json' });
     const { code, access_token, refresh_token, expires_in } = body;
     const p = code && pairs.get(String(code).toUpperCase());
     if (!p || p.expires < Date.now()) return send(res, 404, { error: 'not_found' });
-    if (!access_token || !refresh_token || !expires_in) return send(res, 400, { error: 'bad_request' });
-    tokenStore.set(p.visitor, { access_token, refresh_token, expires_in });
+    // Single-use: once a code has paired, reject any further complete for it
+    // instead of accepting whichever caller shows up last. Without this, an
+    // attacker who knows or guesses the code can complete it first with junk
+    // tokens, or overwrite a real pairing after the fact.
+    if (p.state !== 'waiting') return send(res, 409, { error: 'already_used' });
+    if (typeof access_token !== 'string' || typeof refresh_token !== 'string' || !Number.isFinite(expires_in)) {
+      return send(res, 400, { error: 'bad_request' });
+    }
+    // Drop anyone idle for a week before the hard cap, so an attendee who
+    // never disconnects doesn't hold a slot forever and eventually lock out
+    // every new pairing with a permanent 503.
+    tokenStore.sweep(7 * 24 * 60 * 60 * 1000);
+    if (tokenStore.size() >= Number(TOKEN_STORE_MAX)) return send(res, 503, { error: 'too_busy' });
     p.state = 'paired';
+    const pairingId = token();
+    tokenStore.set(p.visitor, { access_token, refresh_token, expires_in, pairingId });
     syncSoon(access_token);
     // pair/index.mjs's sign-in tab is a different HTTP client than whoever
-    // called /api/pair/start — it only shares that caller's cookie by luck
+    // called /api/pair/start; it only shares that caller's cookie by luck
     // (same browser, same profile). A handoff token makes the redirect work
     // regardless of whose cookie the tab actually has.
     //
@@ -133,6 +270,8 @@ async function api(req, res, path) {
     // button and its QR: either can be used on its own without the other
     // going stale, since each is consumed independently.
     sweep(handoffs);
+    // Two handoffs are minted below, so leave room for both.
+    if (handoffs.size + 2 > Number(HANDOFF_MAX)) return send(res, 200, { ok: true, handoffUrl: null, qrUrl: null });
     const mint = (base) => {
       const t = token();
       handoffs.set(t, { visitor: p.visitor, expires: Date.now() + HANDOFF_TTL_MS });
@@ -147,14 +286,18 @@ async function api(req, res, path) {
     // Builder ID browser session, only this app's access.
     const v = visitor(req, res);
     const tokens = tokenStore.get(v);
-    if (tokens) await revokeRefreshToken(tokens.refresh_token);
-    tokenStore.delete(v);
-    return send(res, 200, { ok: true });
+    const revoked = tokens ? await revokeRefreshToken(tokens.refresh_token) : true;
+    // Also drops any copy a phone handoff made under a different visitor id,
+    // so Disconnect ends the whole pairing rather than just this device.
+    if (tokens?.pairingId) tokenStore.deleteGroup(tokens.pairingId); else tokenStore.delete(v);
+    return send(res, 200, { ok: true, revoked });
   }
   if (path === '/api/pair/handoff' && req.method === 'POST') {
+    if (rateLimited(req, 'pair/handoff', 30, 10 * 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
     sweep(handoffs);
     const v = visitor(req, res);
     if (!tokenStore.has(v)) return send(res, 200, {});
+    if (handoffs.size >= Number(HANDOFF_MAX)) return send(res, 503, { error: 'too_busy' });
     const t = token();
     handoffs.set(t, { visitor: v, expires: Date.now() + HANDOFF_TTL_MS });
     return send(res, 200, { url: `${origin(req)}/?handoff=${t}` });
@@ -207,15 +350,15 @@ async function api(req, res, path) {
       reserved: reservedCards.filter((s) => s.day === timeline.day),
       favorites: favoriteCards.filter((s) => s.day === timeline.day),
       // AWS hasn't given these a time yet, so they never land in any day's
-      // timeline (buildTimeline drops anything with no sessionTime) — surface
+      // timeline (buildTimeline drops anything with no sessionTime). Surface
       // them once, outside the grid, or a favorite just vanishes.
       unscheduledFavorites: favoriteCards.filter((s) => !s.day),
       focus: focusIds ?? null,
       // Real top tracks from the synced catalog, for the suggestion chips
-      // (no enums to pick from — AWS-EVENTS-INTEGRATION.md § Session shape).
+      // (no enums to pick from, AWS-EVENTS-INTEGRATION.md § Session shape).
       topics: catalog.topTracks(6),
       // The attendee's own top topic from what they've reserved or favorited,
-      // for a personalized opening line. scripts/provision.mjs § OPENING_PHRASE.
+      // for a personalized opening line. See OPENING_PHRASE in scripts/provision.mjs.
       topInterest: catalog.topTopic(excludeIds),
     });
   }
@@ -223,33 +366,78 @@ async function api(req, res, path) {
 }
 
 // Called by the page itself (a native `client` tool), never by Kaltura's
-// cloud — so identity is the same HttpOnly visitor cookie every other Web API
+// cloud, so identity is the same HttpOnly visitor cookie every other Web API
 // route already trusts. ARCHITECTURE.md § Tools.
 async function tool(req, res, name) {
   if (req.method !== 'POST' || !TOOLS.has(name)) return send(res, 404, { error: 'not_found' });
+  if (!sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
   const v = visitor(req, res);
   const args = await readJson(req).catch(() => ({}));
+  if (args === null || typeof args !== 'object' || Array.isArray(args)) {
+    return send(res, 200, { answer: "That didn't work. Try again in a moment." });
+  }
   try {
     const ctx = makeToolCtx(catalog, tokenStore, v);
     const result = await TOOL_HANDLERS[name](args, ctx);
     return send(res, 200, result);
   } catch (e) {
-    console.error(`tool ${name} error:`, e);
+    // Never log e.body: an AwsError's body is AWS's raw response and can
+    // hold the attendee's own schedule data.
+    console.error(`tool ${name} error:`, e.name, e.status ?? '', e.code ?? '', e.status === undefined ? e.message : '');
     return send(res, 200, { answer: "That didn't work. Try again in a moment." });
   }
 }
 
-// Single-use: a paired device hands its AWS tokens to whichever device loads
-// this link, then the token is gone so it can't be replayed. ARCHITECTURE.md § Pairing.
-async function handoff(req, res, code) {
+// Single-use: a paired device hands its AWS tokens to whichever device
+// confirms this link, then the token is gone so it can't be replayed.
+// ARCHITECTURE.md § Pairing.
+//
+// GET only shows a confirm page; consuming the token happens on POST, which
+// sameOrigin() only accepts from a request our own page made. A bare GET
+// redirect here would let a cross-site link or an attacker's own QR silently
+// swap the opener's AWS account for the attacker's (login CSRF) with no
+// click required. The confirm page needs one real click before that happens.
+function handoffPage(code, alreadyPaired) {
+  const warning = alreadyPaired
+    ? '<p>This browser is already connected to an AWS account. Continuing replaces that connection.</p>'
+    : '';
+  return '<!doctype html><meta charset="utf-8"><title>Continue on this device</title>'
+    + '<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center;padding:16px;box-sizing:border-box">'
+    + `<div style="max-width:360px"><h1>Continue on this device?</h1>${warning}`
+    + `<form method="POST" action="/?handoff=${code}"><button style="padding:14px 24px;border-radius:10px;border:0;background:#fff;color:#121212;font-weight:600;font-size:16px" type="submit">Continue</button></form>`
+    + '</div></body>';
+}
+
+async function handoffShow(req, res, code) {
+  sweep(handoffs);
+  if (!handoffs.has(code)) { res.writeHead(302, { Location: '/?handoff_failed=1' }); return res.end(); }
+  const alreadyPaired = tokenStore.has(peekVisitor(req) ?? '');
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(handoffPage(code, alreadyPaired));
+}
+
+async function handoffConsume(req, res, code) {
+  if (!sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
   sweep(handoffs);
   const h = handoffs.get(code);
   handoffs.delete(code);
   const from = h && tokenStore.get(h.visitor);
   if (from) {
-    const v = visitor(req, res);
+    // Replacing an existing connection revokes it first, and binds the new
+    // tokens to a freshly minted id rather than whatever id (if any) this
+    // request already carried, so a cookie an attacker set ahead of time
+    // never ends up holding the handed-off tokens. Skip the revoke when the
+    // prior cookie already holds this exact pairing (the common case: the
+    // same browser that started pairing, or re-scanning a QR for a pairing
+    // this device already has) or every device on that pairing would lose
+    // access the moment one of them continues here.
+    const priorVisitor = peekVisitor(req);
+    const priorTokens = priorVisitor && tokenStore.get(priorVisitor);
+    if (priorTokens && priorTokens.refresh_token !== from.refresh_token) await revokeRefreshToken(priorTokens.refresh_token);
+    if (priorVisitor && priorVisitor !== h.visitor) tokenStore.delete(priorVisitor);
+    const v = rotateVisitor(res);
     const expires_in = Math.max(1, Math.round((from.expiresAt - Date.now()) / 1000));
-    tokenStore.set(v, { access_token: from.access_token, refresh_token: from.refresh_token, expires_in });
+    tokenStore.set(v, { access_token: from.access_token, refresh_token: from.refresh_token, expires_in, pairingId: from.pairingId });
   }
   // A link already used or opened after HANDOFF_TTL_MS has no `from`. Say so
   // instead of a bare redirect: the gate looks identical either way, so the
@@ -258,7 +446,9 @@ async function handoff(req, res, code) {
   res.end();
 }
 
-async function serveStatic(req, res, path) {
+async function serveStatic(req, res, rawPath) {
+  let path;
+  try { path = decodeURIComponent(rawPath); } catch { return send(res, 400, { error: 'bad_request' }); }
   const file = normalize(join(CLIENT, path === '/' ? 'index.html' : path));
   if (!file.startsWith(CLIENT + '/')) return send(res, 404, { error: 'not_found' });
   try {
@@ -275,21 +465,34 @@ const server = createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'microphone=(self), camera=()');
+  // The page uses the mic and can trigger real reservation changes, so it
+  // must never be frameable (clickjacking). X-Frame-Options covers browsers
+  // that don't read frame-ancestors.
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  if (req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted) {
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  }
+  if (!hostAllowed(req)) return send(res, 421, { error: 'misdirected_request' });
   try {
     const url = new URL(req.url, 'http://x');
     const path = url.pathname;
-    if (path === '/' && req.method === 'GET' && url.searchParams.has('handoff')) {
-      return await handoff(req, res, url.searchParams.get('handoff'));
+    if (path === '/' && url.searchParams.has('handoff')) {
+      const code = url.searchParams.get('handoff');
+      if (req.method === 'GET') return await handoffShow(req, res, code);
+      if (req.method === 'POST') return await handoffConsume(req, res, code);
     }
     if (path.startsWith('/tools/')) return await tool(req, res, path.slice('/tools/'.length));
     if (path.startsWith('/api/')) return await api(req, res, path);
-    if (req.method === 'GET') return await serveStatic(req, res, decodeURIComponent(path));
+    if (req.method === 'GET') return await serveStatic(req, res, path);
     send(res, 405, { error: 'method_not_allowed' });
   } catch (e) {
-    console.error(e);
+    // Not console.error(e): an AwsError's .body can carry a real attendee's
+    // schedule data (server/aws.mjs), which must never land in server logs.
+    console.error('request failed:', e.name, e.status ?? '', e.code ?? '', e.status === undefined ? e.message : '');
     if (!res.headersSent) send(res, 500, { error: 'server_error' });
   }
-}).listen(Number(PORT), () => console.log(`Nevada on http://localhost:${PORT}`));
+}).listen(Number(PORT), HOST, () => console.log(`Nevada on http://${HOST}:${PORT}`));
 
 // Exported so tests can find the ephemeral port and close it; unused in production.
 export default server;

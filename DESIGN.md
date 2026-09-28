@@ -10,7 +10,7 @@ Nevada is the host and producer of your week: a realistic avatar you plan with f
 
 | Principle | In practice |
 |---|---|
-| Face to face | Nevada is live on screen for the whole visit. She changes size but never hides. |
+| Face to face | Nevada is live on screen for the whole visit. She stays full size and never hides; content moves aside for her instead. |
 | Part of the page | She is keyed out and stands on the night gradient, not inside a player |
 | Show and tell | When Nevada talks about a session, that session is on screen and glows. |
 | Talk, type or tap | Every input is a turn in one conversation. No mode to pick first. |
@@ -68,10 +68,10 @@ AWS's [trademark guidelines](https://aws.amazon.com/trademark-guidelines/) set t
 | No AWS Architecture Icons. Use our own simple icons. | Icons fall under the same guidelines |
 | "re:Invent" never in our name, logo or domain. A URL path such as `/reinvent` is fine. | §7, §11 |
 | Refer to the event in plain text: "for AWS re:Invent attendees" | §13 |
-| Show "Not affiliated with or endorsed by AWS" on the landing page, the About sheet and the pairing page | §13 |
+| Show "Not affiliated with or endorsed by AWS" on the connect gate, the composer footer and every pairing dialog | §13 |
 | Don't copy AWS's product look. Orange is a small accent, not the whole UI. | §10 |
 
-Our mark is a round `--glow` ring with a bold "N" on `--night-1`. It contains no AWS shape.
+Our mark is a round `--glow` ring with a bold "N" on `--night-3`. It contains no AWS shape.
 
 ## Tokens
 
@@ -151,17 +151,19 @@ The contrast of bold with light echoes the event's wordmark style without copyin
 
 | Width | Layout |
 |---|---|
-| All widths | One column of content, full width, top bar to composer. Nevada's frame floats over the content (`position: fixed`), not in its own row — she drifts, drags, and glides on her own, independent of the grid below. |
+| All widths | One column of content, full width, top bar to composer. Nevada's frame floats over the content (`position: fixed`), not in its own row. She drifts, drags, and glides on her own, independent of the grid below. |
 | 1024 px and up | Full week grid instead of one day. Content maxes out at 1280 px, centred. |
 
-Phone home screen, avatar at split size — she floats top right, over the day strip:
+Phone home screen. She rests at full (`stage`) size, centred near the top, above the day strip:
 
 ```
 ┌──────────────────────────────┐
 │ (N) Nevada         12 days ◆ │
-│  MON  TUE  WED  THU  FRI ▄▄▄ │  day strip, today underlined
-│  30   ▔1▔   2    3    4 ░(N)░│  Nevada floats top right, no box
+│          ░(Nevada)░          │  full size, centred, no box
+│         ░░░░░░░░░░░          │
 ├──────────────────────────────┤
+│  MON  TUE  WED  THU  FRI     │  day strip, today underlined
+│  30   ▔1▔   2    3    4      │
 │ 9:00 ┃ Keynote          MGM  │  solid = reserved
 │10:30 ┆ Serverless 301   WYN  │  outlined = favorite
 │      ├ 35 min walk ⚠ ────────┤  travel tag
@@ -175,45 +177,47 @@ Phone home screen, avatar at split size — she floats top right, over the day s
 └──────────────────────────────┘
 ```
 
-Phone, scrolled, avatar at tile size — she docks top left, over the mark:
+Phone, scrolled. She's glided to the bottom-right corner, above the composer, still full size:
 
 ```
 ┌──────────────────────────────┐
-│ (◕) Nevada         12 days ◆ │  round bubble where the mark was, tap to expand
-├──────────────────────────────┤
+│ (N) Nevada         12 days ◆ │
 │10:30 ┆ Serverless 301   WYN  │
 │11:30 ┃ Agents workshop  VEN ▌│
 │12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │
 │ 2:00 ┃ Multi-agent systems   │
+│                     ░(N)░    │  glided to the corner, still full size
 │ "Want me to fix it?"         │  captions above the composer
 │ ( Ask Nevada…         )  (◉) │
 └──────────────────────────────┘
 ```
 
-First run, avatar at stage size — centred near the top of the page:
+First run. The connect gate. No top bar, no avatar, no day strip, no composer, just the mark, a line of copy and one button:
 
 ```
 ┌──────────────────────────────┐
-│ (N) Nevada         12 days ◆ │
-│             ▄▄▄               │
-│          ░(Nevada)░          │  floating, stage size
-│         ░░░░░░░░░░░          │
 │                               │
-├──────────────────────────────┤
-│ "Hi, I'm Nevada. Connect     │
-│  your AWS Events account     │
-│  and I'll build your plan."  │
-│      [ Connect ]             │  leads before any content question
-│ ( Ask Nevada…         )  (◉) │
+│             (N)               │  the mark
+│                               │
+│   Connect your AWS Events    │
+│   account and I'll build     │
+│   your plan for the week.    │
+│                               │
+│   [ Connect my AWS Events    │
+│         account ]             │
+│                               │
+│ For AWS re:Invent attendees. │
+│ Not affiliated with or       │
+│ endorsed by AWS.              │
 └──────────────────────────────┘
 ```
 
-Desktop — full-width content, she floats over it in the same corner as on phone:
+Desktop, full-width content. She rests centred near the top by default, same as on phone, and glides to the same bottom-right corner when scrolling or a tool call needs her spot:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ (N) Nevada                          ▄▄▄        12 days ◆ │
-│                                  ░(Nevada)░               │
+│ (N) Nevada                                     12 days ◆ │
+│                    ░(Nevada)░                             │
 ├────────────────────────────────────────────────────────────┤
 │ MON 30   TUE 1   WED 2   THU 3  FRI 4                     │
 │ ┃ Keynote  ┆ Serv.   ┃ Agents                             │
@@ -233,7 +237,7 @@ Desktop — full-width content, she floats over it in the same corner as on phon
 
 One frame holds Nevada's live video for the whole visit. She's not boxed into a column: the frame floats over the page (`position: fixed`), borderless, and casts a soft glow on whatever's beneath her. The video element never moves in the DOM, because moving it pauses playback.
 
-She stays at full size (`stage`, up to 240×340 px, centred near the top) for the whole visit — content never shrinks her. When something needs her spot (scrolling the day, a tool call showing sessions), the frame glides to the lower-right corner instead; she returns to her spot once the attendee scrolls back up or taps her.
+She stays at full size (`stage`, up to 240×340 px, centred near the top) for the whole visit. Content never shrinks her. When something needs her spot (scrolling the day, a tool call showing sessions), the frame glides to the lower-right corner instead; she returns to her spot once the attendee scrolls back up or taps her.
 
 - She drifts gently while idle (a slow vertical bob) and drags to reposition with a pointer or a finger. A drag that moves less than 4 px still counts as a tap.
 - Once dragged, she stays wherever she was left, until the page reloads.
@@ -241,9 +245,9 @@ She stays at full size (`stage`, up to 240×340 px, centred near the top) for th
 - The voice toggle (quiet mode) sits bottom right on the frame, clear of her face at every position. On a mouse or trackpad it stays hidden until the frame is hovered or the toggle is muted; on touch, where there's no hover, it stays visible, since that's the only way to mute her.
 - Captions are a fixed bar above the composer, independent of the frame's position.
 - A sheet or scrim renders above the floating frame, never behind it.
-- Before the first frame arrives, the frame shows the night gradient with the mark. When video stops (reconnect, chat fallback), the last frame stays as a still.
+- Before the first frame arrives, the frame shows the night gradient with the mark. When video stops for a reconnect, the last frame stays as a still and blurs. A chat fallback that keeps the last frame as a still is planned but not yet built.
 
-`client/prototype.html`, the static design reference, still demos smaller `split` and `tile` sizes as a pattern — CSS for both stays in `client/styles.css` for it, even though the live app no longer switches to them.
+`client/prototype.html`, the static design reference, still demos smaller `split` and `tile` sizes as a pattern. CSS for both stays in `client/styles.css` for it, even though the live app no longer switches to them.
 
 #### Keying
 
@@ -266,12 +270,12 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
 | Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen. A tap sends the chip's text as a turn. |
 | Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a block | Set by `point_at`. Fades after 4 s. |
-| Day strip | Five day chips with the day in 800 and the date in 300 | Swipe or tap. A dot marks days with a clash. |
+| Day strip | Five day chips with the day in 800 and the date in 300 | Tap to switch days. A dot marks days with a clash. |
 | Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas). `show_sessions` results render as dashed blocks in their real day and time, same as a topic-based pick. |
-| Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text above the buttons. |
+| Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text below the option buttons. |
 | Connect gate | Full-screen: mark, "Connect your AWS Events account…", one primary button | Shown until pairing succeeds. No avatar, no QR: the attendee is already on this device. |
 | Pairing screen | 6-character code in display type, "Copy command" button, plain-text status line | Code in monospace, grouped 3 + 3. Valid 10 minutes; the status line says so and reports expiry in text, no ring timer. |
-| Pairing success screen | Centred card: mark, "You're connected", QR code, tap-to-copy link, "Continue here" button | QR links to `/?handoff=TOKEN` for a phone; the link text is the same URL. Can't be dismissed without picking a device. |
+| Pairing success screen | Centred card: mark, "You're connected", "Show a QR for my phone" button, "Continue here" button | The QR (linking to `/?handoff=TOKEN`) is minted only on tap and replaces the button in place; it's never shown as plain text, so it can't be copied or screenshotted as a string. Right after pairing the card can't be dismissed without picking a device; reopened later from the header pill it's just an FYI dialog. |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
 | Recap card | 9:16 poster on a `--glow` background with big numbers | See fun moments |
@@ -285,13 +289,13 @@ The aura behind Nevada shows what she is doing. The mic button shows only your s
 | State | Avatar frame | Mic button |
 |---|---|---|
 | Idle | The aura breathes, 4 s cycle | Outline mic on `--elevated` |
-| Listening | The aura grows with your mic level. At `tile` size, the bubble's ring does. | Filled `--primary`, pressed |
+| Listening | The aura grows with your mic level | Filled `--primary`, pressed |
 | Thinking | Three dots on the frame's bottom edge | Outline mic |
 | Speaking | The aura brightens. Captions run. Typing or tapping interrupts. | Outline mic |
 | Quiet mode | Voice toggle crossed out. Video and captions carry on. | Unchanged |
 | Mic denied | Unchanged | Crossed mic, grey |
 | Reconnecting | Blurred last frame or cut-out, "Reconnecting…" on the frame | Disabled |
-| Chat fallback | Last frame as a still, "Video paused" badge, "Try video" button | Hidden |
+| Chat fallback (planned, not yet built) | Last frame as a still, "Video paused" badge, "Try video" button | Hidden |
 
 ## Motion
 
@@ -302,7 +306,7 @@ Two speeds: quick for feedback, slower for delight.
 | `--dur-fast` | 120 ms | Press, toggle |
 | `--dur-base` | 220 ms | Sheets, cards in and out |
 | `--dur-slow` | 420 ms | Day switch, avatar frame size change |
-| `--dur-reveal` | 700 ms | Wildcard, celebrate |
+| `--dur-reveal` | 700 ms | Hello fade-in, celebrate pulses, toast pop |
 | `--ease-out` | `cubic-bezier(.2, .8, .2, 1)` | Things arriving |
 | `--ease-spring` | `cubic-bezier(.3, 1.4, .5, 1)` | Celebrate pop |
 
@@ -319,16 +323,15 @@ On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favori
 
 | Moment | What happens | Trigger |
 |---|---|---|
-| Hello | The first live frame fades in over the night gradient, the aura breathes once, and Nevada greets you | Disclosure accepted |
+| Hello | The first live frame fades in over the night gradient, and Nevada greets you. The aura keeps breathing gently while she's idle. | Disclosure accepted |
 | Pointing | Nevada says "this one has seats" and a ring lights that block | `point_at` |
-| Booked | The block fills from left to right. A `--glow` ring pulses around it once. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
+| Booked | A soft violet glow pulses around the block once, confetti bursts on the page, and the phone buzzes (Android Chrome only). Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
-| Swapped | The two blocks trade places in one move. Toast: "Swapped. Thursday 10:00, Wynn." | `kind: 'swap'` |
-| Wildcard | A card lands face down on `--glow` with a "?" and flips over | `search_sessions` with `mode: wildcard` |
-| Clash found | The red edge draws in, and the two blocks nudge apart by 4 px | `highlight_conflict` |
+| Swapped | The schedule redraws with the new session in place, the changed block gets the same glow pulse as a booking, and a toast names where it landed, for example "Swapped. Multi-agent systems in production is now thursday · 10am · WYN." | `kind: 'swap'` |
+| Wildcard | Renders as a normal dashed suggested block, in its real day and time, same as any other pick. No special reveal (planned for a later pass). | `search_sessions` with `mode: wildcard` |
+| Clash found | The red edge appears on the clashing block. No nudge or draw-in animation yet. | `highlight_conflict` |
 | Countdown | "12 days" in the top bar. On event week it becomes "Day 2 of 5". | Home |
-| Seating opens | A one-time banner with a `--glow` border: "Seating is open." | Lifecycle change |
-| Recap | Poster: big session count, venues visited, wildcard taken, busiest day. Share through Web Share. | Last day or on request |
+| Recap | Poster: big session count, venues visited, wildcard taken, busiest day. Share through Web Share. | On request today. A last-day auto-trigger and a phase-change greeting for "Seating is open" are both planned (see [EXPERIENCE-UX.md § Lifecycle](EXPERIENCE-UX.md#lifecycle)). |
 
 Empty states have a voice too, for example "Tuesday afternoon is wide open. Want ideas?"
 

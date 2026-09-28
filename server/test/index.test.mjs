@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 /**
  * End-to-end through the real HTTP server: pairing completion, catalog sync,
  * reserve/favorite/cancel via the actual /tools/* endpoints, and /api/schedule
- * reading the change back — the whole chain index.mjs -> tools.mjs -> aws.mjs
+ * reading the change back, the whole chain index.mjs -> tools.mjs -> aws.mjs
  * that the per-module unit tests each stub around. Only the AWS Events API's
  * own network calls are faked (real https:// calls are never made); the app's
  * own HTTP layer, encryption, catalog and tool wiring all run for real.
@@ -106,7 +106,7 @@ test('pairing, reserve, schedule and cancel round-trip through the real server, 
   assert.equal(scheduleBody.paired, true);
   assert.deepEqual(scheduleBody.reserved.map((s) => s.sessionId), ['AAA111']);
   assert.equal(scheduleBody.blocks[0].kind, 'reserved');
-  // AAA111 is reserved and tagged 'serverless' — the opening line's
+  // AAA111 is reserved and tagged 'serverless': the opening line's
   // topInterest branch reads this. scripts/provision.mjs § OPENING_PHRASE.
   assert.equal(scheduleBody.topInterest, 'serverless');
   // AAA111 is reserved, so it's excluded from its own day's recommendations,
@@ -154,7 +154,9 @@ test('get_session fetches live from AWS when the id is missing from the synced c
 
 test('disconnect revokes the refresh token at AWS and forgets the visitor', async () => {
   const disconnect = await postJson('/api/pair/disconnect', {});
-  assert.equal((await disconnect.json()).ok, true);
+  const body = await disconnect.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.revoked, true);
   assert.ok(revokeCalls.includes('r1'));
 
   const schedule = await (await postJson('/api/schedule', {})).json();

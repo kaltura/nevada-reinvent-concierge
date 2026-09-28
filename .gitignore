@@ -5,3 +5,5 @@ server/agent.json
 server/evals/.cache/
 .claude/
 /*.png
+.DS_Store
+npm-debug.log*

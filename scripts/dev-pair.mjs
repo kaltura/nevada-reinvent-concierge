@@ -1,9 +1,9 @@
 /**
  * Pairs a browser session without opening the connect gate first: starts
  * pairing, then launches pair/index.mjs itself so the only thing left for
- * the human to do is sign in on the AWS page it opens — no copy-pasting a
- * command into a second terminal. Constraint: only the human completes that
- * sign-in — this script never touches AWS itself.
+ * the human to do is sign in on the AWS page it opens. No copy-pasting a
+ * command into a second terminal. Only the human completes that sign-in;
+ * this script never touches AWS itself.
  */
 import { spawn } from 'node:child_process';
 import { join, dirname } from 'node:path';

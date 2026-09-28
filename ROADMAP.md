@@ -12,7 +12,7 @@ Each spike answers one question that could change the architecture.
 
 | Spike | Question | Pass |
 |---|---|---|
-| Tool reach | Can the tool executor reach our proxy within 10 s? | **Failed**: on localhost, Kaltura's cloud can never reach an `api` tool's webhook URL. Fixed by making every tool `tools.client` — the model's call surfaces on the page, which reaches the proxy same-origin instead (ARCHITECTURE.md § Why a proxy). |
+| Tool reach | Can the tool executor reach our proxy within 10 s? | **Failed**: on localhost, Kaltura's cloud can never reach an `api` tool's webhook URL. Fixed by making every tool `tools.client`. The model's call surfaces on the page, which reaches the proxy same-origin instead (ARCHITECTURE.md § Why a proxy). |
 | Client tools | Do `show_sessions` and `highlight_conflict` fire once, with `waitForResponse: false`, and let the agent keep talking? | The page updates and speech continues in 10 of 10 test turns |
 | Pairing | Does `npx nevada-pair` complete PKCE on 8484 to 8489 and hand tokens to the backend? | One real Builder ID sign-in ends with a stored refresh token |
 | Live bulk codes | What do real `BulkFailure` codes look like once seating opens? | Record each code seen. Update the [draft speech](AWS-EVENTS-INTEGRATION.md#bulk-results). |
@@ -39,10 +39,9 @@ Check: one real, unscripted conversation. "What should I do Tuesday if I care ab
 ## Phase 2: many attendees
 
 - Many paired attendees at once, each identified only by their own visitor cookie.
-- Token refresh on demand for every attendee. Disconnect and the 7-day purge.
+- Token refresh on demand for every attendee.
 - Travel check, once AWS publishes 2026 transport details.
 - In-app morning briefing.
-- Rate limits on our Web API and pairing endpoints.
 
 Check: two attendees paired at once, each on their own device. Each sees only their own schedule.
 
@@ -67,29 +66,3 @@ Check: the accessibility pass is clean, and the load test holds at the target co
 ## Not in v1
 
 See [FEATURES.md § Not in v1](FEATURES.md#not-in-v1).
-
-## Open questions
-
-| Question | Who answers |
-|---|---|
-| Is there a terms-of-use page for the AWS Events API? Does it allow a hosted service that holds many attendees' tokens? | Ask AWS before a public launch |
-| Does AWS approve the name "Nevada" and the brand? | AWS review before release |
-| Can we show catalog data to visitors who haven't paired? The catalog is gated to registered attendees. | Ask AWS. Until then, see the risk below. |
-
-## Risks
-
-| Risk | Plan |
-|---|---|
-| No terms of use for the API | Ask AWS early. Keep the pairing helper open source and the data use narrow. |
-| Our backend holds many attendees' tokens | Encrypt at rest, keep the key in an environment secret, delete on Disconnect and 7 days after the event |
-| "Nevada-tan", a niche internet meme about a 2004 killing in Japan, shares the name | Flag it in the AWS review |
-| Travel times change in 2026 | Keep the table provisional and update it when AWS publishes transport details |
-| Seating opens before Phase 1 is ready (API date Oct 8) | Ship Phase 1 favorites-first. Detect seating from the API, not the date. |
-| The Builder ID session ends before the 30-day refresh token does | A dead refresh means pair again. Say so in speech and show the pairing button. Measure the real lifetime in the pairing spike. |
-| AWS's edge refuses our backend's traffic (`403` with no body) | Back off. Keep attendee calls on each attendee's own token. Ask AWS if it persists. |
-| A swap loses the old seat | Warn before swapping when the new session isn't `available`. Try to re-reserve the old seat and report the result truthfully. |
-| A write fails with an unknown outcome | Never blind-retry. Reconcile through `GetSchedule` (see [AWS-EVENTS-INTEGRATION.md § Errors](AWS-EVENTS-INTEGRATION.md#errors)). |
-| The refresh token expires (30 days) | Tell the attendee in speech and show the pairing button |
-| Avatar video stalls on iOS when the frame resizes | Resize spike. Fallback: a fixed `split` frame and no `tile`. |
-| Nevada talks out loud in a quiet session room | Quiet mode mutes the voice. Captions and typing carry on. |
-| The browser loads the SDK's full admin `Management` class (`client/app.js`) just for `createWidgetToken` and `appInit`, pulling in about two dozen unrelated submodules unminified on every page view | Fine on wifi, a real drag on a conference-floor connection. `client.js` wires all its resource namespaces internally, so there's no smaller entry point in v1.23.2. Ask Kaltura for a browser-scoped entry point, or vendor a trimmed build, before Phase 4 launch. |

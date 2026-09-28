@@ -241,7 +241,7 @@ button {
   display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 11px; color: var(--muted); margin-top: 2px;
 }
-/* A chevron marks a compact block as tappable for detail — personal-time
+/* A chevron marks a compact block as tappable for detail. Personal-time
    blocks are static, so they're excluded. */
 .block-compact:not([data-state="personal"])::after {
   content: "›"; position: absolute; right: var(--s-2); top: 50%; transform: translateY(-50%);
@@ -283,8 +283,8 @@ button {
    she's talking about. Its own left/top/right/bottom transition, so both a
    state change and a drag glide smoothly; dragging (and the tile state,
    where she's a static bubble) turn the transition and idle bob off.
-   The live app now only ever uses the "stage" state below — content moves
-   her aside instead of shrinking her to "split" or "tile" — but
+   The live app now only ever uses the "stage" state below: content moves
+   her aside instead of shrinking her to "split" or "tile", but
    client/prototype.html's demo states still switch between all three, so
    those rules stay here for it. */
 
@@ -388,7 +388,7 @@ button {
   background: currentColor; transform: rotate(-45deg);
 }
 /* Hover-reveal only where hover actually exists (mouse/trackpad). On touch
-   — the primary device here — there's no hover to reveal it with, so it
+   (the primary device here) there's no hover to reveal it with, so it
    stays visible the way it always has; hiding it there would bury the only
    way to mute Nevada. Muted state always shows, hovering or not, so the
    attendee can see quiet mode is on. */
@@ -400,7 +400,7 @@ button {
 }
 
 /* Captions: Nevada's sentence, with the attendee's last line above it.
-   Fixed to the viewport, independent of the avatar's own size and position —
+   Fixed to the viewport, independent of the avatar's own size and position:
    a tile-sized bubble has no room to show readable text inside itself.
    --composer-h comes from app.js. */
 .captions {

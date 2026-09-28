@@ -14,12 +14,12 @@ What the attendee sees and hears. Visual rules are in [DESIGN.md](DESIGN.md). Th
 
 ## First run
 
-There's no avatar and nothing to search until AWS pairing succeeds — Nevada needs a real account to build a real plan, and a stale spoken greeting from before pairing would be confusing anyway. So the entire experience sits behind a connect gate.
+There's no avatar and nothing to search until AWS pairing succeeds. Nevada needs a real account to build a real plan, and a stale spoken greeting from before pairing would be confusing anyway. So the entire experience sits behind a connect gate.
 
-1. They open the link on whatever device is at hand. The gate shows Nevada's mark and "Connect your AWS Events account and I'll build your plan for the week", with a single "Connect my AWS Events account" button. No QR code here — they're already on this device.
+1. They open the link on whatever device is at hand. The gate shows Nevada's mark and "Connect your AWS Events account and I'll build your plan for the week", with a single "Connect my AWS Events account" button. No QR code here. They're already on this device.
 2. They tap it. The gate shows a 6-character code and one command to copy and run in a terminal on that same device (see [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing)).
-3. Once paired, a success screen offers a QR code and a link to continue the live conversation on a phone instead, or a "Continue here" button to stay on the current device (see [ARCHITECTURE.md § Phone handoff](ARCHITECTURE.md#phone-handoff)).
-4. Whichever device continues: a one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she leads with the first-timer's plan: "I'll start you with a first-timer's plan for the week. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." They can say a track, type it, or tap one of three chips (for example "Agentic AI", "Serverless", "First time here"). The mic permission prompt appears only when they first tap the mic.
+3. Once paired, a success screen offers a "Show a QR for my phone" button to continue the live conversation there instead, or a "Continue here" button to stay on the current device (see [ARCHITECTURE.md § Phone handoff](ARCHITECTURE.md#phone-handoff)).
+4. Whichever device continues: a one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she opens with: "Hi, I'm Nevada. I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." (If the attendee has already favorited or reserved sessions with a clear topic, she opens by naming that topic instead.) They can say a track, type it, or tap a suggestion chip, for example "First time here" or a real top track from the catalog. The mic permission prompt appears only when they first tap the mic.
 
 ## Talk, type or tap
 
@@ -40,7 +40,7 @@ Nevada is a person-shaped host, not a voice assistant with a chat box. Each inpu
 - **Quiet mode.** The voice toggle on the frame mutes Nevada's voice. The video and captions carry on, and the attendee types. For session rooms and the shuttle.
 - **Open mic, not push-to-talk.** The first tap starts the mic and it stays open, so nobody has to hold or re-tap it for every turn. The same button mutes and unmutes, and `aria-pressed` keeps it clear for screen readers.
 - **Typing and tapping still work while the mic is open.** Nothing is blocked or queued: whichever turn arrives first, spoken, typed or tapped, is the one Nevada answers.
-- **Chat fallback** is only for when video can't run (see [§ Network and backgrounding](#network-and-backgrounding)). Nevada's last frame stays as a still, replies arrive as text in the caption area, and the conversation carries on. "Try video" goes back, and it must be a real tap.
+- **Chat fallback** for when video can't run is planned, not yet built (see [§ Network and backgrounding](#network-and-backgrounding)). The plan: Nevada's last frame stays as a still, replies arrive as text in the caption area, the conversation carries on, and "Try video" goes back with a real tap.
 
 ## Schedule canvas
 
@@ -87,7 +87,7 @@ How it works:
 | Fill my gaps | "What can I do Tuesday afternoon?" Nevada finds sessions that fit the gap, the travel time and the attendee's interests, and highlights three to five in the day/week grid. |
 | Travel check | When two blocks are in different venues with too little time between them, the gap tag turns amber and Nevada mentions it once. Times come from a static table (see [ARCHITECTURE.md § Search](ARCHITECTURE.md#search)). |
 | Full session | When a session is full, Nevada offers a repeat with seats first. If the session shows `walkUp`, she says walk-up is an option. She never promises a seat. |
-| Wildcard | "Surprise me." One session far from the attendee's usual topics that still fits the schedule, shown with a reveal (see [DESIGN.md § Motion](DESIGN.md#motion)). |
+| Wildcard | "Surprise me." One session far from the attendee's usual topics that still fits the schedule, shown as a normal dashed suggested block (see [DESIGN.md § Fun moments](DESIGN.md#fun-moments)). |
 | See all times | "When else is this on?" Lists every repeat, marking which ones fit. Attendees ask for this a lot. |
 
 ## Personas
@@ -96,7 +96,7 @@ Picked at first run or any time ("switch to first-timer mode"). A persona change
 
 | Persona | Changes |
 |---|---|
-| First-timer | Explains logistics without being asked (venues, walking time, reserved vs walk-up). Many attendees are first-timers (see [AWS-EVENTS-INTEGRATION.md § Event facts](AWS-EVENTS-INTEGRATION.md#event-facts)). |
+| First-timer | Explains logistics without being asked (venues, walking time, reserved vs walk-up) |
 | Builder | Leans toward workshops, chalk talks and 300 to 400 level |
 | Leader | Leans toward keynotes, leadership sessions and 100 to 200 level |
 
@@ -107,24 +107,24 @@ Nevada detects the phase from API behaviour (see [AWS-EVENTS-INTEGRATION.md § L
 | Phase | Nevada's focus |
 |---|---|
 | Catalog live | Explore and favorite. If asked to reserve: "Reserved seating isn't open yet. I'll keep this on your list." A countdown shows on the home screen. |
-| Reserved seating open | Turn favorites into seats. On the first visit after opening: "Seating is open. Six of your favorites are still unreserved. Want to go through them?" |
-| Event week | Morning briefing, travel checks and quick fixes. Short answers. |
-| After the event | Recap card, then disconnect (see [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing)) |
+| Reserved seating open | Turn favorites into seats, on request. A proactive greeting on the first visit after opening ("Seating is open. Six of your favorites are still unreserved. Want to go through them?") is planned, not yet built. |
+| Event week | Travel checks and quick fixes, on request. Short answers. A morning briefing (see [§ Morning briefing](#morning-briefing)) is planned, not yet built. |
+| After the event | A recap card is available on request (see [§ Recap card](#recap-card)). Disconnecting the AWS account is a manual action, a "Disconnect this AWS account" button in the dialog the header's Connect pill opens, not an automatic post-event step. |
 
 ## Morning briefing
 
-In event week, the first open each day starts face to face. Nevada greets the attendee at stage size and gives the briefing, while the day's timeline fills in below it:
+Planned, not yet built. In event week, the plan is for the first open each day to start face to face: Nevada greets the attendee and gives a briefing, while the day's timeline fills in below her:
 
 - First session: time, venue and when to leave.
 - Keynotes that day, for example the CEO keynote on Tuesday morning.
 - Gaps worth filling and any clash.
 - One wildcard, if there is a gap.
 
-The briefing is in-app only in v1. Optional push notifications come later and need the app on the Home Screen on iOS (see [ROADMAP.md](ROADMAP.md)). A notification opens the app, and Nevada starts the briefing.
+The briefing would be in-app only at first. Optional push notifications would come later and need the app on the Home Screen on iOS (see [ROADMAP.md](ROADMAP.md)). A notification would open the app, and Nevada would start the briefing.
 
 ## Recap card
 
-On the last day, or when asked: "Your re:Invent: 14 sessions, 3 venues, 1 wildcard." It's a shareable image through the Web Share sheet. It holds only the attendee's own numbers, no session codes and no AWS marks beyond the plain event name.
+On request: "Your re:Invent: 14 sessions, 3 venues, 1 wildcard." It's a shareable image through the Web Share sheet. It holds only the attendee's own numbers, no session codes and no AWS marks beyond the plain event name. Showing it automatically on the last day is planned, not yet built.
 
 ## Network and backgrounding
 
@@ -132,18 +132,18 @@ On the last day, or when asked: "Your re:Invent: 14 sessions, 3 venues, 1 wildca
 |---|---|
 | Autoplay blocked | "Tap anywhere to hear Nevada" on the frame. Any tap or button press starts the sound. |
 | Mic denied | "Mic is off. You can still type, and Nevada answers out loud." |
-| Video stalls | Blurred last frame and "Reconnecting…" on the frame |
-| Weak network | The app tries TURN over TCP 443. If video still fails: "Signal's weak here. Switching to text." Then it switches to the chat fallback, keeping the conversation. |
+| Video stalls | Blurred last frame and "Reconnecting…" on the frame. If it doesn't clear within 5 s: "Lost connection to Nevada. Reload to reconnect." |
+| Weak network | A chat fallback that keeps the conversation going as text is planned, not yet built. Today, a stalled connection follows the "Video stalls" row above. |
 | App in the background under 30 s | Nothing. The session holds. |
 | Back after longer | "Welcome back" and a quiet reconnect. No first-visit greeting. |
-| Token expired | "I need you to reconnect your AWS account", with the pairing button |
+| Token expired | A toast: "Your AWS connection lapsed. Reconnect to keep going." If it happens mid-conversation, Nevada may also say "Your AWS connection expired. Pair again to see your schedule." Tap Connect in the header to pair again. |
 
 ## Accessibility
 
 - Captions are on by default, on the avatar frame. Screen readers skip them, because Nevada's voice already says the same words. In quiet mode they become a live region. Notices with no voice, like "Mic is off", also go to the toast region.
 - Anything you can say, you can type or tap. The whole plan works by keyboard.
 - The disclosure is a real dialog and must be accepted before the avatar talks.
-- Mic state shows three ways: icon, level ring on the frame and `aria-pressed` on the mic button.
-- The toast region (`role="status"`, `aria-live="polite"`) reads what changed after each tool call, for example "Schedule updated. Workshop added Thursday 10 am."
+- Mic state shows three ways: icon, the aura growing on the frame with mic level, and `aria-pressed` on the mic button.
+- The toast region (`role="status"`, `aria-live="polite"`) echoes what changed after a booking, favorite or swap, for example "You're in." or "Saved."
 - Every control is a real `<button>` or `<label>`, with a tap target of at least 44 px.
 - Colour contrast meets WCAG AA. Motion follows `prefers-reduced-motion` (see [DESIGN.md](DESIGN.md)).

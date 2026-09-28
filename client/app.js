@@ -91,7 +91,7 @@ function timelineBlockEl(b, opts = {}) {
       : h('button', { class: 'gap-fill', 'data-turn': `Fill the ${b.minutes} minute gap before ${b.toVenue || 'my next session'}` }, '+ Fill this gap');
   }
   // Week grid: one truncated line per block instead of the day view's
-  // separate time gutter and title/venue/meta rows — there's no room for those
+  // separate time gutter and title/venue/meta rows, since there's no room for those
   // across 5 columns. The day view also renders compact (one line, no meta
   // row) to stay condensed, but keeps its own time gutter column, so it skips
   // the clock here to avoid showing it twice.
@@ -191,7 +191,7 @@ function renderWeek({ week = [], clashDays, day }) {
   }
 }
 
-// Favorites AWS hasn't given a time yet — buildTimeline drops them from
+// Favorites AWS hasn't given a time yet: buildTimeline drops them from
 // every day, so they'd otherwise never appear anywhere on screen (or in
 // speech: see server/tools.mjs's scheduleSpeech). Rendered once, outside the
 // day/week grid, not tied to which day is selected.
@@ -205,7 +205,7 @@ function renderUnscheduled(list = []) {
   }, h('span', { class: 'title' }, s.title), s.venue ? h('span', { class: 'meta-compact' }, s.venue) : null)));
 }
 
-// Set once startExperience() runs, which only happens after pairing — the
+// Set once startExperience() runs, which only happens after pairing. The
 // gate screen (below) is everything an unpaired attendee sees.
 let session;
 let paired = false;
@@ -222,7 +222,7 @@ function syncScreen(patch) {
 }
 // Sessions from the last show_sessions call, by day. Rendered as the same
 // dashed "suggested" blocks as the server's topic-based picks, right in
-// their real day/time slot, instead of a separate card list — so a search
+// their real day/time slot, instead of a separate card list, so a search
 // result always lines up with the calendar instead of floating above it.
 // A fresh show_sessions call replaces this outright, same as the old card
 // list did.
@@ -284,10 +284,39 @@ function optionEl(text, primary) {
   return h('button', { class: `option${primary ? ' btn-primary' : ''}`, 'data-turn': text }, h('span', {}, text));
 }
 
+// Same sheet/scrim/focus-trap shape as the conflict sheet below, but its
+// buttons resolve a Promise instead of sending a conversational turn: a
+// destructive tool call is waiting on the answer, not the model.
+function confirmSheet(message) {
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      document.getElementById('confirm-sheet')?.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(ok);
+    };
+    const yes = h('button', { class: 'option btn-primary' }, h('span', {}, 'Yes, go ahead'));
+    const cancel = h('button', { class: 'option' }, h('span', {}, "No, don't"));
+    yes.addEventListener('click', () => done(true));
+    cancel.addEventListener('click', () => done(false));
+    const sheet = h('section', { class: 'sheet', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': 'Confirm', tabindex: -1 },
+      h('span', { class: 'grabber' }), h('p', { class: 't-section' }, message), yes, cancel);
+    document.body.append(h('div', { class: 'scrim', id: 'confirm-sheet' }, sheet));
+    document.getElementById('confirm-sheet').addEventListener('click', (e) => { if (e.target.id === 'confirm-sheet') done(false); });
+    yes.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); done(false); return; }
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey && document.activeElement === yes) { e.preventDefault(); cancel.focus(); }
+      else if (!e.shiftKey && document.activeElement === cancel) { e.preventDefault(); yes.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+  });
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function renderRecap(recap) {
   // busiestDay is a "YYYY-MM-DD" string (server/schedule.mjs), or null if
-  // nothing reserved has a date yet — skip the stat rather than show "null".
+  // nothing reserved has a date yet, skip the stat rather than show "null".
   // Parsed with an explicit UTC time so a date-only string never rolls back
   // a day for attendees west of UTC.
   const busiestDay = recap.busiestDay ? WEEKDAYS[new Date(`${recap.busiestDay}T00:00:00Z`).getUTCDay()] : null;
@@ -347,6 +376,10 @@ session = new KalturaAgentSession({
     socketFactory: (url, opts) => window.io(url, opts),
     isFirefox: /firefox/i.test(navigator.userAgent),
     requireDisclosureAck: true,
+    // Consumption valve (OWASP LLM10): caps how fast one visitor can drive
+    // turns against the partner's Kaltura bill. The server-side quota is
+    // still the authoritative limit; this just stops a runaway client loop.
+    maxTurnsPerMinute: 30,
     micStartMode: 'deferred',
     // Expo-floor noise: the SDK's own AudioWorklet gate. Raw audio in, so the
     // browser-native Tier-1 suppressor doesn't double-process the signal.
@@ -647,7 +680,7 @@ session.on('transportChanged', ({ transport }) => {
   transport.on('localMicLevel', ({ level }) => frame.style.setProperty('--mic-level', Math.min(1, level)));
 });
 
-// The disclosure must be accepted, not just closed — Escape fires this
+// The disclosure must be accepted, not just closed. Escape fires this
 // native event before any 'close' handler, so block it here.
 $('disclosure').addEventListener('cancel', (e) => e.preventDefault());
 
@@ -707,7 +740,7 @@ session.on('transcript', ({ type, text }) => {
 session.on('error', () => { skipDisclosureGate(); clearPending(); toast('Nevada hit a snag. Try again.'); });
 // R5 brain-liveness watchdog: fires every brainStallMs (default 12 s) while the
 // brain stays silent after a turn starts, including turns with no tool call and
-// no error event — the one class of stall the app had no signal for at all.
+// no error event, the one class of stall the app had no signal for at all.
 session.on('brainStalled', () => toast("Still working on that, one moment."));
 // Soft signal the brain is looping on tool calls within one turn (no action
 // taken yet at this point, just a heads-up); spiralRecovered fires once the
@@ -716,7 +749,7 @@ session.on('brainStalled', () => toast("Still working on that, one moment."));
 session.on('toolSpiralDetected', () => toast("This is taking a few tries, hang on."));
 session.on('spiralRecovered', () => toast('Reconnected. One moment.'));
 // STV media (the avatar's video/audio) can drop independently of the control
-// channel — an ICE hiccup the SDK retries in place before ever escalating to a
+// channel: an ICE hiccup the SDK retries in place before ever escalating to a
 // full cold reconnect. Without these, the frame goes silently frozen until the
 // DOM-level armMediaWatchdog's 5 s guess fires; these give the real signal
 // first, and disarm that guess if recovery finishes before it would.
@@ -799,8 +832,14 @@ session.onToolCall('render_schedule', async ({ day, focusIds }) => {
 });
 session.onToolCall('highlight_conflict', async ({ sessionId, conflictsWith, options }) => {
   closeConflict();
-  const opts = options ?? [];
-  const ids = [sessionId, ...conflictsWith];
+  // conflictsWith/options come straight from the agent's tool call, not a
+  // trusted schema, so shape them defensively before spreading or rendering:
+  // a non-array conflictsWith would throw on spread (or, if it's a string,
+  // spread into individual characters as bogus "session ids"), and a
+  // non-string option would render as "[object Object]" on a live button.
+  const clashIds = Array.isArray(conflictsWith) ? conflictsWith.filter((id) => typeof id === 'string') : [];
+  const opts = Array.isArray(options) ? options.filter((o) => typeof o === 'string') : [];
+  const ids = [sessionId, ...clashIds];
   const data = await show('/api/sessions', { ids });
   if (!data) return;
   const [target, clash] = data.sessions;
@@ -811,7 +850,7 @@ session.onToolCall('highlight_conflict', async ({ sessionId, conflictsWith, opti
     h('div', { class: 'clash-pair' },
       h('div', { class: 'block' }, h('span', { class: 'title' }, target?.title ?? sessionId), h('span', { class: 'meta' }, [target?.venue, target?.clock].filter(Boolean).join(' · '))),
       h('span', { class: 'clash-link' }),
-      h('div', { class: 'block' }, h('span', { class: 'title' }, clash?.title ?? conflictsWith[0]), h('span', { class: 'meta' }, [clash?.venue, clash?.clock].filter(Boolean).join(' · ')))),
+      h('div', { class: 'block' }, h('span', { class: 'title' }, clash?.title ?? clashIds[0]), h('span', { class: 'meta' }, [clash?.venue, clash?.clock].filter(Boolean).join(' · ')))),
     ...opts.map((text, i) => optionEl(text, i === 0 && opts.length > 1)),
     h('p', { class: 'warn' }, "Swapping drops your old seat first. If the new one fills before I get you in, I'll try to get your old seat back, but I can't promise it."));
   document.body.append(
@@ -919,7 +958,7 @@ const SERVER_TOOLS = [
   'add_personal_time', 'update_personal_time', 'delete_personal_time',
 ];
 // These change what's on the schedule. celebrate_action also refreshes it,
-// but only when the LLM calls it, e.g. never after a plain removal — so the
+// but only when the LLM calls it, e.g. never after a plain removal, so the
 // timeline can go stale until the next day switch. Refresh here instead,
 // tied to the mutation itself rather than the LLM's choice to celebrate it.
 const MUTATES_SCHEDULE = new Set([
@@ -931,25 +970,43 @@ const MUTATES_SCHEDULE = new Set([
 // filters mid-turn (confirmed live), so a repeat call within one turn is
 // short-circuited to the first result instead of hitting the network again.
 let searchThisTurn = null;
-// Arms the same watchdog at turn start, not just after a tool responds — a
+// Arms the same watchdog at turn start, not just after a tool responds. A
 // turn that never calls a tool at all (confirmed live, no error, no tool
 // call, no speech) had nothing watching it before beyond the SDK's own
 // unresolved 12 s "still working" nudge. Longer than that nudge's interval,
 // so it only fires once the SDK's own reassurance has already had its turn.
 session.on('turnStart', () => { searchThisTurn = null; armToolFollowup(16000); });
 
+// One extra tap before the tools that give something up: a misheard turn, a
+// model slip, or text injected through a fetched abstract could otherwise
+// cancel, swap or delete something real with no human in the loop beyond
+// prompts/rules.md's "clear yes" rule, which the model itself enforces and
+// can get wrong. A decline still resolves the tool call, so Nevada can tell
+// the attendee it didn't happen instead of the turn going quiet.
+const CONFIRM_BEFORE = new Map([
+  ['cancel_reservation', 'Cancel this reservation?'],
+  ['swap_reservation', 'Swap to the new session? This drops your old seat first.'],
+  ['delete_personal_time', 'Remove this from your schedule?'],
+  ['unfavorite_session', 'Remove this from your favorites?'],
+]);
+
 for (const name of SERVER_TOOLS) {
   session.onToolCall(name, async (args, call) => {
     let result;
-    if (name === 'search_sessions' && searchThisTurn) {
+    const confirmMessage = CONFIRM_BEFORE.get(name);
+    if (confirmMessage) {
+      moveOutOfWay();
+      if (!(await confirmSheet(confirmMessage))) result = { cancelled: true, answer: "The attendee didn't confirm this, so nothing changed." };
+    }
+    if (!result && name === 'search_sessions' && searchThisTurn) {
       result = searchThisTurn;
-    } else {
+    } else if (!result) {
       result = await api(`/tools/${name}`, args)
         .catch(() => ({ answer: "That didn't work. Try again in a moment." }));
       if (name === 'search_sessions') searchThisTurn = result;
     }
     if (call.toolMetadata?.waitForResponse) session.respondToTool(call.toolMetadata.id, result).catch(() => {});
-    if (MUTATES_SCHEDULE.has(name)) loadSchedule(screen.day);
+    if (MUTATES_SCHEDULE.has(name) && !result.cancelled) loadSchedule(screen.day);
     armToolFollowup();
   });
 }
@@ -1005,28 +1062,44 @@ $('pair-copy').addEventListener('click', async () => {
 
 // Offers a handoff to a phone for the live conversation, right after pairing
 // and any time after from the header pill, instead of assuming the device
-// that paired is the one to keep talking on.
+// that paired is the one to keep talking on. The handoff URL is a full
+// bearer credential, so it's only minted on an explicit tap of "Show a QR",
+// never automatically on open, and it never appears as text the attendee
+// could copy, screenshot as a string, or leave in view: only as a QR code.
 let pairSuccessContinue = () => {};
-async function showPairSuccess(onContinue = () => {}) {
+function showPairSuccess(onContinue = () => {}) {
   pairSuccessContinue = onContinue;
+  $('pair-qr').hidden = true;
+  $('pair-qr').innerHTML = '';
+  $('pair-show-qr').hidden = false;
+  $('pair-show-qr').disabled = false;
   $('pair-success').showModal();
+}
+async function requestHandoffQr() {
+  $('pair-show-qr').disabled = true;
   const { url } = await api('/api/pair/handoff', {}).catch(() => ({}));
-  if (url) {
-    $('pair-handoff-link').textContent = url;
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    $('pair-qr').innerHTML = qr.createSvgTag(6, 8);
-  } else {
-    $('pair-qr').hidden = true;
-    $('pair-handoff-link').hidden = true;
-  }
+  if (!url) { $('pair-show-qr').disabled = false; toast("Couldn't get a phone link. Try again."); return; }
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  $('pair-qr').innerHTML = qr.createSvgTag(6, 8);
+  $('pair-qr').hidden = false;
+  $('pair-show-qr').hidden = true;
 }
 // Right after pairing there's no avatar experience yet, so dismissing
-// without picking a device would leave nothing on screen — block that case
+// without picking a device would leave nothing on screen, so block that case
 // only; once already connected (paired is true) it's just an FYI dialog.
 $('pair-success').addEventListener('cancel', (e) => { if (!paired) e.preventDefault(); });
+$('pair-show-qr').addEventListener('click', requestHandoffQr);
 $('pair-continue-here').addEventListener('click', () => { $('pair-success').close(); pairSuccessContinue(); });
+// Reload rather than unwinding state by hand: disconnect drops every device
+// on this pairing (server/tokens.mjs's pairingId group), so the gate is the
+// only thing correct to show next, on this device and on any other tab too.
+$('pair-disconnect').addEventListener('click', async () => {
+  $('pair-disconnect').disabled = true;
+  await api('/api/pair/disconnect', {}).catch(() => {});
+  location.reload();
+});
 $('gate-connect').addEventListener('click', () => openPairing(() => showPairSuccess(startExperience)));
 
 const initial = await api('/api/schedule', {}).catch(() => ({}));
@@ -1037,7 +1110,7 @@ else {
   if (initial.expired) toast('Your AWS connection lapsed. Reconnect to keep going.');
 }
 // A handoff link that was already used, expired, or otherwise invalid lands
-// here instead of pairing silently — say so instead of just showing a
+// here instead of pairing silently. Say so instead of just showing a
 // generic unpaired gate the attendee has no way to explain.
 if (new URLSearchParams(location.search).has('handoff_failed')) {
   toast("That link already expired or was used. Ask for a fresh one.");
