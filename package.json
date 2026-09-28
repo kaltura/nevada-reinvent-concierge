@@ -3,9 +3,14 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=20.6" },
+  "bin": { "nevada-pair": "pair/index.mjs" },
   "scripts": {
     "start": "node --env-file=.env server/index.mjs",
-    "provision": "node --env-file=.env scripts/provision.mjs"
+    "provision": "node --env-file=.env scripts/provision.mjs",
+    "update-prompts": "node --env-file=.env scripts/update-prompts.mjs",
+    "pair": "node scripts/dev-pair.mjs",
+    "test": "node --test server/test/*.test.mjs",
+    "eval": "node --env-file=.env server/evals/runner.mjs"
   },
   "dependencies": {
     "@kaltura/intelligent-agents": "github:kaltura/intelligent-agents-sdk#v1.23.2"

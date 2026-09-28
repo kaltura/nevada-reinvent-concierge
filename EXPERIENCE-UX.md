@@ -8,21 +8,18 @@ What the attendee sees and hears. Visual rules are in [DESIGN.md](DESIGN.md). Th
 
 - Nevada is live on screen for the whole visit, and the screen shows what she's talking about.
 - Talk, type or tap, in any order, at any time. All three are turns in the same conversation.
-- The screen shows only real data. Cards and the schedule come from our Web API, never from what the model remembers.
+- The screen shows only real data. Blocks and the schedule come from our Web API, never from what the model remembers.
 - Nothing gets booked without a clear yes, spoken, typed or tapped.
 - Every answer is short: one to three spoken sentences, and the screen carries the detail.
 
 ## First run
 
-Attendees can try Nevada before they sign in anywhere.
+There's no avatar and nothing to search until AWS pairing succeeds — Nevada needs a real account to build a real plan, and a stale spoken greeting from before pairing would be confusing anyway. So the entire experience sits behind a connect gate.
 
-1. They open the link on their phone. The avatar frame and the composer are already there. A one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she says hello.
-2. Nevada asks one question: "What are you here for?" They can say it, type it, or tap up to three chips (for example "Agentic AI", "Serverless", "First time here"). The mic permission prompt appears only when they first tap the mic.
-3. Search works right away. Favorites are kept on the device as a shortlist.
-4. When they want their real schedule, they tap "Connect my AWS Events account". The phone shows a code and a QR code, and the laptop step is one command (see [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing)).
-5. After pairing, the shortlist becomes real AWS favorites, and Nevada says "Your plan is synced".
-
-Why try-first: the laptop step is the biggest drop-off risk. Attendees who have already seen good picks have a reason to do it.
+1. They open the link on whatever device is at hand. The gate shows Nevada's mark and "Connect your AWS Events account and I'll build your plan for the week", with a single "Connect my AWS Events account" button. No QR code here — they're already on this device.
+2. They tap it. The gate shows a 6-character code and one command to copy and run in a terminal on that same device (see [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing)).
+3. Once paired, a success screen offers a QR code and a link to continue the live conversation on a phone instead, or a "Continue here" button to stay on the current device (see [ARCHITECTURE.md § Phone handoff](ARCHITECTURE.md#phone-handoff)).
+4. Whichever device continues: a one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she leads with the first-timer's plan: "I'll start you with a first-timer's plan for the week. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." They can say a track, type it, or tap one of three chips (for example "Agentic AI", "Serverless", "First time here"). The mic permission prompt appears only when they first tap the mic.
 
 ## Talk, type or tap
 
@@ -30,19 +27,19 @@ Nevada is a person-shaped host, not a voice assistant with a chat box. Each inpu
 
 | Input | How | Good for |
 |---|---|---|
-| Talk | Toggle mic: tap to talk, tap to send | The hotel room, a hallway, planning on the go |
+| Talk | Tap once to start the mic, then just talk. Tap again to mute | The hotel room, a hallway, planning on the go |
 | Type | The composer, always on screen | Quiet rooms, a loud floor, exact session codes |
-| Tap | Chips, card buttons, conflict options | Fast choices. The tap is sent as a turn, so Nevada answers and the screen updates. |
-| Look | Opening a card, switching days, scrolling | Not a turn. Nevada just knows what's on screen. |
+| Tap | Chips, timeline blocks, conflict options | Fast choices. The tap is sent as a turn, so Nevada answers and the screen updates. |
+| Look | Switching days, scrolling | Not a turn. Nevada just knows what's on screen. |
 
-- **Nevada sees what you see.** With a card open, "book this one" or "what else is on then?" just works. The page tells Nevada which sessions are on screen, as IDs only.
-- **Nevada points.** When she talks about one card or block on screen, a ring lights it (see [DESIGN.md § Components](DESIGN.md#components)).
+- **Nevada sees what you see.** With a block on screen, "book this one" or "what else is on then?" just works. The page tells Nevada which sessions are on screen, as IDs only.
+- **Nevada points.** When she talks about one block on screen, a ring lights it (see [DESIGN.md § Components](DESIGN.md#components)).
 - **Interrupt like a person.** Typing or tapping while Nevada talks stops her, and she answers the new turn. During her opening line, the turn waits until the line ends.
-- **Taps carry a label.** A card's Reserve button sends a turn such as "Reserve Multi-agent systems in production (session ABC123)", so Nevada knows exactly which one. The tap counts as the clear yes.
+- **Taps carry a label.** Tapping a block sends a turn such as "Tell me more about Multi-agent systems in production (session ABC123)", so Nevada knows exactly which one. She still needs a spoken or typed yes before booking anything.
 - **Your words, then Nevada's.** The attendee's own line shows on the frame after they finish speaking. There is no live transcript while they talk. The aura behind Nevada grows with their voice, so they can see she hears them.
 - **Quiet mode.** The voice toggle on the frame mutes Nevada's voice. The video and captions carry on, and the attendee types. For session rooms and the shuttle.
-- **Toggle mic, not open mic.** The expo floor is loud and full of other voices, and open mic would pick them up. Toggle also works with screen readers. If the push-to-talk spike fails, the mic stays open and the mic button mutes (see [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes)).
-- **While the mic is capturing,** typed and tapped turns don't send. The composer and a toast say "Listening. Tap the mic to finish." Typed text stays in the field, and a tap needs a second tap after the capture.
+- **Open mic, not push-to-talk.** The first tap starts the mic and it stays open, so nobody has to hold or re-tap it for every turn. The same button mutes and unmutes, and `aria-pressed` keeps it clear for screen readers.
+- **Typing and tapping still work while the mic is open.** Nothing is blocked or queued: whichever turn arrives first, spoken, typed or tapped, is the one Nevada answers.
 - **Chat fallback** is only for when video can't run (see [§ Network and backgrounding](#network-and-backgrounding)). Nevada's last frame stays as a still, replies arrive as text in the caption area, and the conversation carries on. "Try video" goes back, and it must be a real tap.
 
 ## Schedule canvas
@@ -54,10 +51,13 @@ The home screen after pairing. On a phone it's one day at a time: a day strip (M
 | Solid | Reserved. A seat is held. |
 | Outlined | Favorite. No seat. |
 | Striped | Personal time |
+| Dashed | Nevada's pick: a topic-based suggestion, or a session from her last `show_sessions` call, shown in its real day and time |
 | Gap with a travel tag | Time to move between venues, when the next session is in another venue |
 | Red edge | Two blocks overlap |
 
-The canvas redraws from `GetSchedule` after every change. Tapping a block opens its card.
+The canvas redraws from `GetSchedule` after every change. Tapping a block asks Nevada to tell you more about it; she answers and points at it rather than opening anything new.
+
+A favorite AWS hasn't scheduled yet has no day or time, so it can't go in the grid. It shows instead as a horizontal strip below the timeline, "Favorited, not yet scheduled", visible no matter which day is selected.
 
 ## Conflict swap
 
@@ -84,7 +84,7 @@ How it works:
 
 | Moment | What happens |
 |---|---|
-| Fill my gaps | "What can I do Tuesday afternoon?" Nevada finds sessions that fit the gap, the travel time and the attendee's interests, and shows three to five cards. |
+| Fill my gaps | "What can I do Tuesday afternoon?" Nevada finds sessions that fit the gap, the travel time and the attendee's interests, and highlights three to five in the day/week grid. |
 | Travel check | When two blocks are in different venues with too little time between them, the gap tag turns amber and Nevada mentions it once. Times come from a static table (see [ARCHITECTURE.md § Search](ARCHITECTURE.md#search)). |
 | Full session | When a session is full, Nevada offers a repeat with seats first. If the session shows `walkUp`, she says walk-up is an option. She never promises a seat. |
 | Wildcard | "Surprise me." One session far from the attendee's usual topics that still fits the schedule, shown with a reveal (see [DESIGN.md § Motion](DESIGN.md#motion)). |

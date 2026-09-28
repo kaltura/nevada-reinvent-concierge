@@ -74,7 +74,14 @@
 html, body { margin: 0; height: 100%; }
 
 body {
-  background: var(--bg);
+  /* The night sky behind the avatar frame continues under the whole app,
+     so the schedule side never reads as a flat, empty void. */
+  background:
+    radial-gradient(55% 40% at 15% 8%, rgb(107 79 255 / .16), transparent 65%),
+    radial-gradient(45% 35% at 88% 6%, rgb(251 129 206 / .12), transparent 65%),
+    radial-gradient(65% 50% at 50% 110%, rgb(0 51 180 / .2), transparent 65%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font: 400 16px/24px var(--font);
   -webkit-font-smoothing: antialiased;
@@ -120,7 +127,7 @@ button {
 
 .app {
   display: grid;
-  grid-template: "top" auto "avatar" auto "main" 1fr "composer" auto / 1fr;
+  grid-template: "top" auto "main" 1fr "composer" auto / 1fr;
   height: 100dvh;
   padding-top: env(safe-area-inset-top);
 }
@@ -149,6 +156,7 @@ button {
   display: grid; grid-template-columns: repeat(5, 1fr);
   padding: 0 var(--s-2); border-bottom: 1px solid var(--elevated);
 }
+.legend { padding: var(--s-2) var(--s-4) 0; }
 .day {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   padding: var(--s-2) 0; position: relative; color: var(--muted);
@@ -175,11 +183,30 @@ button {
 }
 .timeline time { font-size: 13px; line-height: 18px; color: var(--muted); padding-top: var(--s-3); text-align: right; }
 
+/* Room for the floating split avatar so a block's title truncates with its
+   own ellipsis instead of just disappearing under her. The live app never
+   uses this state now (client/app.js keeps her at "stage" size and moves
+   the frame instead of shrinking it), but client/prototype.html's split
+   demo state still does. */
+[data-avatar="split"] .timeline[data-view="day"] {
+  padding-right: calc(128px + var(--s-4) + var(--s-3));
+}
+
+/* Favorites AWS hasn't given a time yet: kept out of the day/time grid
+   (client/app.js's renderUnscheduled), so they don't imply a time slot they
+   don't have. Always visible, not tied to which day is selected. */
+.unscheduled { flex: none; padding: 0 var(--s-4) var(--s-3); }
+.unscheduled-list {
+  display: flex; gap: var(--s-2); overflow-x: auto; overscroll-behavior: contain;
+}
+.unscheduled-list .block-compact { width: 200px; flex: none; }
+
 .block {
   border-radius: var(--radius-m); padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
   position: relative; background: var(--surface); text-align: left; width: 100%;
   display: grid; grid-template-columns: 1fr auto; gap: 0 var(--s-2);
   transition: transform var(--dur-base) var(--ease-out);
+  animation: rise var(--dur-slow) var(--ease-out) backwards;
 }
 .block::before {
   content: ""; position: absolute; left: 0; top: var(--s-2); bottom: var(--s-2);
@@ -191,11 +218,49 @@ button {
 
 .block[data-state="reserved"] { background: var(--elevated); }
 .block[data-state="favorite"] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--elevated); }
+.block[data-state="suggested"] { background: transparent; outline: 1.5px dashed var(--muted); outline-offset: -1.5px; opacity: .85; }
 .block[data-state="personal"] {
   background: repeating-linear-gradient(135deg, var(--surface) 0 8px, #2c2c2c 8px 16px);
 }
 .block[data-clash] { box-shadow: inset -4px 0 0 var(--danger-text); }
 .block[data-clash].nudge { transform: translateY(4px); }
+
+/* Two rows instead of the day view's separate title/venue/meta rows: the day
+   view uses this by default to stay condensed, the week grid because there's
+   no room for more across 5 columns. The title wraps (never just an
+   ellipsis) so a long title stays readable on a phone, where there's no
+   hover to reveal the rest; the title attribute set in app.js still covers
+   desktop hover for the rare title that clips at 2 lines. */
+.block-compact {
+  grid-template-columns: 1fr; padding: 6px calc(var(--s-3) + 16px) 6px var(--s-4);
+}
+.block-compact .title {
+  font-size: 13px; font-weight: 600; line-height: 16px;
+}
+.block-compact .meta-compact {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; color: var(--muted); margin-top: 2px;
+}
+/* A chevron marks a compact block as tappable for detail — personal-time
+   blocks are static, so they're excluded. */
+.block-compact:not([data-state="personal"])::after {
+  content: "›"; position: absolute; right: var(--s-2); top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 18px; font-weight: 700; line-height: 1;
+}
+/* Immediate feedback that a tap registered, cleared once Nevada's reply
+   actually lands (app.js caption()) rather than after a guessed delay. */
+.block.pending { opacity: .5; }
+
+/* A once-off glow-ring pulse on the block a reserve or swap just landed on
+   (app.js pulseBlock), and a star that spins onto one just favorited
+   (app.js starPop), so the change reads on the timeline, not just in the
+   shared toast/confetti. */
+.block.pulse-booked { animation: rise var(--dur-slow) var(--ease-out) backwards, booked-pulse var(--dur-reveal) var(--ease-out); }
+.star-pop {
+  position: absolute; top: -8px; right: -8px; width: 20px; height: 20px;
+  color: var(--glow-lavender); pointer-events: none;
+  animation: star-pop var(--dur-reveal) var(--ease-spring);
+}
 
 .travel-tag {
   grid-column: 2; display: flex; align-items: center; gap: var(--s-2);
@@ -212,17 +277,54 @@ button {
 
 /* Avatar frame. Sizes and states: DESIGN.md § Avatar frame.
    Keyed: Nevada stands on the night gradient with no box. app.js sets
-   data-keyed and --bx, --by, --bw, --bh, the box she fills in the frame. */
+   data-keyed and --bx, --by, --bw, --bh, the box she fills in the frame.
+   The frame floats free over the page (position: fixed) instead of sitting
+   in a column, so client/app.js can drag it or glide it next to whatever
+   she's talking about. Its own left/top/right/bottom transition, so both a
+   state change and a drag glide smoothly; dragging (and the tile state,
+   where she's a static bubble) turn the transition and idle bob off.
+   The live app now only ever uses the "stage" state below — content moves
+   her aside instead of shrinking her to "split" or "tile" — but
+   client/prototype.html's demo states still switch between all three, so
+   those rules stay here for it. */
 
 .avatar {
-  grid-area: avatar; position: relative; z-index: 2; isolation: isolate;
-  height: 56dvh; overflow: hidden;
-  background: radial-gradient(90% 70% at 50% 45%, var(--night-2), transparent 70%);
-  transition: height var(--dur-slow) var(--ease-out);
+  position: fixed; z-index: 2; isolation: isolate;
+  touch-action: none; cursor: grab;
+  background: radial-gradient(65% 55% at 50% 45%, var(--night-2), transparent 72%);
+  transition: left var(--dur-slow) var(--ease-spring), top var(--dur-slow) var(--ease-spring),
+    right var(--dur-slow) var(--ease-spring), bottom var(--dur-slow) var(--ease-spring),
+    width var(--dur-slow) var(--ease-out), height var(--dur-slow) var(--ease-out);
   --bx: 0; --by: 0; --bw: 1; --bh: 1; --zoom: .94; --headroom: 6%;
 }
-[data-avatar="split"] .avatar { height: max(30dvh, 180px); --zoom: 1.1; }
+.avatar[data-dragging] { transition: none; cursor: grabbing; }
+.avatar[data-voice="idle"] { animation: bob 6s ease-in-out infinite; }
+[data-avatar="tile"] .avatar, .avatar[data-dragging] { animation: none; }
+
+/* Both rest well above the fixed caption bar at the bottom: a spoken
+   sentence can wrap to several lines, so her resting spot stays clear of
+   that strip by anchoring from the top, not by guessing a caption height. */
+/* Centred with a single left calc, not margin-left: a drag sets only the
+   left/top inline styles, so a separate margin-left would keep shifting
+   the frame after a drag. */
+[data-avatar="stage"] .avatar {
+  left: calc(50% - min(66vw, 240px) / 2); top: calc(env(safe-area-inset-top) + 64px);
+  width: min(66vw, 240px); height: min(46dvh, 340px);
+}
+/* Below the top bar and day strip, not on top of them: at split's width,
+   the default top-right rest spot would otherwise sit right over the day
+   buttons on a phone. */
+[data-avatar="split"] .avatar {
+  right: var(--s-4); top: calc(env(safe-area-inset-top) + 136px); left: auto;
+  width: 128px; height: 188px; --zoom: 1.1;
+}
+[data-avatar="tile"] .avatar {
+  left: var(--s-3); top: calc(env(safe-area-inset-top) + var(--s-2)); bottom: auto; right: auto;
+  width: 52px; height: 52px; border-radius: 50%; overflow: hidden;
+  --zoom: 1.9; --headroom: 4%;
+}
 .avatar-mark { position: absolute; left: 50%; top: 40%; width: 56px; height: 56px; transform: translate(-50%, -50%); }
+[data-avatar="tile"] .avatar-mark { width: 28px; height: 28px; }
 [data-keyed="ready"] .avatar-mark { display: none; }
 
 /* Fallback when keying can't start: the plain video in a framed box. */
@@ -236,7 +338,7 @@ button {
 
 .cutout {
   position: absolute; z-index: 1; inset: 0; pointer-events: none;
-  mask-image: linear-gradient(#000 70%, transparent 97%);
+  mask-image: radial-gradient(circle at 50% 42%, #000 60%, transparent 92%);
   opacity: 0; transition: opacity var(--dur-reveal) var(--ease-out);
 }
 [data-keyed="ready"] .cutout { opacity: 1; }
@@ -273,14 +375,10 @@ button {
   display: grid; place-items: center; font-weight: 600;
 }
 
-.ai-chip {
-  position: absolute; z-index: 2; top: var(--s-3); left: calc(var(--s-4) + var(--s-3));
-  padding: 2px var(--s-2); border-radius: 999px; background: rgb(0 0 0 / .55);
-  font-size: 12px; line-height: 16px; font-weight: 800; letter-spacing: .08em;
-}
-
+/* Bottom corner, not top: at the top the toggle sits right at her
+   hairline and reads as a horn on her head. */
 .voice-toggle {
-  position: absolute; z-index: 2; top: var(--s-1); right: calc(var(--s-4) + var(--s-1));
+  position: absolute; z-index: 2; bottom: var(--s-1); right: calc(var(--s-4) + var(--s-1));
   border-radius: 50%; display: grid; place-items: center;
 }
 .voice-toggle svg { width: 22px; height: 22px; padding: 7px; box-sizing: content-box; border-radius: 50%; background: rgb(0 0 0 / .55); }
@@ -289,12 +387,27 @@ button {
   content: ""; position: absolute; width: 26px; height: 2px; border-radius: 2px;
   background: currentColor; transform: rotate(-45deg);
 }
+/* Hover-reveal only where hover actually exists (mouse/trackpad). On touch
+   — the primary device here — there's no hover to reveal it with, so it
+   stays visible the way it always has; hiding it there would bury the only
+   way to mute Nevada. Muted state always shows, hovering or not, so the
+   attendee can see quiet mode is on. */
+@media (hover: hover) and (pointer: fine) {
+  .voice-toggle { opacity: 0; transition: opacity var(--dur-fast); }
+  .avatar:hover .voice-toggle,
+  .voice-toggle:focus-visible,
+  .voice-toggle[aria-pressed="true"] { opacity: 1; }
+}
 
-/* Captions: Nevada's sentence, with the attendee's last line above it. */
+/* Captions: Nevada's sentence, with the attendee's last line above it.
+   Fixed to the viewport, independent of the avatar's own size and position —
+   a tile-sized bubble has no room to show readable text inside itself.
+   --composer-h comes from app.js. */
 .captions {
-  position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; margin: 0;
-  padding: var(--s-7) var(--s-4) var(--s-5);
-  background: linear-gradient(transparent, rgb(0 0 0 / .75) 45%);
+  position: fixed; z-index: 2; left: var(--s-4); right: var(--s-4);
+  bottom: calc(var(--composer-h, 160px) + var(--s-2)); margin: 0;
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius-m);
+  background: rgb(0 0 0 / .8);
   font-size: 17px; line-height: 24px; font-weight: 600; text-wrap: balance;
 }
 .captions:empty { display: none; }
@@ -320,6 +433,7 @@ button {
   flex: none; padding: 0 var(--s-4); border-radius: 999px; white-space: nowrap;
   background: var(--surface); font-size: 15px; font-weight: 600;
 }
+.chip-btn:disabled { opacity: .4; }
 
 .composer { display: flex; align-items: center; gap: var(--s-2); }
 .composer input {
@@ -329,6 +443,7 @@ button {
 }
 .composer input::placeholder { color: var(--muted); }
 .composer input:focus-visible { outline-color: var(--glow-violet); }
+.composer input:disabled { opacity: .6; }
 
 .mic, .send {
   flex: none; width: 56px; height: 56px; border-radius: 50%;
@@ -362,7 +477,10 @@ button {
 .btn-primary:hover, .btn-primary:active { background: var(--primary-hover); }
 .btn-block { width: 100%; }
 
-/* Session card and stack */
+/* Session card and stack. The live app no longer uses this: search results
+   now render as dashed "suggested" blocks inside the day/week grid, in their
+   real day and time, instead of a separate floating card list. Only
+   client/prototype.html's cards demo state still uses it. */
 
 .card-stack {
   display: grid; grid-auto-flow: column; grid-auto-columns: 84%; gap: var(--s-3);
@@ -373,6 +491,7 @@ button {
 .card {
   scroll-snap-align: start; background: var(--surface); border-radius: var(--radius-l);
   padding: var(--s-4); display: grid; gap: var(--s-3); align-content: start;
+  animation: rise var(--dur-slow) var(--ease-out) backwards;
 }
 .card .title { font-size: 18px; line-height: 24px; font-weight: 800; }
 .card .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
@@ -389,12 +508,12 @@ button {
 
 /* Sheet */
 
-.scrim { position: fixed; z-index: 1; inset: 0; background: rgb(0 0 0 / .55); }
+.scrim { position: fixed; z-index: 3; inset: 0; background: rgb(0 0 0 / .55); }
 
-/* The sheet stops below the avatar frame at split size: top bar, frame, gap. */
+/* Above the floating avatar (z-index: 2), so a modal never sits behind her. */
 .sheet {
-  position: fixed; z-index: 1; left: 0; right: 0; bottom: 0;
-  max-height: calc(100dvh - env(safe-area-inset-top) - 48px - max(30dvh, 180px) - var(--s-3)); overflow-y: auto;
+  position: fixed; z-index: 3; left: 0; right: 0; bottom: 0;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 48px - var(--s-3)); overflow-y: auto;
   background: var(--surface); border-radius: var(--radius-l) var(--radius-l) 0 0;
   box-shadow: var(--sheet-shadow);
   padding: var(--s-2) var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom));
@@ -429,6 +548,22 @@ button {
 }
 .toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 
+/* Confetti burst: a handful of particles flung out from where the toast
+   lands, for a booking, favourite or swap. app.js's burst(). */
+.burst {
+  position: fixed; z-index: 5; top: calc(var(--s-3) + env(safe-area-inset-top) + 40px); left: 50%;
+  width: 0; height: 0; pointer-events: none;
+}
+.burst i {
+  position: absolute; left: 0; top: 0; width: 7px; height: 7px; border-radius: 2px;
+  background: var(--particle, var(--primary));
+  animation: confetti 900ms var(--ease-spring) forwards;
+}
+@keyframes confetti {
+  from { transform: translate(-50%, -50%) rotate(var(--r, 0deg)); opacity: 1; }
+  to { transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -60px))) rotate(calc(var(--r, 0deg) + 220deg)) scale(.4); opacity: 0; }
+}
+
 /* Disclosure dialog */
 
 dialog.disclosure {
@@ -440,11 +575,22 @@ dialog.disclosure {
 dialog.disclosure[open] { display: grid; }
 dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 
+/* Connect gate: full-screen, shown until AWS pairing succeeds. */
+
+.gate {
+  display: grid; place-items: center; gap: var(--s-4); text-align: center;
+  height: 100dvh; padding: var(--s-5); padding-top: calc(env(safe-area-inset-top) + var(--s-5));
+}
+.gate .btn { max-width: 320px; }
+
 /* Pairing */
 
 .pair-code { font: 800 48px/52px var(--mono); letter-spacing: .08em; }
-.qr {
-  width: 168px; height: 168px; border-radius: var(--radius-m); background: #fff; padding: 12px;
+.pair-qr svg { width: 180px; height: 180px; justify-self: center; background: #fff; border-radius: var(--radius-s); }
+.pair-help summary { cursor: pointer; text-decoration: underline; }
+.pair-help kbd {
+  font: 600 12px var(--mono); background: var(--night-2); border-radius: var(--radius-s);
+  padding: 2px 5px;
 }
 
 /* Recap poster */
@@ -467,48 +613,42 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 @keyframes breathe { 50% { opacity: .95; } from, to { opacity: .45; } }
 @keyframes blink { 50% { opacity: .3; } }
 @keyframes point { from { outline-color: transparent; } 8%, 80% { outline-color: var(--glow-lavender); filter: drop-shadow(0 0 10px rgb(154 131 254 / .6)); } to { outline-color: transparent; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes bob { 50% { translate: 0 -8px; } }
+@keyframes booked-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 6px rgb(107 79 255 / .35); } }
+@keyframes star-pop { from { opacity: 0; transform: scale(.2) rotate(-15deg); } 60% { opacity: 1; transform: scale(1.3) rotate(8deg); } to { opacity: 0; transform: scale(1) rotate(0); } }
 
-/* Phones: while the attendee scrolls, Nevada docks as a round bubble in the
-   top bar, where the mark was. Tap it to go back to split. */
+/* Nevada docks as a round bubble, top-left, over the mark. Tap it to go back to split.
+   Unconditional so tile works at every breakpoint, not just phones. Only
+   client/prototype.html's demo states reach this now; the live app keeps her at
+   "stage" size. */
 
-@media (max-width: 599px) {
-  [data-avatar="tile"] .top-bar { padding-left: calc(var(--s-4) + 44px + var(--s-2)); }
-  [data-avatar="tile"] .top-bar .mark { display: none; }
-  [data-avatar="tile"] .avatar {
-    position: fixed; z-index: 3; top: calc(env(safe-area-inset-top) + 2px); left: var(--s-4);
-    width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
-    background: var(--night-2); box-shadow: 0 4px 16px rgb(0 0 0 / .5);
-    --zoom: 1.9; --headroom: 4%;
-  }
-  [data-avatar="tile"] .avatar video { left: 0; width: 100%; border-radius: 0; }
-  [data-avatar="tile"] .cutout { mask-image: none; }
-  [data-avatar="tile"] .avatar::after {
-    inset: 0; height: auto; top: 0; left: 0; transform: none; filter: none; background: none;
-    box-shadow: inset 0 0 0 calc(2px + 3px * var(--mic-level, 0)) var(--glow-violet); z-index: 2;
-  }
-  [data-avatar="tile"] .ai-chip {
-    top: auto; bottom: 2px; left: 50%; transform: translateX(-50%);
-    padding: 0 4px; font-size: 9px; line-height: 12px;
-  }
-  [data-avatar="tile"] .voice-toggle,
-  [data-avatar="tile"] .avatar::before { display: none; }
-  /* --composer-h comes from app.js. */
-  [data-avatar="tile"] .captions {
-    position: fixed; left: var(--s-4); right: var(--s-4); bottom: calc(var(--composer-h, 160px) + var(--s-2));
-    padding: var(--s-2) var(--s-3); border-radius: var(--radius-m); background: rgb(0 0 0 / .8);
-  }
+[data-avatar="tile"] .top-bar .mark { display: none; }
+[data-avatar="tile"] .avatar { cursor: pointer; background: var(--night-2); box-shadow: 0 4px 16px rgb(0 0 0 / .5); }
+[data-avatar="tile"] .avatar video { left: 0; width: 100%; border-radius: 0; }
+[data-avatar="tile"] .cutout { mask-image: none; }
+[data-avatar="tile"] .avatar::after {
+  inset: 0; height: auto; top: 0; left: 0; transform: none; filter: none; background: none;
+  box-shadow: inset 0 0 0 calc(2px + 3px * var(--mic-level, 0)) var(--glow-violet); z-index: 2;
 }
+[data-avatar="tile"] .voice-toggle,
+[data-avatar="tile"] .avatar::before { display: none; }
 
-/* Larger screens: avatar and composer in the left column */
+/* Wider screens: more room for cards, nothing else changes about the avatar. */
 
 @media (min-width: 600px) {
-  .app { grid-template: "top top" auto "avatar main" 1fr "composer main" auto / 320px 1fr; }
-  .app .avatar { height: auto; --zoom: .62; --headroom: 12%; }
-  .sheet { left: 320px; max-height: none; }
   .card-stack { grid-auto-columns: 320px; }
 }
 
 @media (min-width: 1024px) {
-  .app { grid-template-columns: 400px 1fr; }
-  .sheet { left: 400px; }
+  .app > main { max-width: 1280px; margin: 0 auto; width: 100%; }
+
+  .timeline[data-view="week"] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0 var(--s-3);
+    padding: var(--s-3) var(--s-2) var(--s-5);
+  }
+  .timeline[data-view="week"] .week-day {
+    display: grid; gap: var(--s-2); align-content: start; min-width: 0;
+  }
 }

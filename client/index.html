@@ -22,6 +22,7 @@
       "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js",
       "@kaltura/intelligent-agents/management": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/index.js",
       "@kaltura/intelligent-agents/experience/chroma-key": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js",
+      "@kaltura/intelligent-agents/experience/noise-suppressor": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/noise-suppressor.js",
       "chroma-key-video": "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js"
     },
     "integrity": {
@@ -44,6 +45,7 @@
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js": "sha384-bbEsNVbIMZMdZe3d2glbY98NdZ6A3KvuUYTm1EErZDVIjec6t0EUlfz1qUcrWjla",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chat-session.js": "sha384-DIY18CXWptwXym1JbXj3DEJ0wG7VgbqtN7q5hOKNTNtw3AX8R3cL0weIGcJTMOE9",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/emitter.js": "sha384-FXWiUAS7nnf7troeDYXzjWbLUocg9ATbq7KbVL0hYKiDuYjr1VVHhTZV50abNdCg",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/noise-suppressor.js": "sha384-2FcpfVZaRjLS3vbg7xwcU9vrIp5G0glbEUkRLEcAbjvwEAGd2G6qRq3F6vMw4OIi",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js": "sha384-xAA/uQhrsFuN7yWCx+BCJsrgxuca30IwLrR1yO/XDeelT8Y5uJugrY5EgK9pTbw+",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/scripted-video-session.js": "sha384-euYVxjnsMs3aRND5izy+E2DhLdYlvGTvl4Xm3pwl1Z8USo/hhGsTWBL4nfJfcwm2",
       "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/session-complete.js": "sha384-3uMsVpUGbROtXxMNHQ42sCqqNKfLzBWd3JXFktkwGFFGQSVqYClYMSe6TRtWC9LL",
@@ -82,6 +84,10 @@
   </script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
     integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"></script>
+  <!-- QR rendering for the post-pair phone handoff. Pinned tag v20170724, integrity via
+       openssl dgst -sha384 -binary of that exact file, base64. -->
+  <script src="https://cdn.jsdelivr.net/gh/kazuhikoarase/qrcode-generator@v20170724/js/qrcode.js"
+    integrity="sha384-JF9qZH8YQuMu/K6FfDmvimEJ1L29wb3uopP7u013LPI005toBa+THkYKDBsBztn7" crossorigin="anonymous"></script>
   <script type="module" src="app.js"></script>
 </head>
 
@@ -115,23 +121,39 @@
 
   <a class="skip-link" href="#main">Skip to schedule</a>
 
-  <div class="app" id="app" data-avatar="stage">
+  <!-- Shown until AWS pairing succeeds. No live avatar and no QR here: the
+       attendee is already on this device, so pairing is a code and a command,
+       same as before. ARCHITECTURE.md § Pairing. -->
+  <section class="gate" id="gate" hidden>
+    <svg class="mark" style="width:64px;height:64px" aria-hidden="true"><use href="#mark" /></svg>
+    <p class="t-title" style="margin:0">Nevada</p>
+    <p class="t-caption" style="margin:0">Connect your AWS Events account and I'll build your plan for the week.</p>
+    <button class="btn btn-primary btn-block" id="gate-connect" type="button">Connect my AWS Events account</button>
+    <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
+  </section>
+
+  <div class="app" id="app" data-avatar="stage" hidden>
     <header class="top-bar">
       <svg class="mark" role="img" aria-label="Nevada"><use href="#mark" /></svg>
       <span class="name">Nevada</span>
       <span class="pill"><span class="t-glow" id="countdown"></span></span>
+      <button class="pill" id="connect" type="button">Connect</button>
     </header>
     <!-- Nevada's live video. It never moves in the DOM: moving it pauses playback.
          When keying works, the video is hidden and #cutout holds the keyed canvas. -->
-    <section class="avatar" id="avatar" data-voice="idle" aria-label="Nevada, AI avatar">
+    <section class="avatar" id="avatar" data-voice="idle" aria-label="Nevada, AI avatar" tabindex="0">
       <svg class="mark avatar-mark" aria-hidden="true"><use href="#mark" /></svg>
       <video id="avatar-video" autoplay playsinline muted></video>
       <div class="cutout" id="cutout"></div>
-      <span class="ai-chip">AI</span>
       <button class="voice-toggle" id="quiet" type="button" aria-pressed="false" aria-label="Mute Nevada's voice"><svg><use href="#i-volume" /></svg></button>
-      <!-- Not a live region unless quiet mode is on: Nevada's voice already says these words. -->
-      <p class="captions" id="captions" aria-live="off"></p>
     </section>
+    <!-- A sibling of .avatar, not nested inside it: the idle bob animates
+         .avatar with `translate`, and any transform-family property on an
+         ancestor becomes the containing block for a position: fixed
+         descendant, which would trap this at the avatar's own small size
+         instead of the viewport. Not a live region unless quiet mode is on:
+         Nevada's voice already says these words. -->
+    <p class="captions" id="captions" aria-live="off"></p>
     <main id="main" tabindex="-1">
       <nav class="day-strip" aria-label="Days">
         <button class="day" data-day="monday"><b>MON</b><span>30</span></button>
@@ -140,7 +162,15 @@
         <button class="day" data-day="thursday"><b>THU</b><span>3</span></button>
         <button class="day" data-day="friday"><b>FRI</b><span>4</span></button>
       </nav>
-      <section class="card-stack" id="cards" aria-label="Sessions" hidden></section>
+      <p class="t-caption legend">Solid = reserved · outlined = favorited · dashed = Nevada's pick for you · striped = personal time · red edge = clash. Tap any session to hear more.</p>
+      <!-- Above the timeline, not below it: Nevada's fixed caption bubble
+           floats over whatever sits just above the composer bar, so a strip
+           placed there (the timeline's old neighbour) would go unreadable
+           the moment she speaks. -->
+      <section class="unscheduled" id="unscheduled" aria-label="Favorited, not yet scheduled" hidden>
+        <p class="t-caption">Favorited, not yet scheduled</p>
+        <div class="unscheduled-list" id="unscheduled-list"></div>
+      </section>
       <section class="timeline" id="timeline" aria-label="Schedule">
         <span></span>
         <p class="t-caption">Your week is wide open. Tell Nevada what you're here for.</p>
@@ -169,6 +199,32 @@
     <p class="t-section" id="disclosure-text" style="margin:0">Nevada is an AI concierge.</p>
     <button class="btn btn-primary btn-block" id="disclosure-ok">Continue</button>
     <p class="disclaimer" style="margin:0">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p>
+  </dialog>
+
+  <dialog class="disclosure" id="pairing" aria-labelledby="pairing-title">
+    <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
+    <p class="t-title" id="pairing-title" style="margin:0">Connect your AWS Events account</p>
+    <p class="t-caption" style="margin:0">Copy the command below and run it in a terminal on this computer. Your browser will open so you can sign in with AWS Builder ID. The code works for 10 minutes.</p>
+    <div class="pair-code t-glow" id="pair-code" aria-live="polite"></div>
+    <button class="btn btn-primary btn-block" id="pair-copy" type="button">Copy command</button>
+    <code class="t-caption" id="pair-command" style="font-family: var(--mono)"></code>
+    <details class="pair-help">
+      <summary class="t-caption">Never used a terminal? Tap here.</summary>
+      <p class="t-caption" style="margin:8px 0 0">Mac: press <kbd>⌘ Space</kbd>, type <kbd>Terminal</kbd>, press Return.<br>Windows: press the <kbd>Windows</kbd> key, type <kbd>cmd</kbd>, press Return.<br>Then paste the command and press Return.</p>
+    </details>
+    <p class="t-caption" id="pair-status" style="margin:0" aria-live="polite">Waiting…</p>
+    <button class="btn btn-block" id="pair-close" type="button">Close</button>
+    <p class="disclaimer" style="margin:0">Not affiliated with or endorsed by AWS.</p>
+  </dialog>
+
+  <dialog class="disclosure" id="pair-success" aria-labelledby="pair-success-title">
+    <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
+    <p class="t-title" id="pair-success-title" style="margin:0">You're connected</p>
+    <p class="t-caption" style="margin:0">Scan this with your phone to keep talking with Nevada there, or continue here.</p>
+    <span class="pair-qr" id="pair-qr" aria-hidden="true"></span>
+    <code class="t-caption" id="pair-handoff-link" style="font-family: var(--mono); word-break: break-all"></code>
+    <button class="btn btn-primary btn-block" id="pair-continue-here" type="button">Continue here</button>
+    <p class="disclaimer" style="margin:0">Not affiliated with or endorsed by AWS.</p>
   </dialog>
 </body>
 

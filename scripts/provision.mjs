@@ -22,19 +22,24 @@ const OUT = join(ROOT, 'server', 'agent.json');
 const TAG = 'nevada';
 const DISPLAY_NAME = 'Nevada';
 const PERSONA_NAME = 'Nevada';
-// Rendered on every avatar join, including switchMode. `returning` is a request
-// variable the page sets on return from the background and clears with ''.
+// Rendered on every avatar join, including switchMode. `returning`, `paired`
+// and `topInterest` are request variables the page sets: `returning` on
+// return from the background (cleared with ''), `paired` from the AWS Events
+// pairing state, `topInterest` from the attendee's own top topic across what
+// they've already reserved or favorited (server/catalog.mjs's topTopic), '' if none.
 const OPENING_PHRASE =
   `{%- if returning -%}Welcome back.` +
-  `{%- elif sys__is_new_thread -%}Hi, I'm ${PERSONA_NAME}. What are you here for?` +
+  `{%- elif not paired -%}Hi, I'm ${PERSONA_NAME}. Connect your AWS Events account and I'll build your plan for the week.` +
+  `{%- elif sys__is_new_thread -%}Hi, I'm ${PERSONA_NAME}.` +
+  `{%- if topInterest -%} I noticed you've been favoriting {{ topInterest }} sessions, so I've lined up more like that for the week. Tell me if you'd rather go a different direction.` +
+  `{%- else -%} I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead.{%- endif -%}` +
   `{%- else -%}${SILENT_OPENING}{%- endif -%}`;
 
 const {
-  KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, PUBLIC_BASE_URL, PROXY_KEY,
-  KALTURA_VISUAL_ID, KALTURA_VOICE_ID,
+  KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, KALTURA_VISUAL_ID, KALTURA_VOICE_ID,
 } = process.env;
 const missing = Object.entries({
-  KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, PUBLIC_BASE_URL, PROXY_KEY, KALTURA_VISUAL_ID, KALTURA_VOICE_ID,
+  KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, KALTURA_VISUAL_ID, KALTURA_VOICE_ID,
 }).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) { console.error(`Set ${missing.join(', ')} in .env`); process.exit(2); }
 if (existsSync(OUT)) { console.error(`${OUT} exists. Nevada is already provisioned.`); process.exit(2); }
@@ -48,10 +53,16 @@ const str = (p, required = true) => ({ prompt: p, type: 'str', required });
 const list = (p) => ({ prompt: p, type: 'list', required: true });
 const DAY = str('Event day, e.g. "tuesday". Omit for the whole week.', false);
 
-// Server tools. Each is one POST to our proxy, which answers {answer: "<short text>"}.
+// Proxy tools. The LLM's call reaches our own page (a native `client` tool,
+// never a server-side webhook), which POSTs same-origin to our proxy and
+// ACKs back {answer: "<short text>"} via respondToTool. This is what makes
+// Phase 1 work on localhost with no public reachability: the browser calling
+// our own server always works; Kaltura's cloud calling our server does not.
+// client/app.js § SERVER_TOOLS; ARCHITECTURE.md § Tools.
 const API_TOOLS = [
+  ['get_topics', 'The most common topics/tracks in the catalog right now. Call this for "what topics/tracks are available" instead of guessing. Works before the account is connected.', {}],
   ['search_sessions', 'Find sessions in the catalog. Returns the top 5 with IDs. Works before the account is connected.', {
-    query: str('What the attendee is looking for, in their words'),
+    query: str('Topic or keywords only, e.g. "serverless" or "kubernetes at scale". Leave out entirely for a request that is only about day, time, venue or level — use day/from/to/venue/level for those, never put a time-of-day word like "morning" or "afternoon" here', false),
     day: DAY,
     from: str('Earliest start, local time "HH:MM"', false),
     to: str('Latest end, local time "HH:MM"', false),
@@ -99,22 +110,8 @@ const API_TOOLS = [
   ['delete_personal_time', 'Remove a personal time block. Only after a clear yes.', {
     id: str('Personal time ID from get_my_schedule'),
   }],
-].map(([name, description, args]) => tools.api({
-  name,
-  description,
-  args,
-  request: {
-    url: `${PUBLIC_BASE_URL}/tools/${name}`,
-    method: 'POST',
-    timeout: 8,
-    headers: {
-      'X-Proxy-Key': '{{secrets.PROXY_KEY}}',
-      'X-Session-Ref': '{{ session_ref }}',
-      'X-Thread': '{{ sys__thread_id }}',
-    },
-    body: Object.fromEntries(Object.keys(args).map((a) => [a, `{{args.${a}}}`])),
-  },
-  responseTemplate: '{answer}',
+].map(([name, description, args]) => tools.client({
+  name, description, args, waitForResponse: true, timeout: 15,
 }));
 
 const ONCE = 'Call once, then speak, never retry.';
@@ -160,13 +157,14 @@ for (const t of [...API_TOOLS, ...CLIENT_TOOLS]) toolIds[t.name] = await upsertT
 
 const intellectBody = {
   tool_ids: Object.values(toolIds),
-  // session_ref, returning and page_context are request variables. Without this they fail silently.
+  // returning and page_context are request variables. Without this they fail silently.
   allow_client_variables: true,
   base_directive: readPrompt('base-directive'),
   opening_phrase: OPENING_PHRASE,
   prompts: [
     prompt('name', 'Your name is:', PERSONA_NAME),
     prompt('targetAudience', 'Adjust your vocabulary and depth to the following group of people:', readPrompt('target-audience')),
+    prompt('eventFacts', 'Facts about the event itself, not from the session catalog:', readPrompt('event-facts')),
     prompt('restrictedTopics', 'Never discuss these topics. Steer back to planning in one sentence:', readPrompt('restricted-topics')),
     prompt('goal', 'Your success is measured by this goal:', readPrompt('goal')),
     prompt('obeyRules', 'Rules you must obey without exception:', readPrompt('rules')),
@@ -196,7 +194,7 @@ const intellectBody = {
 
 for (const [label, { findings }] of [
   ['persona', lintPersonaIdentity({ name: PERSONA_NAME, openingPhrase: OPENING_PHRASE, baseDirective: intellectBody.base_directive, prompts: intellectBody.prompts })],
-  ['prompt', lintPrompts(intellectBody.prompts, { allowClientVariables: true, knownVars: ['session_ref', 'returning', 'page_context'] })],
+  ['prompt', lintPrompts(intellectBody.prompts, { allowClientVariables: true, knownVars: ['returning', 'page_context', 'paired'] })],
 ]) {
   if (findings.length) console.warn(`⚠ ${label} lint:`, JSON.stringify(findings));
   else console.log(`✓ ${label} lint clean`);
@@ -207,11 +205,6 @@ const { configId } = intellect;
 if (!configId) throw new Error(`intellects.create returned no configId: ${JSON.stringify(intellect.raw)}`);
 for (const w of intellect.warnings ?? []) console.warn('⚠', w);
 console.log('✓ created intellect', configId);
-
-await kaltura.intellects.secrets.set(configId, { PROXY_KEY }, admin);
-const refs = await kaltura.intellects.secrets.validate(configId, admin);
-if (!refs.ok) console.warn('⚠ secret refs:', JSON.stringify({ unresolved: refs.unresolved, badPrefix: refs.badPrefix }));
-else console.log('✓ secrets resolve');
 
 // No openingPhrase on the avatar: the intellect's opening_phrase owns the first line.
 const avatar = await kaltura.avatars.create({

@@ -151,38 +151,35 @@ The contrast of bold with light echoes the event's wordmark style without copyin
 
 | Width | Layout |
 |---|---|
-| Under 600 px (phones) | One column: avatar frame, content, composer |
-| 600 to 1023 px | Avatar and composer in a 320 px left column. One day of content on the right. |
-| 1024 px and up | Avatar and composer in a 400 px left column. Full week grid on the right. |
+| All widths | One column of content, full width, top bar to composer. Nevada's frame floats over the content (`position: fixed`), not in its own row — she drifts, drags, and glides on her own, independent of the grid below. |
+| 1024 px and up | Full week grid instead of one day. Content maxes out at 1280 px, centred. |
 
-Phone home screen, avatar at split size:
+Phone home screen, avatar at split size — she floats top right, over the day strip:
 
 ```
 ┌──────────────────────────────┐
 │ (N) Nevada         12 days ◆ │
-│ AI          ▄▄▄         vol  │  Nevada keyed out, no box
-│         ░(Nevada)░           │  aura glows behind her
-│ "Your 11:30 clashes.         │  captions over her shoulders
-│  Want me to fix it?"         │
-│  MON  TUE  WED  THU  FRI     │  day strip, today underlined
-│  30   ▔1▔   2    3    4      │
+│  MON  TUE  WED  THU  FRI ▄▄▄ │  day strip, today underlined
+│  30   ▔1▔   2    3    4 ░(N)░│  Nevada floats top right, no box
 ├──────────────────────────────┤
 │ 9:00 ┃ Keynote          MGM  │  solid = reserved
 │10:30 ┆ Serverless 301   WYN  │  outlined = favorite
 │      ├ 35 min walk ⚠ ────────┤  travel tag
 │11:30 ┃ Agents workshop  VEN ▌│  ring = Nevada points here
-│12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │  striped = personal time
+│12:30 ▒ Lunch ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒ │
 ├──────────────────────────────┤
+│ "Your 11:30 clashes.         │  captions: fixed bar above the composer
+│  Want me to fix it?"         │
 │ [Fix my clash] [Fill Tue pm] │  suggestion chips
 │ ( Ask Nevada…         )  (◉) │  composer: text field, mic
 └──────────────────────────────┘
 ```
 
-Phone, scrolled, avatar at tile size:
+Phone, scrolled, avatar at tile size — she docks top left, over the mark:
 
 ```
 ┌──────────────────────────────┐
-│ (◕) Nevada         12 days ◆ │  Nevada as a round bubble in the top bar
+│ (◕) Nevada         12 days ◆ │  round bubble where the mark was, tap to expand
 ├──────────────────────────────┤
 │10:30 ┆ Serverless 301   WYN  │
 │11:30 ┃ Agents workshop  VEN ▌│
@@ -193,54 +190,60 @@ Phone, scrolled, avatar at tile size:
 └──────────────────────────────┘
 ```
 
-First run, avatar at stage size:
+First run, avatar at stage size — centred near the top of the page:
 
 ```
 ┌──────────────────────────────┐
 │ (N) Nevada         12 days ◆ │
-│ AI                      vol  │
-│             ▄▄▄              │
-│          ░(Nevada)░          │  Nevada keyed out, stage size
+│             ▄▄▄               │
+│          ░(Nevada)░          │  floating, stage size
 │         ░░░░░░░░░░░          │
-│ "Hi, I'm Nevada. What are    │
-│  you here for?"              │
-│ [Agentic AI] [Serverless] [F │  chips send exactly this text
+│                               │
+├──────────────────────────────┤
+│ "Hi, I'm Nevada. Connect     │
+│  your AWS Events account     │
+│  and I'll build your plan."  │
+│      [ Connect ]             │  leads before any content question
 │ ( Ask Nevada…         )  (◉) │
 └──────────────────────────────┘
 ```
 
-Desktop:
+Desktop — full-width content, she floats over it in the same corner as on phone:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ (N) Nevada                                     12 days ◆ │
-├──────────────────┬───────────────────────────────────────┤
-│ AI          vol  │ MON 30   TUE 1   WED 2   THU 3  FRI 4 │
-│      ▄▄▄         │ ┃ Keynote  ┆ Serv.   ┃ Agents         │
-│   ░(Nevada)░     │ ▒ Lunch   ┃ Work.   ┆ Data            │
-│ "captions"       │ Cards open in place.                  │
-│ [chips]          │                                       │
-│ ( Ask… )     (◉) │                                       │
-└──────────────────┴───────────────────────────────────────┘
+│ (N) Nevada                          ▄▄▄        12 days ◆ │
+│                                  ░(Nevada)░               │
+├────────────────────────────────────────────────────────────┤
+│ MON 30   TUE 1   WED 2   THU 3  FRI 4                     │
+│ ┃ Keynote  ┆ Serv.   ┃ Agents                             │
+│ ▒ Lunch   ┃ Work.   ┆ Data                                │
+│ Tap a block: Nevada answers and points at it.               │
+├────────────────────────────────────────────────────────────┤
+│ "captions"                                                 │
+│ [chips]                                                    │
+│ ( Ask… )                                             (◉)  │
+└──────────────────────────────────────────────────────────┘
 ```
 
 - Use `100dvh` and `env(safe-area-inset-*)` so the composer clears the home bar and the notch.
-- The composer stays fixed at the bottom. The content scrolls.
+- The composer stays fixed at the bottom. The content scrolls; the floating frame and the fixed caption bar don't.
 
 ### Avatar frame
 
-One frame holds Nevada's live video for the whole visit. The page changes its size with a `data-avatar` attribute. The video element never moves in the DOM, because moving it pauses playback.
+One frame holds Nevada's live video for the whole visit. She's not boxed into a column: the frame floats over the page (`position: fixed`), borderless, and casts a soft glow on whatever's beneath her. The video element never moves in the DOM, because moving it pauses playback.
 
-| Size (phone) | When | Box |
-|---|---|---|
-| `stage` | Nothing to show yet: first run and the morning greeting. Once content is on screen the frame stays at `split` or `tile`. | Full width, 56% of the height |
-| `split` | Cards, a day, the conflict sheet or the recap are on screen | Full width band, 30% of the height (at least 180 px) |
-| `tile` | The attendee scrolls content down, or reads a card's detail | 44 px round bubble in the top bar, where the mark was. Her face fills it. Tap it to go back to `split`. |
+She stays at full size (`stage`, up to 240×340 px, centred near the top) for the whole visit — content never shrinks her. When something needs her spot (scrolling the day, a tool call showing sessions), the frame glides to the lower-right corner instead; she returns to her spot once the attendee scrolls back up or taps her.
 
-- Tablet and desktop always show the full frame in the left column. No `tile`.
-- An "AI" chip sits on the frame at every size: top left, or small at the bottom of the bubble at `tile`. The voice toggle (quiet mode) sits top right, hidden at `tile`.
-- A sheet never covers the frame. In `split`, a sheet's top stops below the frame.
+- She drifts gently while idle (a slow vertical bob) and drags to reposition with a pointer or a finger. A drag that moves less than 4 px still counts as a tap.
+- Once dragged, she stays wherever she was left, until the page reloads.
+- While `point_at` has a block lit up, she glides to whichever side of it has room and holds there. She glides back to her spot (home, or the corner if content had moved her aside) once the light fades, unless the attendee is mid-drag.
+- The voice toggle (quiet mode) sits bottom right on the frame, clear of her face at every position. On a mouse or trackpad it stays hidden until the frame is hovered or the toggle is muted; on touch, where there's no hover, it stays visible, since that's the only way to mute her.
+- Captions are a fixed bar above the composer, independent of the frame's position.
+- A sheet or scrim renders above the floating frame, never behind it.
 - Before the first frame arrives, the frame shows the night gradient with the mark. When video stops (reconnect, chat fallback), the last frame stays as a still.
+
+`client/prototype.html`, the static design reference, still demos smaller `split` and `tile` sizes as a pattern — CSS for both stays in `client/styles.css` for it, even though the live app no longer switches to them.
 
 #### Keying
 
@@ -258,22 +261,22 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Component | Look | Notes |
 |---|---|---|
 | Top bar | Mark, name, countdown pill | The countdown uses `--glow` text |
-| Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, "AI" chip, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
-| Captions | Nevada's current sentence in `--text` on the frame's lower third, over a dark fade. Your own last line shows first in `--glow-lavender`. | Moves above the composer at `tile` size. Timing is per sentence, not per word. |
+| Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Floats over the page, draggable. Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
+| Captions | Nevada's current sentence in `--text` on a fixed bar above the composer, over a dark pill. Your own last line shows first in `--glow-lavender`. | Independent of the frame's size and position. Timing is per sentence, not per word. |
 | Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
 | Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen. A tap sends the chip's text as a turn. |
-| Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a card or block | Set by `point_at`. Fades after 4 s. |
+| Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a block | Set by `point_at`. Fades after 4 s. |
 | Day strip | Five day chips with the day in 800 and the date in 300 | Swipe or tap. A dot marks days with a clash. |
-| Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas) |
-| Session card | Surface card: kicker (day, time, venue), title, level chip, seat band, two actions | Seat band: a 5-segment bar plus a text label, never colour alone. Actions are turns (see [EXPERIENCE-UX.md § Talk, type or tap](EXPERIENCE-UX.md#talk-type-or-tap)). |
-| Card stack | Horizontal snap scroll with a peek of the next card | Used by `show_sessions` |
+| Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas). `show_sessions` results render as dashed blocks in their real day and time, same as a topic-based pick. |
 | Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text above the buttons. |
-| Pairing screen | 6-character code in display type, QR code, "Copy command" button, 10-minute ring timer | Code in monospace, grouped 3 + 3 |
+| Connect gate | Full-screen: mark, "Connect your AWS Events account…", one primary button | Shown until pairing succeeds. No avatar, no QR: the attendee is already on this device. |
+| Pairing screen | 6-character code in display type, "Copy command" button, plain-text status line | Code in monospace, grouped 3 + 3. Valid 10 minutes; the status line says so and reports expiry in text, no ring timer. |
+| Pairing success screen | Centred card: mark, "You're connected", QR code, tap-to-copy link, "Continue here" button | QR links to `/?handoff=TOKEN` for a phone; the link text is the same URL. Can't be dismissed without picking a device. |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
 | Recap card | 9:16 poster on a `--glow` background with big numbers | See fun moments |
 
-Stacking, top first: disclosure dialog, toast, avatar frame, conflict sheet, composer, content. Only the dialog blocks input behind it.
+Stacking, top first: disclosure dialog, toast, conflict sheet (and its scrim), avatar frame, composer, content. Only the dialog blocks input behind it.
 
 ### Conversation states
 
@@ -303,7 +306,7 @@ Two speeds: quick for feedback, slower for delight.
 | `--ease-out` | `cubic-bezier(.2, .8, .2, 1)` | Things arriving |
 | `--ease-spring` | `cubic-bezier(.3, 1.4, .5, 1)` | Celebrate pop |
 
-- Use the View Transitions API (single document, Safari 18+) for day switches and card to detail. When it's missing, the change happens instantly.
+- Use the View Transitions API (single document, Safari 18+) for day switches. When it's missing, the change happens instantly.
 - Animate only `transform` and `opacity`. The avatar frame is the one exception: it animates its height, so the content below can reflow.
 - Never move content the attendee is reading while Nevada speaks about it. `point_at` scrolls only when the target is off screen, jumps there with no smooth scroll, and never while the attendee is scrolling.
 - With `prefers-reduced-motion: reduce`, every move becomes a fade of 150 ms or less. No bursts, pulses, orbits or confetti. State still shows through colour and text.
@@ -317,7 +320,7 @@ On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favori
 | Moment | What happens | Trigger |
 |---|---|---|
 | Hello | The first live frame fades in over the night gradient, the aura breathes once, and Nevada greets you | Disclosure accepted |
-| Pointing | Nevada says "this one has seats" and a ring lights that card | `point_at` |
+| Pointing | Nevada says "this one has seats" and a ring lights that block | `point_at` |
 | Booked | The block fills from left to right. A `--glow` ring pulses around it once. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
 | Swapped | The two blocks trade places in one move. Toast: "Swapped. Thursday 10:00, Wynn." | `kind: 'swap'` |
