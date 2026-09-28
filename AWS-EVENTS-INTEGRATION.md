@@ -170,7 +170,7 @@ Detect the phase from API behaviour (a `409` vs a result), not from a hardcoded 
 - Cadence: daily until reserved seating opens, then every 6 hours, then hourly in event week.
 - Each run walks `ListSessions` with `includeAbstracts=true`, diffs against the last snapshot, and updates the search index.
 - A full walk is about 10 pages, well inside 120 requests a minute.
-- Phase 1 has no service registration of its own. The server syncs once, with the first paired attendee's token. Until someone pairs, the catalog is empty and search finds nothing. A restart empties it again.
+- Phase 1 has no service registration of its own. The server syncs once, with the first paired attendee's token. Until someone pairs, the catalog is empty and search finds nothing. While the sync runs, schedule loads and tool calls wait for it. A restart empties it again.
 
 ## Out of scope for the API
 

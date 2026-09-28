@@ -49,6 +49,8 @@ globalThis.fetch = async (url, opts = {}) => {
     return { status: 200, ok: true, text: async () => JSON.stringify({ sessionId: 'EEE555', title: 'Live-fetched session' }) };
   }
   if (u.startsWith('https://api.awsevents.com/v1/events/reinvent2026/sessions')) {
+    // Slow on purpose: the first tool call and schedule load must wait for this sync.
+    await new Promise((resolve) => setTimeout(resolve, 200));
     return { status: 200, ok: true, text: async () => JSON.stringify({ items: AWS_SESSIONS, totalCount: AWS_SESSIONS.length }) };
   }
   if (u === 'https://api.awsevents.com/v1/events/reinvent2026/schedule') {
@@ -97,15 +99,6 @@ async function req(path, opts = {}) {
 }
 const postJson = (path, body) => req(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-async function waitForCatalogSync() {
-  for (let i = 0; i < 50; i += 1) {
-    const { sessions } = await (await postJson('/api/sessions', { ids: ['AAA111'] })).json();
-    if (sessions.length) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error('catalog never synced');
-}
-
 after(() => { globalThis.fetch = realFetch; server.close(); rmSync(fixtureDir, { recursive: true, force: true }); });
 
 test('pairing, reserve, schedule and cancel round-trip through the real server, AWS mocked', async () => {
@@ -119,8 +112,6 @@ test('pairing, reserve, schedule and cancel round-trip through the real server, 
   assert.match(completeBody.handoffUrl, /\/\?handoff=[\w-]+$/);
   assert.match(completeBody.qrUrl, /\/\?handoff=[\w-]+$/);
   assert.notEqual(completeBody.handoffUrl, completeBody.qrUrl);
-
-  await waitForCatalogSync();
 
   const reserve = await postJson('/tools/reserve_sessions', { ids: ['AAA111'] });
   assert.equal((await reserve.json()).answer, 'Reserved Deep dive on Lambda (session AAA111).');
