@@ -5,13 +5,13 @@ By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Setup
 
 ```sh
-cp .env.example .env    # fill it in, never commit it
+cp -n .env.example .env # then fill it in, never commit it
 npm install
 npm run provision       # creates the agent, tools and widget; run once
 npm start
 ```
 
-See [README.md](README.md) for prerequisites and the full script list.
+See [README.md](README.md) for prerequisites, each `.env` value and the full script list.
 
 ## Tests
 
