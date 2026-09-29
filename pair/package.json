@@ -1,6 +1,6 @@
 {
   "name": "nevada-pair",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Connect your AWS Events account to Nevada. Runs the sign-in on this computer and hands the tokens to Nevada.",
   "type": "module",
   "bin": { "nevada-pair": "index.mjs" },
