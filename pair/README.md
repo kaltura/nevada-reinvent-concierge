@@ -1,6 +1,8 @@
 # nevada-pair
 
-Connects your AWS Events account to Nevada, an AI concierge for AWS re:Invent attendees.
+Connects your AWS Events account to Nevada, an AI Conversational Personal Assistant Avatar for AWS re:Invent attendees.
+
+Nevada is an experiment, inspired by [How to plan re:Invent 2026 with the new AWS Events API and MCP server](https://builder.aws.com/content/3JjrKKy63DJ80xhHTHd50DUIoxx/how-to-plan-reinvent-2026-with-the-new-aws-events-api-and-mcp-server). It is not affiliated with or endorsed by AWS.
 
 ## Use
 
@@ -22,4 +24,7 @@ Needs [Node.js](https://nodejs.org) 20 or later.
 
 It talks only to `oauth.awsevents.com` and the Nevada URL you give it. It stores nothing on disk, prints nothing secret and has no dependencies.
 
-For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.
+## Legal
+
+- Free and open source under the [MIT license](LICENSE). Copyright Kaltura, Inc. It comes as is, with no warranty.
+- Amazon Web Services, AWS and re:Invent are trademarks of Amazon.com, Inc.
