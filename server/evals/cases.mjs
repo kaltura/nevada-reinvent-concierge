@@ -1,7 +1,8 @@
 /**
  * About 55 live eval cases against the shared intellect. Design: ARCHITECTURE.md
  * § Evals. Case shape: { name, paired?: false, turns: [string], expect?: [...],
- * judge?: [{ turn?, rubric }] }. paired defaults to true (a real paired AWS
+ * judge?: [{ turn?, rubric }] }. A turn can be a function of the transcript
+ * so far, for text that needs a real ID from an earlier turn. paired defaults to true (a real paired AWS
  * test account); set false only for the connect-gate case, which touches no
  * AWS state. Never hardcode real catalog session IDs, since the catalog
  * changes. Assert on tool calls, args and reply content instead.
@@ -54,6 +55,17 @@ export const CASES = [
         return { pass: n <= 1, detail: n > 1 ? `search_sessions called ${n} times` : '' };
       }),
     ],
+  },
+  {
+    name: 'point_at: tapping a block already on screen',
+    // Built like the client's tap turn (client/app.js data-turn), from the first ID turn 0 showed.
+    turns: ['Find me something on serverless.', (t) => {
+      const calls = t.turns[0].toolCalls;
+      const id = calls.find((c) => c.name === 'show_sessions')?.args.sessionIds?.[0];
+      const title = calls.find((c) => c.name === 'search_sessions')?.result?.answer?.match(new RegExp(`(?:Found: |; )([^;]+?) \\(session ${id}\\)`))?.[1];
+      return `Tell me more about ${title ?? 'this session'} (session ${id})`;
+    }],
+    expect: [calledToolOnTurn(1, 'get_session'), calledToolOnTurn(1, 'point_at'), notCalledToolOnTurn(1, 'show_sessions')],
   },
   {
     name: 'get_session: direct ID from a tapped block',

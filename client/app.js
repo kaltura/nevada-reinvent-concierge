@@ -841,6 +841,8 @@ document.addEventListener('visibilitychange', () => {
 // Client tools: IDs in, page data from our Web API. Args: ARCHITECTURE.md § Tools.
 // Nevada stays on screen at full size: tools move the frame aside, never hide or shrink it.
 session.onToolCall('show_sessions', async ({ sessionIds }) => {
+  // Usually a tapped block: redrawing around it makes the whole view look like it changed.
+  if (sessionIds?.length === 1 && blockFor(sessionIds[0])) return pointAt(sessionIds[0]);
   const data = await show('/api/sessions', { ids: sessionIds });
   if (!data || !lastSchedule) return;
   highlighted = new Map();
@@ -969,15 +971,19 @@ session.onToolCall('show_recap', async () => {
 });
 // Blocks carry data-session. Scroll only when the target is off screen,
 // with no smooth scroll, and never while the attendee is scrolling.
-session.onToolCall('point_at', ({ sessionId }) => {
-  const el = document.querySelector(`[data-session="${CSS.escape(sessionId)}"]`);
+function blockFor(sessionId) {
+  return document.querySelector(`[data-session="${CSS.escape(sessionId)}"]`);
+}
+function pointAt(sessionId) {
+  const el = blockFor(sessionId);
   if (!el) return;
   if (Date.now() - scrolledAt > 800) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
   el.classList.add('focus');
   leanToward(el);
   setTimeout(() => { el.classList.remove('focus'); leanBack(); }, 4000);
   syncScreen({ focused: sessionId });
-});
+}
+session.onToolCall('point_at', ({ sessionId }) => pointAt(sessionId));
 
 // Server tools: same names and args as scripts/provision.mjs's API_TOOLS. The
 // LLM's call reaches this page (a `client` tool, never Kaltura's cloud), which
