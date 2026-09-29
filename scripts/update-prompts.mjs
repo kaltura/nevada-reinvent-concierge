@@ -34,6 +34,7 @@ const prompts = [
   prompt('restrictedTopics', 'Never discuss these topics. Steer back to planning in one sentence:', readPrompt('restricted-topics')),
   prompt('goal', 'Your success is measured by this goal:', readPrompt('goal')),
   prompt('obeyRules', 'Rules you must obey without exception:', readPrompt('rules')),
+  prompt('catalogTags', 'Every tag in the session catalog. Take search_sessions query words from here:', readPrompt('catalog-tags')),
   prompt('screen', 'What the attendee has on screen right now, as JSON with view, day, visible session IDs in order and the focused one:', '{{ page_context }}'),
 ];
 

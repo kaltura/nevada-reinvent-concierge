@@ -59,6 +59,34 @@ function tokenize(session) {
   return new Set(bag.match(/[a-z0-9]+/g) || []);
 }
 
+// The agent's prompt carries every tag as search words (prompts/catalog-tags.md,
+// ARCHITECTURE.md § Search). Short on purpose: search matches single words, so
+// "S3" still finds "Amazon Simple Storage Service (Amazon S3)".
+const TAG_FIELDS = ['topics', 'areasOfInterest', 'roles', 'services', 'industries', 'features'];
+function shortTag(tag) {
+  const bare = (t) => t.replace(/^(Amazon|AWS)\s+/, '');
+  const [, name, paren] = tag.match(/^(.*?)\s*(?:\(([^)]*)\))?$/);
+  const abbr = paren && bare(paren);
+  // An abbreviation starts like one of the name's words: "(EC2)" yes, "AWS GovCloud (US)" no.
+  const isAbbr = /^[A-Z0-9]{2,5}$/.test(abbr) && name.split(' ').some((w) => w[0] === abbr[0]);
+  return isAbbr ? abbr : bare(name);
+}
+export function catalogTags(sessionList) {
+  const counts = new Map();
+  for (const s of sessionList) {
+    for (const t of new Set(TAG_FIELDS.flatMap((k) => (s[k] || []).map(shortTag)))) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  // A tag on a third of the catalog matches too much to help rank anything.
+  const tags = [...counts].filter(([, n]) => n < sessionList.length / 3).map(([t]) => t).sort((a, b) => a.localeCompare(b));
+  // "EC2 Linux" and "EC2 Spot" become "EC2 (Linux, Spot)". Sorted, so find() gets the shortest parent.
+  const children = new Map(tags.map((t) => [t, []]));
+  for (const t of tags) {
+    const parent = tags.find((p) => t.startsWith(`${p} `));
+    if (parent) { children.get(parent).push(t.slice(parent.length).replace(/^[\s-]*(for\s+)?/, '')); children.delete(t); }
+  }
+  return [...children].map(([t, kids]) => (kids.length ? `${t} (${kids.join(', ')})` : t)).join(', ');
+}
+
 export function makeCatalog() {
   const sessions = new Map(); // sessionId -> normalized session
   const repeatGroups = new Map(); // repeatKey -> Set<sessionId>
@@ -205,6 +233,7 @@ export function makeCatalog() {
 
   return {
     sync, seed, upsert, get, getMany, getRepeats, search, topTracks, topTopic, recommend,
+    tags: () => catalogTags([...sessions.values()]),
     size: () => sessions.size,
     totalCount: () => totalCount,
     lastSync: () => lastSync,
