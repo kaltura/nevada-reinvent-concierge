@@ -15,6 +15,7 @@
     "provision": "node --env-file=.env scripts/provision.mjs",
     "update-prompts": "node --env-file=.env scripts/update-prompts.mjs",
     "pair": "node scripts/dev-pair.mjs",
+    "catalog-tags": "node scripts/catalog-tags.mjs",
     "test": "node --test server/test/*.test.mjs",
     "eval": "node --env-file=.env server/evals/runner.mjs"
   },

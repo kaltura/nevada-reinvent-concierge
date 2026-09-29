@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeCatalog, mapVenue, travelMinutes } from '../catalog.mjs';
+import { makeCatalog, mapVenue, travelMinutes, catalogTags } from '../catalog.mjs';
 
 /** Stubs global fetch to serve pages shaped like AWS's real ListSessions response. */
 function fakeAwsPages(pages) {
@@ -190,4 +190,23 @@ test('sync walks paginated pages under the real AWS "items" key and seeds the ca
   assert.deepEqual(result, { count: 3, totalCount: 3 });
   assert.equal(catalog.size(), 3);
   assert.equal(catalog.get('BBB222').title, 'Kubernetes at scale');
+});
+
+// Three sessions per tag, plus filler, keeps each tag under a third of the catalog.
+const tagged = (services) => [...Array(3).fill({ services }), ...Array(10).fill({})];
+
+test('catalogTags uses the abbreviation and drops the Amazon and AWS prefixes', () => {
+  assert.equal(catalogTags(tagged(['Amazon Simple Storage Service (Amazon S3)', 'AWS Lambda'])), 'Lambda, S3');
+});
+
+test('catalogTags keeps the name when the brackets are not its abbreviation', () => {
+  assert.equal(catalogTags(tagged(['AWS GovCloud (US)'])), 'GovCloud');
+});
+
+test('catalogTags groups variants under their parent tag', () => {
+  assert.equal(catalogTags(tagged(['Amazon EC2', 'Amazon EC2 Spot', 'Amazon EC2 - Graviton', 'Amazon FSx for Lustre'])), 'EC2 (Graviton, Spot), FSx for Lustre');
+});
+
+test('catalogTags drops a tag on a third of the sessions or more', () => {
+  assert.equal(catalogTags([{ topics: ['Agentic AI'] }, { topics: ['Agentic AI', 'Robotics'] }, {}, {}]), 'Robotics');
 });

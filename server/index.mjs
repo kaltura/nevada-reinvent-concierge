@@ -194,7 +194,12 @@ let syncInFlight = null;
 function syncSoon(accessToken) {
   if (catalog.size() > 0 || syncInFlight) return;
   syncInFlight = catalog.sync(accessToken)
-    .then(({ count, totalCount }) => console.log(`catalog sync: ${count} of ${totalCount} sessions`))
+    .then(({ count, totalCount }) => {
+      console.log(`catalog sync: ${count} of ${totalCount} sessions`);
+      if (count && catalog.tags() !== readFileSync(join(ROOT, 'prompts', 'catalog-tags.md'), 'utf8').trim()) {
+        console.warn('catalog tags changed. Run npm run catalog-tags, then npm run update-prompts.');
+      }
+    })
     .catch((e) => console.error('catalog sync failed:', e.message))
     .finally(() => { syncInFlight = null; });
 }
