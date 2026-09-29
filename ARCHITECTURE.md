@@ -70,11 +70,13 @@ Rules:
 
 The app shows nothing but a connect gate until AWS pairing succeeds: no avatar, no QR, since there's nothing to hand off to yet. Pairing needs a terminal, so it runs on whatever device the attendee is already on:
 
-1. The gate shows a 6-character code, valid 10 minutes, and a command to run.
-2. The attendee runs `npx nevada-pair CODE` on that device. Until that package is published, the pairing screen shows the interim command to copy instead: a local absolute path, so it only works on the machine already running the app.
+1. The gate shows a 6-character code, valid 10 minutes, and a command to copy: `npx -y nevada-pair@latest CODE URL`. The code and URL are arguments, not environment variables, so the same command works in any shell, Windows included. When a code expires, the gate swaps in a new one by itself.
+2. The attendee runs it on that device. The helper ([pair/](pair/README.md), published to npm) accepts the code with spaces or in lowercase, the URL with or without `https://`, in either order. Before sign-in, it calls `GET /api/pair/check/CODE`, so a dead code, a wrong URL or no network fails at once with a clear message. `npm run pair` does the same from the repo, against the local server.
 3. The helper binds the first free port from 8484 to 8489 and opens the AWS sign-in page with PKCE.
 4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS. The backend checks the access token with AWS and derives the attendee's `userId` (see [§ Identity](#identity)), then replies with two single-use handoff URLs, and the helper's success page shows a button for one ("Open Nevada", for continuing on this device) and a QR code for the other (for a phone). Either lands that device already paired even if it never shared a cookie with whoever started pairing (`npm run pair` starts pairing from a script, not a browser, so this is the case that matters most), and using one doesn't invalidate the other.
 5. Meanwhile the gate polls the pairing status. The first poll to see "paired" rotates the visitor cookie to a freshly minted id and moves the tokens onto it, so a cookie planted on that device before pairing started (session fixation) never ends up holding real tokens. The gate then starts the avatar experience for whichever device actually holds that cookie.
+
+The helper retries network errors, 429 and 5xx up to four times, because conference Wi-Fi drops requests. It never retries a token exchange that got an answer, since AWS sign-in codes are single-use. If `/api/pair/complete` answers 409 after a try that got no answer, that try got through, so the helper reports success.
 
 The helper talks only to AWS and our backend. It stores nothing on disk, prints nothing secret, and exits. We publish its source.
 

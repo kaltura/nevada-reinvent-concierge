@@ -113,11 +113,6 @@ test('rejects a cross-site tool call before it reaches the handler', async () =>
   assert.equal((await res.json()).error, 'cross_site_blocked');
 });
 
-test('the pair/start command uses a path relative to the repo root', async () => {
-  const { command } = await (await postJson('/api/pair/start', {})).json();
-  assert.match(command, /node "pair\/index\.mjs" [A-Z0-9]{6}$/);
-});
-
 test('a tool call with a non-object body is a graceful message, not a crash', async () => {
   const res = await postJson('/tools/get_topics', ['not', 'an', 'object']);
   assert.equal(res.status, 200);
