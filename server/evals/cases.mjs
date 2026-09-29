@@ -24,6 +24,11 @@ export const CASES = [
     expect: [calledTool('search_sessions'), calledTool('show_sessions')],
   },
   {
+    name: 'search_sessions: query adds catalog tags',
+    turns: ['Anything on running containers without managing servers?'],
+    expect: [toolArgs('search_sessions', (a) => /fargate|ecs|eks|serverless/i.test(a.query || ''), { description: 'query carries a matching catalog tag' })],
+  },
+  {
     name: 'search_sessions: day and time only, no query text',
     turns: ["What's on Tuesday morning?"],
     expect: [

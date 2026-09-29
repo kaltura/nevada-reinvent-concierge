@@ -34,6 +34,7 @@ Paired device ──scan/tap QR or link──▶ phone loads /?handoff=TOKEN, co
 | Pairing helper | Single-purpose CLI. Runs PKCE and hands tokens to the backend. | `pair/` |
 | Provisioning | Creates the agent, tools and prompts once | `scripts/provision.mjs` |
 | Prompt updates | Pushes edited `prompts/*.md` (except `base-directive.md`) to the already-live intellect | `scripts/update-prompts.mjs` |
+| Catalog tags | Rebuilds `prompts/catalog-tags.md`, the tag list the agent picks search words from (see [Search](#search)) | `scripts/catalog-tags.mjs` |
 
 ## Why a proxy
 
@@ -182,10 +183,16 @@ The catalog is too big to page through inside a turn. Search runs on our index, 
 
 | Option | What | Status |
 |---|---|---|
-| B (primary) | Our index: embeddings plus structured filters (day, time, venue, level, tags). Top 5 through `search_sessions`. | Build it |
+| B (primary) | Our index: word overlap plus structured filters (day, time, venue, level). Top 5 through `search_sessions`. | Built |
 | A (spike) | Kaltura knowledge base: one record, `buildIndexerObjects(['document'])`, one `uploadMarkdown` per session, poll indexing, then set `knowledge_ids` and `use_knowledge_base: 'on'` in one write | Proven pattern in the SDK's docs site. The spike tests scale, hourly churn and ranking. |
 
 Option B stays the default because ranking and filters stay in our code. A can replace it later without changing the tool or the UI.
+
+Search ranks by how many query words a session matches, so the agent needs the catalog's own words. The `catalogTags` prompt carries every tag in the catalog, shortened, as one line (`prompts/catalog-tags.md`, about 1,100 tokens).
+
+- `npm run catalog-tags` rebuilds it (`scripts/catalog-tags.mjs`). It fails if the line goes over its budget.
+- Tags change rarely, so the file is built once and not per session. After the catalog sync, the server logs a warning if the catalog's tags no longer match the file. Then rerun `npm run catalog-tags` and `npm run update-prompts`.
+- Shortening (`catalogTags()` in `server/catalog.mjs`): drop "Amazon" and "AWS", keep an abbreviation over the full name, group variants under their parent ("EC2 (Graviton, Spot)") and drop tags on a third of the catalog or more.
 
 Derived data in the index:
 

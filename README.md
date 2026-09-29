@@ -48,6 +48,7 @@ All config lives in `.env`, set once by whoever runs the server. Attendees never
 | `npm start` | Runs the Web API and proxy server |
 | `npm run provision` | Creates the Kaltura agent, tools and widget; writes `server/agent.json`. Stops if that file already exists. |
 | `npm run update-prompts` | Pushes prompt changes in `prompts/` to the existing agent. `base-directive.md` needs `npm run provision` instead. |
+| `npm run catalog-tags` | Rebuilds `prompts/catalog-tags.md` from the live catalog. Signs you in once through the pairing helper; needs no `.env` or server. Run it when the server logs that tags changed, then run `npm run update-prompts`. |
 | `npm run pair` | Starts the pairing helper for a local laptop |
 | `npm test` | Runs the unit test suite (`server/test/*.test.mjs`) |
 | `npm run eval` | Runs the agent evals against a running local server |
@@ -59,8 +60,8 @@ All config lives in `.env`, set once by whoever runs the server. Attendees never
 | `client/` | Browser app: avatar session, composer, disclosure, captions, screen context, client tools. `client/prototype.html` is a static design reference. |
 | `server/` | Web API and proxy: server tools, encrypted token store, catalog sync and search, unit tests, evals. State is in memory, so a restart clears it. |
 | `pair/` | Pairing CLI, published to npm as [`nevada-pair`](pair/README.md). Bump `version` in `pair/package.json` and run `npm publish` from `pair/` to release it. |
-| `scripts/` | `provision.mjs` creates the agent, tools and widget; `update-prompts.mjs` pushes prompt changes; `dev-pair.mjs` runs the pairing helper locally |
-| `prompts/` | Agent prompts, read by provisioning |
+| `scripts/` | `provision.mjs` creates the agent, tools and widget; `update-prompts.mjs` pushes prompt changes; `catalog-tags.mjs` rebuilds the catalog tag list; `dev-pair.mjs` runs the pairing helper locally |
+| `prompts/` | Agent prompts, read by provisioning. `catalog-tags.md` is generated. |
 
 ## Docs
 
