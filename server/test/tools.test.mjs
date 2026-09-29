@@ -235,7 +235,12 @@ test('reserve_sessions checks every id given, not just the first 10', async () =
   const ids = Array.from({ length: 12 }, (_, i) => `S${i}`);
   const ctx = ctxWith(catalog, [{ paired: true, result: { successful: [], failed: [] } }]);
   const result = await TOOL_HANDLERS.reserve_sessions({ ids }, ctx);
-  assert.match(result.answer, /session S11 isn't a session I recognize/);
+  assert.match(result.answer, /session S11\./);
+});
+
+test('reserve_sessions says nothing was reserved when every id is unknown', async () => {
+  const result = await TOOL_HANDLERS.reserve_sessions({ ids: ['S1', 'S2'] }, ctxWith(catalogWithFixtures(), []));
+  assert.match(result.answer, /^Nothing was reserved, /);
 });
 
 test('unfavorite_session and cancel_reservation reconcile an uncertain 404 for an id that genuinely existed, not just 500', async () => {
@@ -302,6 +307,12 @@ test('add_personal_time validates before calling AWS', async () => {
   const ctx = ctxWith(catalogWithFixtures(), []);
   const result = await TOOL_HANDLERS.add_personal_time({ title: '', description: 'x', day: 'tuesday', start: '09:00', end: '10:00' }, ctx);
   assert.equal(result.answer, 'Give it a short title, up to 128 characters.');
+});
+
+test('add_personal_time rejects an odd duration and asks for new times instead of a retry', async () => {
+  const ctx = ctxWith(catalogWithFixtures(), []);
+  const result = await TOOL_HANDLERS.add_personal_time({ title: 'Call', description: 'x', day: 'tuesday', start: '09:00', end: '09:07' }, ctx);
+  assert.match(result.answer, /Nothing was blocked\. Ask the attendee for new times/);
 });
 
 test('add_personal_time blocks time and speaks back the id read back from the schedule', async () => {
