@@ -76,10 +76,11 @@ export async function pairedCookie(baseUrl, { timeoutMs = PAIR_TTL_MS } = {}) {
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const { json } = await getJson(baseUrl, `/api/pair/status/${code}`, cookie);
+    // The poll that sees "paired" rotates the visitor id, so keep the cookie it sets.
+    const { json, cookie: rotated } = await getJson(baseUrl, `/api/pair/status/${code}`, cookie);
     if (json.state === 'paired') {
-      saveCache(cookie);
-      return cookie;
+      saveCache(rotated);
+      return rotated;
     }
     if (json.state === 'expired') throw new Error('pairing code expired before pairing completed');
     await new Promise((r) => setTimeout(r, 2000));
