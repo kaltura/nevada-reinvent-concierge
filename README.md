@@ -2,6 +2,8 @@
 
 Nevada, a live avatar concierge for AWS re:Invent attendees. Plan your week with her face to face: talk, type or tap, and she finds sessions, books them, fixes clashes and briefs you each morning. She shows and points at what she's talking about. Built on the Kaltura Intelligent Agents SDK and the AWS Events API.
 
+Inspired by [How to plan re:Invent 2026 with the new AWS Events API and MCP server](https://builder.aws.com/content/3JjrKKy63DJ80xhHTHd50DUIoxx/how-to-plan-reinvent-2026-with-the-new-aws-events-api-and-mcp-server).
+
 Not affiliated with or endorsed by AWS.
 
 ## Status
