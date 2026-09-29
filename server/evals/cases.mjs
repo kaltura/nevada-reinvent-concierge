@@ -325,7 +325,9 @@ export const CASES = [
       'Find something on serverless.', 'Does that one have a repeat at a different time?',
       'Reserve the repeat instead.',
     ],
-    judge: [{ turn: 1, rubric: 'Does the reply answer whether a repeat exists, using real information rather than guessing?' }],
+    // Only get_session lists repeats, so calling it is the "real information" check. The judge sees just the reply.
+    expect: [calledToolOnTurn(1, 'get_session')],
+    judge: [{ turn: 1, rubric: 'Does the reply say clearly whether a repeat exists?' }],
   },
   {
     name: 'flow: block personal time, then ask about travel gap to the next session',

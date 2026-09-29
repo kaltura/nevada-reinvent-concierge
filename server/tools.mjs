@@ -90,8 +90,9 @@ function validatePersonalTime(title, description, start, end, checkDuration = tr
   if (!start || !end) return 'I need a start and end time.';
   if (!checkDuration) return null;
   const dur = minutesOf(end) - minutesOf(start);
-  if (dur <= 0) return 'The end time must be after the start time.';
-  if (dur % 5 !== 0) return 'Personal time blocks must land on a 5-minute step.';
+  const noRetry = " Nothing was blocked. Ask the attendee for new times; don't pick your own.";
+  if (dur <= 0) return 'The end time must be after the start time.' + noRetry;
+  if (dur % 5 !== 0) return 'Personal time blocks must land on a 5-minute step.' + noRetry;
   return null;
 }
 
@@ -267,7 +268,7 @@ export const TOOL_HANDLERS = {
     // existed. Same bug and fix as delete_personal_time.
     const known = ids.filter((id) => ctx.catalog.get(id));
     const unknown = ids.filter((id) => !ctx.catalog.get(id)).map((sessionId) => ({ sessionId, code: 'unknownSession' }));
-    if (!known.length) return { answer: unknown.map((f) => `${label(ctx.catalog, f.sessionId)} ${speakFailure(ctx.catalog, f)}.`).join(' ') };
+    if (!known.length) return { answer: `Nothing was reserved, because I don't recognize ${unknown.map((f) => label(ctx.catalog, f.sessionId)).join(', ')}. Tell the attendee nothing was reserved, then offer to search.` };
     try {
       const outcome = await ctx.withToken((token) => reserveSessions(token, known));
       if (!outcome.paired) return { answer: pairingMessage(outcome) };
