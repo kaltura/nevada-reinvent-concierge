@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * nevada-pair CODE: connect an AWS Events account to Nevada.
+ * nevada-pair CODE URL: connect an AWS Events account to Nevada.
  * Flow and rules: ARCHITECTURE.md § Pairing. OAuth facts: AWS-EVENTS-INTEGRATION.md § Authentication.
  *
- * Talks only to oauth.awsevents.com and NEVADA_URL. Stores nothing on disk
+ * Talks only to oauth.awsevents.com and the Nevada URL. Stores nothing on disk
  * and prints nothing secret. No dependencies besides the vendored
  * qrcode.cjs (same file, same pinned version, already trusted in
  * client/index.html's SRI hash, so it is not a new thing to trust).
@@ -20,16 +20,45 @@ const SCOPE = 'openid email events/access';
 const PORTS = [8484, 8485, 8486, 8487, 8488, 8489];
 // 127.0.0.1, not localhost: localhost can resolve to ::1 while we listen on IPv4.
 const HOST = '127.0.0.1';
-const TIMEOUT_MS = 5 * 60 * 1000;
-const NEVADA_URL = (process.env.NEVADA_URL || 'https://nevada.example.com').replace(/\/$/, '');
+// Matches the pairing code's own lifetime (server/index.mjs PAIR_TTL_MS).
+const TIMEOUT_MS = 10 * 60 * 1000;
 
 const fail = (msg) => { console.error(`nevada-pair: ${msg}`); process.exit(1); };
 const b64url = (buf) => buf.toString('base64url');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const code = (process.argv[2] || '').replace(/[\s-]/g, '').toUpperCase();
-if (!/^[A-Z0-9]{6}$/.test(code)) fail('usage: npx nevada-pair CODE (the 6-character code Nevada showed you)');
-const target = new URL(NEVADA_URL);
-if (target.protocol !== 'https:' && target.hostname !== 'localhost' && target.hostname !== HOST) fail('NEVADA_URL must use https');
+if (Number(process.versions.node.split('.')[0]) < 20) fail('needs Node.js 20 or later. Get it at https://nodejs.org, then run the command again.');
+
+// Forgiving on purpose: the code may arrive as "ABC 123" (two arguments) or
+// in lowercase, the URL before or after it, with or without https://.
+const USAGE = 'copy the command Nevada showed you and run it again. It looks like: npx -y nevada-pair@latest ABC123 https://…';
+const args = process.argv.slice(2);
+const urlArg = args.find((a) => /[.:/]/.test(a));
+const code = args.filter((a) => a !== urlArg).join('').replace(/[\s-]/g, '').toUpperCase();
+if (!urlArg || !/^[A-Z0-9]{6}$/.test(code)) fail(USAGE);
+let target;
+try { target = new URL(/^https?:\/\//i.test(urlArg) ? urlArg : `https://${urlArg}`); } catch { fail(USAGE); }
+if (target.protocol !== 'https:' && target.hostname !== 'localhost' && target.hostname !== HOST) fail('the Nevada URL must start with https://');
+const NEVADA_URL = target.origin;
+
+// Conference Wi-Fi drops requests, so retry network errors and the server's
+// temporary answers. `lost` says an earlier try may have reached the server
+// even though no answer came back.
+async function fetchRetry(url, opts, retryStatus = (s) => s === 429 || s >= 500) {
+  let lost = false;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, opts).catch(() => null);
+    if ((res && !retryStatus(res.status)) || attempt === 3) return { res, lost };
+    if (res?.status !== 429) lost = true;
+    await sleep(500 * 2 ** attempt);
+  }
+}
+
+// Before AWS sign-in, so a wrong URL, no network or a dead code fails now.
+const { res: check } = await fetchRetry(`${NEVADA_URL}/api/pair/check/${code}`);
+if (!check) fail(`can't reach Nevada at ${target.host}. Check your internet connection and that you copied the whole command, then run it again.`);
+if (!check.ok) fail(`Nevada at ${target.host} answered HTTP ${check.status}. Copy the command from Nevada again.`);
+if ((await check.json().catch(() => ({}))).state !== 'waiting') fail('that code has expired or was already used. Nevada shows a new command; copy that one.');
 
 const verifier = b64url(randomBytes(64)); // 86 characters, inside the 43 to 128 range
 const challenge = b64url(createHash('sha256').update(verifier).digest());
@@ -79,8 +108,8 @@ const successPage = (openHref, qrHref) => {
   return `<!doctype html><meta charset="utf-8"><title>Connected</title>` +
     `<body style="font:16px system-ui;background:#121212;color:#fff;display:grid;place-items:center;height:100vh;margin:0;text-align:center;padding:16px;box-sizing:border-box">` +
     `<div style="max-width:360px"><h1>Connected</h1>` +
-    `<p>Open Nevada here, or scan the code below with your phone.</p>` +
-    `<a href="${openHref}" style="display:block;margin:20px 0;padding:14px;border-radius:10px;background:#fff;color:#121212;text-decoration:none;font-weight:600">Open Nevada</a>` +
+    `<p>Your Nevada tab is ready. Go back to it, or scan the code below to continue on your phone.</p>` +
+    `<a href="${openHref}" style="display:block;margin:20px 0;padding:14px;border-radius:10px;background:#fff;color:#121212;text-decoration:none;font-weight:600">Open Nevada in this tab</a>` +
     `<div style="background:#fff;padding:8px;border-radius:8px;display:inline-block">${qr.createSvgTag(6, 8)}</div>` +
     `<p style="font-size:12px;color:#ccc;margin-top:24px">For AWS re:Invent attendees. Not affiliated with or endorsed by AWS.</p></div>`;
 };
@@ -90,7 +119,7 @@ const { server, port } = await listen(PORTS).catch((e) => fail(e.message));
 const redirectUri = `http://${HOST}:${port}/callback`;
 
 await new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error('sign-in timed out after 5 minutes. Run the command again.')), TIMEOUT_MS);
+  const timer = setTimeout(() => reject(new Error('sign-in timed out after 10 minutes. Copy the new command from Nevada and run it.')), TIMEOUT_MS);
   server.on('request', async (req, res) => {
     const url = new URL(req.url, redirectUri);
     if (url.pathname !== '/callback') { res.writeHead(404).end(); return; }
@@ -115,26 +144,32 @@ await new Promise((resolve, reject) => {
     const authCode = url.searchParams.get('code');
     if (!authCode) { done(false, 'AWS sent no code. Run the command again.'); reject(new Error('no code in callback')); return; }
 
-    const tokenRes = await fetch(TOKEN, {
+    console.log('2/3 Signed in. Getting your AWS Events access…');
+    // AWS sign-in codes are single-use, so retry only when no answer came back.
+    const { res: tokenRes } = await fetchRetry(TOKEN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, redirect_uri: redirectUri, code: authCode, code_verifier: verifier }),
-    }).catch(() => null);
-    if (!tokenRes || !tokenRes.ok) { done(false, `AWS refused the sign-in code${tokenRes ? ` (HTTP ${tokenRes.status})` : ''}. Run the command again.`); reject(new Error('token exchange failed')); return; }
-    const { access_token, refresh_token, expires_in } = await tokenRes.json();
-    if (!access_token || !refresh_token) { done(false, 'AWS sent no tokens. Run the command again.'); reject(new Error('no tokens in response')); return; }
+    }, () => false);
+    if (!tokenRes || !tokenRes.ok) { done(false, `AWS refused the sign-in${tokenRes ? ` (HTTP ${tokenRes.status})` : ''}. Run the command again.`); reject(new Error(tokenRes ? `AWS refused the sign-in (HTTP ${tokenRes.status})` : "can't reach AWS. Check your internet connection")); return; }
+    const { access_token, refresh_token, expires_in } = await tokenRes.json().catch(() => ({}));
+    if (!access_token || !refresh_token) { done(false, 'AWS sent no tokens. Run the command again.'); reject(new Error('AWS sent no tokens')); return; }
 
-    const complete = await fetch(`${NEVADA_URL}/api/pair/complete`, {
+    console.log('3/3 Connecting to Nevada…');
+    const { res: complete, lost } = await fetchRetry(`${NEVADA_URL}/api/pair/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, access_token, refresh_token, expires_in }),
-    }).catch(() => null);
-    if (complete && (complete.status === 404 || complete.status === 410)) { done(false, 'That code expired. Get a new one and run the command again.'); reject(new Error('pair code expired')); return; }
-    if (!complete || !complete.ok) { done(false, `Nevada could not save the connection${complete ? ` (HTTP ${complete.status})` : ''}. Try again.`); reject(new Error('pair/complete failed')); return; }
+    });
+    // A 409 after a lost try means that try got through and paired the tab.
+    if (complete?.status === 409 && lost) { done(true, 'Go back to your Nevada tab. It opens by itself.'); resolve(); return; }
+    if (complete && [404, 409, 410].includes(complete.status)) { done(false, 'That code expired or was already used. Copy the new command from Nevada and run it.'); reject(new Error('that code expired or was already used')); return; }
+    if (complete?.status === 503) { done(false, 'Nevada is full right now. Try again later.'); reject(new Error('Nevada is full right now. Try again later')); return; }
+    if (!complete || !complete.ok) { done(false, `Nevada could not save the connection${complete ? ` (HTTP ${complete.status})` : ''}. Run the command again.`); reject(new Error(complete ? `Nevada could not save the connection (HTTP ${complete.status})` : `can't reach Nevada at ${target.host}`)); return; }
     const { handoffUrl, qrUrl } = await complete.json().catch(() => ({}));
     // A busy server pairs the tab but sends no handoff links.
     if (handoffUrl === null && qrUrl === null) {
-      done(true, 'Go back to the Nevada tab. It will open by itself.');
+      done(true, 'Go back to your Nevada tab. It opens by itself.');
       resolve();
       return;
     }
@@ -157,10 +192,10 @@ await new Promise((resolve, reject) => {
     response_type: 'code', client_id: CLIENT_ID, redirect_uri: redirectUri, scope: SCOPE,
     identity_provider: 'AWSBuilderID', state, code_challenge: challenge, code_challenge_method: 'S256',
   });
-  console.log(`Connecting code ${code} to ${target.host}.`);
-  console.log('Opening the AWS sign-in page. If it does not open, paste this into your browser:');
-  console.log(auth.href);
+  console.log(`1/3 Code ${code} is ready on ${target.host}. Opening AWS sign-in in your browser.`);
+  console.log('    If no browser opens, paste this link into one:');
+  console.log(`    ${auth.href}`);
   openBrowser(auth.href);
 }).catch((e) => { server.close(); fail(e.message); });
 server.close();
-console.log('Connected.');
+console.log('Connected. Go back to your Nevada tab.');

@@ -20,7 +20,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes, randomInt, createHmac, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize, extname, relative } from 'node:path';
+import { dirname, join, normalize, extname } from 'node:path';
 import { Management } from '@kaltura/intelligent-agents/management';
 import { makeTokenStore } from './tokens.mjs';
 import { makeCatalog } from './catalog.mjs';
@@ -33,7 +33,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIENT = join(ROOT, 'client');
 // Tests point this at a fixture so they never read the real file.
 const AGENT_JSON = process.env.NEVADA_AGENT_JSON || join(ROOT, 'server', 'agent.json');
-const PAIR_SCRIPT = join(ROOT, 'pair', 'index.mjs');
 const {
   PORT = '8080', HOST = '127.0.0.1', PUBLIC_ORIGIN,
   KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET, TOKEN_ENC_KEY,
@@ -223,14 +222,20 @@ async function api(req, res, path) {
     while (pairs.has(code));
     const expires = Date.now() + PAIR_TTL_MS;
     pairs.set(code, { visitor: visitor(req, res), state: 'waiting', expires });
-    // The helper defaults NEVADA_URL to a placeholder domain, so pass our
-    // real origin. req.headers.host is whatever host the browser actually
-    // used, so this stays correct once deployed publicly too.
-    // `npx nevada-pair` only works once that package is published; until
-    // then run the local script directly, from the repo root, so pairing
-    // actually works.
-    const command = `NEVADA_URL=${origin(req)} node "${relative(ROOT, PAIR_SCRIPT)}" ${code}`;
+    // Arguments, not a `VAR=value` prefix, so it runs in any shell,
+    // Windows included. -y skips npx's install prompt and @latest skips a
+    // stale cached copy.
+    const command = `npx -y nevada-pair@latest ${code} ${origin(req)}`;
     return send(res, 200, { code, expiresAt: new Date(expires).toISOString(), command });
+  }
+  // The helper asks before opening AWS sign-in, so a dead code or wrong
+  // URL fails before the attendee signs in, not after. Tells no more than
+  // /api/pair/complete's own 404 already does.
+  const pairCheck = /^\/api\/pair\/check\/([A-Z0-9]{6})$/.exec(path);
+  if (pairCheck && req.method === 'GET') {
+    if (rateLimited(req, 'pair/check', 30, 10 * 60 * 1000)) return send(res, 429, { error: 'too_many_requests' });
+    const p = pairs.get(pairCheck[1]);
+    return send(res, 200, { state: p && p.state === 'waiting' && p.expires >= Date.now() ? 'waiting' : 'expired' });
   }
   const status = /^\/api\/pair\/status\/([A-Z0-9]{6})$/.exec(path);
   if (status && req.method === 'GET') {

@@ -1060,7 +1060,7 @@ async function openPairing(onPaired) {
   if (!code) { $('pair-status').textContent = "Couldn't generate a code. Try again."; return; }
   $('pair-code').textContent = `${code.slice(0, 3)} ${code.slice(3)}`;
   $('pair-command').textContent = command;
-  $('pair-status').textContent = 'Waiting…';
+  $('pair-status').textContent = 'Waiting for you to sign in…';
   stopPairingPoll();
   pairingTimer = setInterval(async () => {
     const { state } = await api(`/api/pair/status/${code}`).catch(() => ({ state: 'waiting' }));
@@ -1070,14 +1070,19 @@ async function openPairing(onPaired) {
       setTimeout(() => { $('pairing').close(); onPaired(); }, 700);
     } else if (state === 'expired') {
       stopPairingPoll();
-      $('pair-status').textContent = 'That code expired. Close and try again.';
+      // A fresh code, so a slow attendee never has to close and start over.
+      // The helper tells anyone still holding the old command to copy again.
+      if ($('pairing').open) openPairing(onPaired);
     }
   }, 2500);
 }
 $('pair-close').addEventListener('click', () => { stopPairingPoll(); $('pairing').close(); });
 $('pair-copy').addEventListener('click', async () => {
-  await navigator.clipboard.writeText($('pair-command').textContent).catch(() => {});
-  toast('Copied');
+  // navigator.clipboard is missing outside a secure context, so catch the throw too.
+  const copied = await Promise.resolve().then(() => navigator.clipboard.writeText($('pair-command').textContent)).then(() => true, () => false);
+  if (copied) { toast('Copied'); return; }
+  getSelection().selectAllChildren($('pair-command'));
+  toast('Press Ctrl+C or ⌘C to copy');
 });
 
 // Offers a handoff to a phone for the live conversation, right after pairing

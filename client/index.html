@@ -206,13 +206,14 @@
   <dialog class="disclosure" id="pairing" aria-labelledby="pairing-title">
     <svg class="mark" style="width:56px;height:56px;justify-self:center" aria-hidden="true"><use href="#mark" /></svg>
     <p class="t-title" id="pairing-title" style="margin:0">Connect your AWS Events account</p>
-    <p class="t-caption" style="margin:0">Copy the command below and run it in a terminal on this computer. Your browser will open so you can sign in with AWS Builder ID. The code works for 10 minutes.</p>
+    <p class="t-caption" style="margin:0">Copy the command below, paste it into a terminal on this computer and press Return. Your browser opens so you can sign in with AWS Builder ID, then this tab carries on by itself.</p>
     <div class="pair-code t-glow" id="pair-code" aria-live="polite"></div>
     <button class="btn btn-primary btn-block" id="pair-copy" type="button">Copy command</button>
     <code class="t-caption" id="pair-command" style="font-family: var(--mono)"></code>
     <details class="pair-help">
-      <summary class="t-caption">Never used a terminal? Tap here.</summary>
+      <summary class="t-caption">Never used a terminal, or it says "command not found"?</summary>
       <p class="t-caption" style="margin:8px 0 0">Mac: press <kbd>⌘ Space</kbd>, type <kbd>Terminal</kbd>, press Return.<br>Windows: press the <kbd>Windows</kbd> key, type <kbd>cmd</kbd>, press Return.<br>Then paste the command and press Return.</p>
+      <p class="t-caption" style="margin:8px 0 0">"command not found" or "not recognized" means Node.js is missing. Install the LTS version from <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>, open a new terminal and paste again.</p>
     </details>
     <p class="t-caption" id="pair-status" style="margin:0" aria-live="polite">Waiting…</p>
     <button class="btn btn-block" id="pair-close" type="button">Close</button>

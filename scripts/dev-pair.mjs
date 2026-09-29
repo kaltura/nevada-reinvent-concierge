@@ -30,10 +30,7 @@ const start = await postJson('/api/pair/start', {});
 const { code } = start.json;
 const cookie = start.cookie;
 
-const pairing = spawn(process.execPath, [PAIR_SCRIPT, code], {
-  stdio: 'inherit',
-  env: { ...process.env, NEVADA_URL: BASE_URL },
-});
+const pairing = spawn(process.execPath, [PAIR_SCRIPT, code, BASE_URL], { stdio: 'inherit' });
 const exitCode = await new Promise((resolve) => pairing.on('close', resolve));
 if (exitCode !== 0) process.exit(exitCode);
 
