@@ -168,7 +168,7 @@ Nothing to ACK, so the turn never waits on a UI update. The arguments carry IDs 
 
 | Tool | Args | Page does |
 |---|---|---|
-| `show_sessions` | `sessionIds`, `title` | Dashed blocks in the day/week grid, in each session's real day and time. A session with no scheduled time is silently dropped; `rules.md` tells the agent to filter those out and say so instead of calling this tool with them. |
+| `show_sessions` | `sessionIds`, `title` | Dashed blocks in the day/week grid, in each session's real day and time. A session with no scheduled time is silently dropped; `rules.md` tells the agent to filter those out and say so instead of calling this tool with them. A single ID that is already on screen is pointed at, like `point_at`, instead of redrawing the grid. |
 | `render_schedule` | `day?`, `focusIds?` | Redraws the canvas from `/api/schedule` |
 | `highlight_conflict` | `sessionId`, `conflictsWith`, `options` | Conflict sheet with swap choices |
 | `celebrate_action` | `kind` | Small success moment (see [DESIGN.md § Motion](DESIGN.md#motion)) |
