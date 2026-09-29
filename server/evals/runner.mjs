@@ -174,7 +174,8 @@ async function runCaseBody(kase) {
 
   const failures = [];
   try {
-    for (const text of kase.turns) {
+    for (const turn of kase.turns) {
+      const text = typeof turn === 'function' ? turn(transcript) : turn;
       turnCalls.length = 0;
       const reply = await withTimeout(session.sendText(text), TURN_TIMEOUT_MS, `turn "${text.slice(0, 40)}"`);
       transcript.turns.push({ text: reply.text, toolCalls: [...turnCalls] });
