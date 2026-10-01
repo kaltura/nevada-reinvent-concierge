@@ -11,7 +11,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize, extname } from 'node:path';
+import { dirname, join, normalize, extname, sep } from 'node:path';
 import { makeTokenStore } from './tokens.mjs';
 import { makeCatalog } from './catalog.mjs';
 import { makeKaltura } from './kaltura.mjs';
@@ -22,6 +22,7 @@ import { EVENT_DAYS } from './dates.mjs';
 
 const CLIENT = join(dirname(fileURLToPath(import.meta.url)), '..', 'client');
 const SIGN_IN_TTL_MS = 10 * 60 * 1000;
+const MAX_PENDING_SIGN_INS = 20;
 const SYNC_MAX_AGE_MS = 60 * 60 * 1000;
 const TOOLS = new Set(Object.keys(TOOL_HANDLERS));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
@@ -42,7 +43,7 @@ export function createApp({ home, widgetId }) {
 
   try {
     const cached = JSON.parse(readFileSync(catalogFile, 'utf8'));
-    catalog.seed(cached.sessions);
+    catalog.seed(cached.sessions, cached.syncedAt);
     syncedAt = cached.syncedAt;
   } catch { /* no cache yet, or an unreadable one: sync fills it after sign-in */ }
 
@@ -115,8 +116,11 @@ export function createApp({ home, widgetId }) {
   const redirectUriFor = (req) => `http://127.0.0.1:${req.socket.localPort}/callback`;
 
   function signInStart(req, res) {
+    // A top-level navigation from this page or the address bar passes. Another site's link doesn't.
+    if (!sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
     const now = Date.now();
     for (const [state, p] of pendingSignIns) if (p.expires < now) pendingSignIns.delete(state);
+    while (pendingSignIns.size >= MAX_PENDING_SIGN_INS) pendingSignIns.delete(pendingSignIns.keys().next().value);
     const redirectUri = redirectUriFor(req);
     const { url, state, verifier } = signInRequest(redirectUri);
     pendingSignIns.set(state, { verifier, redirectUri, expires: now + SIGN_IN_TTL_MS });
@@ -129,7 +133,8 @@ export function createApp({ home, widgetId }) {
     const pending = pendingSignIns.get(params.get('state') ?? '');
     pendingSignIns.delete(params.get('state') ?? '');
     if (!pending || pending.expires < Date.now()) return redirect(res, '/?signin=failed');
-    if (params.get('error') || !params.get('code')) return redirect(res, '/?signin=cancelled');
+    if (params.get('error') === 'access_denied') return redirect(res, '/?signin=cancelled');
+    if (params.get('error') || !params.get('code')) return redirect(res, '/?signin=failed');
     try {
       tokenStore.set(await exchangeCode({ code: params.get('code'), verifier: pending.verifier, redirectUri: pending.redirectUri }));
     } catch (e) {
@@ -158,9 +163,10 @@ export function createApp({ home, widgetId }) {
       // Revoke the refresh token at AWS, then delete our copy. An access token
       // already issued dies on its own within 60 minutes, and the attendee's
       // Builder ID browser session stays: this ends only this app's access.
+      // Clear first, so a refresh already in flight can't write the tokens back.
       const tokens = tokenStore.get();
-      const revoked = tokens ? await revokeRefreshToken(tokens.refresh_token) : true;
       tokenStore.clear();
+      const revoked = tokens ? await revokeRefreshToken(tokens.refresh_token) : true;
       return send(res, 200, { ok: true, revoked });
     }
     if (path === '/api/sessions' && req.method === 'POST') {
@@ -249,7 +255,7 @@ export function createApp({ home, widgetId }) {
     let path;
     try { path = decodeURIComponent(rawPath); } catch { return send(res, 400, { error: 'bad_request' }); }
     const file = normalize(join(CLIENT, path === '/' ? 'index.html' : path));
-    if (!file.startsWith(CLIENT + '/')) return send(res, 404, { error: 'not_found' });
+    if (!file.startsWith(CLIENT + sep)) return send(res, 404, { error: 'not_found' });
     try {
       const body = await readFile(file);
       // Revalidate every time, or a stale cached app.js can keep running after an upgrade.

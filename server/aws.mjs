@@ -149,15 +149,22 @@ export async function withToken(tokenStore, fn) {
       fresh = await dedupedRefresh(tokens.refresh_token);
     } catch (refreshError) {
       if (!(refreshError instanceof AwsError) || ![400, 401].includes(refreshError.status)) throw refreshError;
-      tokenStore.clear();
+      if (tokenStore.get() === tokens) tokenStore.clear();
       return { paired: false, expired: true };
     }
+    // Signed out while the refresh ran: don't bring the tokens back. A sibling
+    // call may already have stored the refreshed record, so only replace ours.
+    const current = tokenStore.get();
+    if (!current) return { paired: false };
     // AWS can omit refresh_token when it doesn't rotate it; keep the old one.
-    tokenStore.set({ ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
+    if (current === tokens) tokenStore.set({ ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
     try {
       return { paired: true, result: await fn(fresh.access_token) };
     } catch (e2) {
-      if (e2 instanceof AwsError && e2.status === 401) { tokenStore.clear(); return { paired: false, expired: true }; }
+      if (e2 instanceof AwsError && e2.status === 401) {
+        if (tokenStore.get()?.access_token === fresh.access_token) tokenStore.clear();
+        return { paired: false, expired: true };
+      }
       throw e2;
     }
   }

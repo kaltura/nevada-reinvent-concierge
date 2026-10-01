@@ -109,8 +109,9 @@ export function makeCatalog() {
     session.repeatKey = key;
   }
 
-  /** Replace the snapshot with exactly this set of raw sessions. Used by sync() per page, and directly in tests. */
-  function seed(rawSessions) {
+  /** Replace the snapshot with exactly this set of raw sessions. `syncedAt` restores the time of a cached snapshot. Used by sync(), the disk cache and tests. */
+  function seed(rawSessions, syncedAt) {
+    if (Number.isFinite(syncedAt)) lastSync = syncedAt;
     const seen = new Set();
     for (const raw of rawSessions) { upsert(raw); seen.add(raw.sessionId); }
     for (const id of [...sessions.keys()]) if (!seen.has(id)) sessions.delete(id);

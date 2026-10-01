@@ -3,15 +3,27 @@
  * current user (mode 0600). The app serves a single person on their own
  * machine, so there is nothing to key by. ARCHITECTURE.md § Sign-in.
  */
-import { readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync, rmSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export function makeTokenStore(file) {
   let record = null;
-  try { record = JSON.parse(readFileSync(file, 'utf8')); } catch { /* first run, or an unreadable file: start signed out */ }
+  try {
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    if (typeof saved?.access_token === 'string' && typeof saved.refresh_token === 'string') record = saved;
+  } catch { /* first run, or an unreadable file: start signed out */ }
+
+  // mkdir's mode only applies to a folder it creates, so check one that already exists.
+  function ensurePrivateDir(dir) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (process.platform === 'win32') return;
+    const st = statSync(dir);
+    if (st.uid !== process.getuid()) throw Object.assign(new Error(`${dir} belongs to another user`), { code: 'unsafe_home' });
+    if (st.mode & 0o077) chmodSync(dir, 0o700);
+  }
 
   function save() {
-    mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+    ensurePrivateDir(dirname(file));
     // Write then rename, so a crash never leaves half a token file behind.
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(record), { mode: 0o600 });

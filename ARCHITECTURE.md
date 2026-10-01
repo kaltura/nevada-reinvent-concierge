@@ -76,13 +76,13 @@ The app shows nothing but a sign-in gate until AWS sign-in succeeds: no avatar, 
 
 1. The launcher binds the first free port from 8484 to 8489 (AWS accepts only those redirect ports) and opens the browser.
 2. The gate's "Sign in with AWS" is a plain link to `/auth/start`, so it works before any script runs. The server makes a PKCE S256 verifier and a random single-use `state` (in memory, 10-minute TTL) and redirects to AWS Builder ID.
-3. AWS redirects to `http://127.0.0.1:<port>/callback`. The server accepts only a `state` it minted, once, so a forged callback can't sign the attendee in to someone else's account. A bad or expired `state` redirects to `/?signin=failed`. A cancel at AWS redirects to `/?signin=cancelled`.
+3. AWS redirects to `http://127.0.0.1:<port>/callback`. The server accepts only a `state` it minted, once, so a forged callback can't sign the attendee in to someone else's account. A bad or expired `state`, or any AWS error except `access_denied`, redirects to `/?signin=failed`. A cancel at AWS (`access_denied`) redirects to `/?signin=cancelled`. `/auth/start` refuses cross-site requests and keeps at most 20 pending sign-ins.
 4. The server swaps the code for tokens, saves them, starts a catalog sync and redirects to `/`.
 5. The page asks `/api/schedule`. On `paired: true` it starts the avatar experience. The header pill then opens an account dialog with "Sign out".
 
 Token rules:
 
-- Tokens live in `tokens.json` under `~/.nevada` (`NEVADA_HOME` overrides). The folder is `0700`, the file `0600`, written to a temp file and renamed.
+- Tokens live in `tokens.json` under `~/.nevada` (`NEVADA_HOME` overrides). The folder is `0700` (an existing folder is tightened, and one owned by another user is refused), the file `0600`, written to a temp file and renamed. Sign-out clears the file before it revokes at AWS, so a refresh in flight can't write it back.
 - On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens and the page shows the gate with a "lapsed" toast.
 - Sign-out revokes the refresh token at AWS, then deletes the file. An access token already issued dies within 60 minutes.
 - Sign-out doesn't end the attendee's Builder ID browser session. Point them to `https://profile.aws.amazon.com` if they want that.

@@ -182,3 +182,34 @@ test('/api/agent/init hides the upstream error', async () => {
     assert.deepEqual([res.status, /secret upstream/.test(text)], [502, false]);
   } finally { world.respond = null; }
 });
+
+test('a cross-site page cannot start a sign-in', async () => {
+  const res = await app.get('/auth/start', { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+  assert.deepEqual([res.status, res.headers.get('location')], [403, null]);
+});
+
+test('typing the address or clicking the gate link starts a sign-in', async () => {
+  for (const site of ['none', 'same-origin']) {
+    const res = await app.get('/auth/start', { headers: { 'Sec-Fetch-Site': site } });
+    assert.equal(res.status, 302, site);
+  }
+});
+
+test('pending sign-ins are capped, and the newest still works', async () => {
+  const fresh = await startApp();
+  const states = [];
+  for (let i = 0; i < 30; i++) {
+    const res = await fresh.get('/auth/start');
+    states.push(new URL(res.headers.get('location')).searchParams.get('state'));
+  }
+  assert.equal((await fresh.get(`/callback?code=c&state=${states[0]}`)).headers.get('location'), '/?signin=failed');
+  assert.equal((await fresh.get(`/callback?code=c&state=${states.at(-1)}`)).headers.get('location'), '/');
+});
+
+test('an AWS error other than access_denied is a failure, not a cancel', async () => {
+  const fresh = await startApp();
+  const start = await fresh.get('/auth/start');
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const res = await fresh.get(`/callback?error=server_error&state=${state}`);
+  assert.equal(res.headers.get('location'), '/?signin=failed');
+});

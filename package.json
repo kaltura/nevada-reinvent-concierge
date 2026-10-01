@@ -28,7 +28,7 @@
     "update-prompts": "node --env-file=.env scripts/update-prompts.mjs",
     "catalog-tags": "node scripts/catalog-tags.mjs",
     "test": "node --test server/test/*.test.mjs",
-    "eval": "node --env-file=.env server/evals/runner.mjs",
+    "eval": "node server/evals/runner.mjs",
     "prepack": "node scripts/write-public.mjs"
   },
   "devDependencies": {

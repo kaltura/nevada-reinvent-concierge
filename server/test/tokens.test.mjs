@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync, statSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, rmSync, statSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeTokenStore } from '../tokens.mjs';
@@ -53,4 +53,22 @@ test('a corrupt file starts signed out instead of crashing', (t) => {
   makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
   writeFileSync(file, '{not json');
   assert.equal(makeTokenStore(file).get(), null);
+});
+
+test('a token file without both tokens starts signed out', (t) => {
+  const file = tempFile(t);
+  const store = makeTokenStore(file);
+  store.set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  for (const bad of ['{}', '{"access_token":"a"}', '{"access_token":1,"refresh_token":"r"}', 'null']) {
+    writeFileSync(file, bad);
+    assert.equal(makeTokenStore(file).get(), null, bad);
+  }
+});
+
+test('a folder that already exists with open permissions is made private', { skip: process.platform === 'win32' }, (t) => {
+  const file = tempFile(t);
+  mkdirSync(join(file, '..'), { mode: 0o755 });
+  chmodSync(join(file, '..'), 0o755);
+  makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  assert.equal(statSync(join(file, '..')).mode & 0o777, 0o700);
 });

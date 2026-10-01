@@ -51,8 +51,8 @@ npm run provision       # creates the agent, tools and widget; run once
 
 | Variable | Needed by | How to get it |
 |---|---|---|
-| `KALTURA_PARTNER_ID` | `provision`, `update-prompts`, `eval` | Your Kaltura account's partner ID |
-| `KALTURA_ADMIN_SECRET` | `provision`, `update-prompts`, `eval` | Your Kaltura account's admin secret. Never ship it. |
+| `KALTURA_PARTNER_ID` | `provision`, `update-prompts` | Your Kaltura account's partner ID |
+| `KALTURA_ADMIN_SECRET` | `provision`, `update-prompts` | Your Kaltura account's admin secret. Never ship it. |
 | `KALTURA_VISUAL_ID`, `KALTURA_VOICE_ID` | `provision` | Avatar look and voice IDs, from `avatars.listTemplates` |
 
 ### npm scripts

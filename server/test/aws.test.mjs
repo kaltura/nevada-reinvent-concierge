@@ -145,6 +145,20 @@ test('withToken dedupes concurrent refreshes', async (t) => {
   assert.deepEqual([a, b], [{ paired: true, result: 'ok:fresh' }, { paired: true, result: 'ok:fresh' }]);
 });
 
+test('a refresh that finishes after sign-out does not bring the tokens back', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  const store = fakeTokenStore(SIGNED_IN);
+  globalThis.fetch = async () => {
+    store.clear(); // the attendee signs out while AWS is still answering
+    return { ok: true, json: async () => ({ access_token: 'fresh', refresh_token: 'r2', expires_in: 3600 }) };
+  };
+
+  const result = await withToken(store, async (token) => { if (token === 'stale') throw new AwsError(401); return `ok:${token}`; });
+
+  assert.deepEqual([result, store.get()], [{ paired: false }, null]);
+});
+
 test('withToken keeps the old refresh token when AWS omits a new one', async (t) => {
   const realFetch = globalThis.fetch;
   t.after(() => { globalThis.fetch = realFetch; });

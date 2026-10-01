@@ -151,6 +151,19 @@ test('a restarted app picks up the saved tokens and the cached catalog without r
   assert.equal((await (await second.postJson('/api/schedule', {})).json()).paired, true);
 });
 
+test('a fresh disk cache counts as synced, so get_session skips the live fetch', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'nevada-fresh-'));
+  const first = await startApp({ home });
+  await first.signIn();
+  await first.postJson('/api/schedule', {});
+
+  const second = await startApp({ home });
+  const before = world.calls.length;
+  const result = await second.postJson('/tools/get_session', { sessionId: 'AAA111' });
+  assert.equal((await result.json()).answer.includes('Deep dive on Lambda'), true);
+  assert.equal(world.calls.slice(before).some((c) => c.url.includes('/sessions/AAA111')), false);
+});
+
 test('a stale cache serves from disk at once and refreshes in the background', async () => {
   const home = mkdtempSync(join(tmpdir(), 'nevada-stale-'));
   const first = await startApp({ home });
