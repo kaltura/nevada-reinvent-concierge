@@ -1,35 +1,56 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { mkdtempSync, writeFileSync, rmSync, statSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { makeTokenStore } from '../tokens.mjs';
 
-const KEY = randomBytes(32).toString('base64');
+function tempFile(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'nevada-tokens-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return join(dir, 'home', 'tokens.json');
+}
 
-test('rejects a key that does not decode to 32 bytes', () => {
-  assert.throws(() => makeTokenStore(randomBytes(16).toString('base64')));
+test('starts signed out when there is no file', (t) => {
+  assert.equal(makeTokenStore(tempFile(t)).get(), null);
 });
 
-test('round-trips a token through encryption', () => {
-  const store = makeTokenStore(KEY);
-  store.set('visitor-1', { access_token: 'a', refresh_token: 'r', expires_in: 3600 });
-  const tok = store.get('visitor-1');
-  assert.equal(tok.access_token, 'a');
-  assert.equal(tok.refresh_token, 'r');
-  assert.ok(tok.expiresAt > Date.now());
+test('set stores the tokens and an absolute expiry', (t) => {
+  const store = makeTokenStore(tempFile(t));
+  store.set({ access_token: 'a', refresh_token: 'r', expires_in: 3600 });
+  const tok = store.get();
+  assert.deepEqual([tok.access_token, tok.refresh_token, tok.expiresAt > Date.now()], ['a', 'r', true]);
 });
 
-test('has/delete/size track visitors independently', () => {
-  const store = makeTokenStore(KEY);
-  assert.equal(store.has('v'), false);
-  store.set('v', { access_token: 'a', refresh_token: 'r', expires_in: 60 });
-  assert.equal(store.has('v'), true);
-  assert.equal(store.size(), 1);
-  store.delete('v');
-  assert.equal(store.has('v'), false);
-  assert.equal(store.size(), 0);
+test('a new store reads back what the last one saved', (t) => {
+  const file = tempFile(t);
+  makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  assert.equal(makeTokenStore(file).get().refresh_token, 'r');
 });
 
-test('get returns null for an unknown visitor', () => {
-  const store = makeTokenStore(KEY);
-  assert.equal(store.get('nobody'), null);
+test('the token file is readable only by the current user', (t) => {
+  const file = tempFile(t);
+  makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+});
+
+test('the folder is created private', (t) => {
+  const file = tempFile(t);
+  makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  assert.equal(statSync(join(file, '..')).mode & 0o777, 0o700);
+});
+
+test('clear forgets the tokens and deletes the file', (t) => {
+  const file = tempFile(t);
+  const store = makeTokenStore(file);
+  store.set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  store.clear();
+  assert.deepEqual([store.get(), existsSync(file)], [null, false]);
+});
+
+test('a corrupt file starts signed out instead of crashing', (t) => {
+  const file = tempFile(t);
+  makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  writeFileSync(file, '{not json');
+  assert.equal(makeTokenStore(file).get(), null);
 });

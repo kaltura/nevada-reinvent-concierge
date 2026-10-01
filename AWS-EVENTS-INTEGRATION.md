@@ -13,22 +13,21 @@ Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.m
 | Flow | OAuth 2.0 Authorization Code + PKCE, via AWS Builder ID |
 | Client | Shared public client, `client_id` `7vmom55m1qstvq8i71ph127bfq`, no secret. AWS publishes it. |
 | Redirect | Exactly `http://localhost:{port}/callback` or `http://127.0.0.1:{port}/callback`, port 8484 to 8489. No wildcards. Any other value gets `redirect_mismatch`. |
-| Hosted redirect | None. The devguide says sign-in "has to run locally". |
+| Hosted redirect | None. The devguide says sign-in "has to run locally", so the local server finishes it. |
 | Authorize | `https://oauth.awsevents.com/oauth2/authorize`, with `scope=openid email events/access`, `identity_provider=AWSBuilderID`, `code_challenge_method=S256` |
 | Token | `https://oauth.awsevents.com/oauth2/token`, for both the code exchange and `grant_type=refresh_token` |
 | Revoke | `https://oauth.awsevents.com/oauth2/revoke`, takes the refresh token |
 | Access token | 60 minutes. The only token the API accepts. The ID token is not a substitute. |
-| Refresh token | 30 days. A refresh doesn't extend the Builder ID sign-in session, which has its own lifetime the devguide doesn't state. A re-pair can come sooner than 30 days. |
+| Refresh token | 30 days. A refresh doesn't extend the Builder ID sign-in session, which has its own lifetime the devguide doesn't state. Signing in again can be needed sooner than 30 days. |
 
 Rules for our backend:
 
-- Schedule each refresh from the `expires_in` the token response returns. Don't hardcode a lifetime.
-- If a refresh response carries a new refresh token, store it and drop the old one. The old one may stop working.
-- Refresh on demand when the proxy needs a token, not on a timer for every attendee.
-- A failed refresh means the attendee must pair again. Say so in speech, never fail silently.
+- Refresh on demand: when AWS answers `401`, refresh once and retry. Concurrent calls share one refresh. No timer.
+- If a refresh response carries a new refresh token, store it. If it carries none, keep the old one.
+- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Say so in speech, never fail silently.
 - The devguide asks that server-side tokens stay server-side. Tokens never reach the browser or Kaltura.
 
-The pairing flow that gets the first token is in [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing).
+The sign-in flow that gets the first token is in [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in).
 
 ## Endpoints
 
@@ -98,8 +97,8 @@ Live attendee traffic is far below these limits. The sync job is the only heavy 
 | Status | Meaning | Handling |
 |---|---|---|
 | `400` | Bad field or foreign `nextToken` | Don't retry. Log the field. |
-| `401` | No valid token | Refresh once and retry. A second `401` means the refresh token is dead: ask to pair again, don't loop. |
-| `403` with JSON body | Signed in but not registered | Don't retry. Tell the attendee to register. Pairing again won't help. |
+| `401` | No valid token | Refresh once and retry. A second `401` means the refresh token is dead: ask to sign in again, don't loop. |
+| `403` with JSON body | Signed in but not registered | Don't retry. Tell the attendee to register. Signing in again won't help. |
 | `403` with no body | Edge refusal (rate or abuse) | Back off, retry later |
 | `404` | Session or personal-time entry gone | See the retry note below |
 | `409` | Operation closed, e.g. before reserved seating opens | Don't retry. Say "not open yet". |
@@ -170,7 +169,7 @@ Detect the phase from API behaviour (a `409` vs a result), not from a hardcoded 
 - Cadence: daily until reserved seating opens, then every 6 hours, then hourly in event week.
 - Each run walks `ListSessions` with `includeAbstracts=true`, diffs against the last snapshot, and updates the search index.
 - A full walk is about 10 pages, well inside 120 requests a minute.
-- Phase 1 has no service registration of its own. The server syncs once, with the first paired attendee's token. Until someone pairs, the catalog is empty and search finds nothing. While the sync runs, schedule loads and tool calls wait for it. A restart empties it again.
+- Phase 1 has no service registration of its own. The server syncs with the attendee's own token after sign-in and caches the result in `~/.nevada/catalog.json`. A cache older than 1 hour is served at once and refreshed in the background. A restart reads the disk cache. Before the first sign-in, with no cache, the catalog is empty and search finds nothing. While the first sync runs, schedule loads and tool calls wait for it.
 
 ## Out of scope for the API
 

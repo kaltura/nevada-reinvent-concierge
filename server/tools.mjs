@@ -17,7 +17,7 @@ function label(catalog, id) {
 
 function pairingMessage(outcome) {
   return outcome.expired
-    ? 'Your AWS connection expired. Pair again to see your schedule.'
+    ? 'Your AWS connection expired. Sign in again to see your schedule.'
     : 'Connect your AWS Events account to do that.';
 }
 
@@ -169,8 +169,8 @@ export const TOOL_HANDLERS = {
     // AWS-EVENTS-INTEGRATION.md: seat availability changes fast during event
     // week, syncing hourly. A single session missed by (or gone stale since)
     // the last full sync gets a live GetSession instead of staying wrong or
-    // permanently unreachable until the next sync. Only this visitor's own
-    // token can make the call, so an unpaired visitor keeps today's behavior.
+    // permanently unreachable until the next sync. Needs the attendee's token,
+    // so when signed out this keeps the cached copy.
     const stale = !s || !ctx.catalog.lastSync() || Date.now() - ctx.catalog.lastSync() > 60 * 60 * 1000;
     if (stale) {
       const outcome = await ctx.withToken((token) => getSession(token, sessionId)).catch(() => null);
@@ -459,7 +459,7 @@ export const TOOL_HANDLERS = {
   },
 };
 
-/** Build a per-call ctx with withToken already bound to this visitor. */
-export function makeToolCtx(catalog, tokenStore, visitor) {
-  return { catalog, withToken: (fn) => withToken(tokenStore, visitor, fn) };
+/** Build a per-call ctx with withToken already bound to the token store. */
+export function makeToolCtx(catalog, tokenStore) {
+  return { catalog, withToken: (fn) => withToken(tokenStore, fn) };
 }

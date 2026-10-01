@@ -21,10 +21,14 @@ We aim to acknowledge new reports within 5 business days.
 
 ## Scope
 
-In scope: the code in this repository (`client/`, `server/`, `pair/`, `scripts/`) and its GitHub Actions workflows.
+In scope: the code in this repository (`client/`, `server/`, `scripts/`) and its GitHub Actions workflows.
 
 Out of scope: the AWS Events API itself and the `@kaltura/intelligent-agents` SDK. Report those to their own maintainers.
 
-## Current phase
+## Design
 
-Nevada is in Phase 1: one attendee, one server, localhost only. All state (pairing, tokens, catalog) lives in server memory, so a restart clears it. See [ROADMAP.md](ROADMAP.md) for what's planned next.
+Nevada runs on the attendee's own machine, bound to `127.0.0.1`. State lives on disk under `~/.nevada` (file mode `0600`) and is meant for a single-user machine. See [ARCHITECTURE.md § Security model](ARCHITECTURE.md#security-model).
+
+## Public widget ID
+
+The package ships a public Kaltura widget ID. It carries no secret. Which abuse limits apply to it is an open question for Kaltura.

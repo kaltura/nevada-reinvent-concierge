@@ -1,23 +1,24 @@
 /**
- * Live eval runner. Drives the real shared intellect (server/agent.json's
- * configId) through server/evals/cases.mjs, over a real KalturaChatSession,
- * using the same tool-dispatch contract as client/app.js, minus the DOM. Design:
- * ARCHITECTURE.md § Evals.
+ * Live eval runner. Drives the real agent through server/evals/cases.mjs, over a
+ * real KalturaChatSession, using the same tool-dispatch contract as
+ * client/app.js, minus the DOM. It starts the app in-process twice: one signed
+ * in with the tokens in NEVADA_HOME (run `npm start` once and sign in with a
+ * dedicated, empty test account), and one signed out for the unpaired cases.
+ * Design: ARCHITECTURE.md § Evals.
  *
  * Usage: npm run eval [-- --grep "name substring"]
  */
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { Management } from '@kaltura/intelligent-agents/management';
+import { mkdtempSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { KalturaChatSession } from '@kaltura/intelligent-agents/experience';
-import { pairedCookie, unpairedCookie } from './session.mjs';
+import { createApp } from '../app.mjs';
+import { makeKaltura } from '../kaltura.mjs';
+import { resolveWidgetId } from '../widget-id.mjs';
 import { judge } from './judge.mjs';
 import { CASES } from './cases.mjs';
 import { minutesOf } from '../dates.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const BASE_URL = `http://localhost:${process.env.PORT || 8080}`;
 const CONCURRENCY = 4;
 const TURN_TIMEOUT_MS = 45_000;
 
@@ -30,20 +31,28 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-const { configId } = JSON.parse(readFileSync(join(ROOT, 'server', 'agent.json'), 'utf8'));
-const { KALTURA_PARTNER_ID, KALTURA_ADMIN_SECRET } = process.env;
-if (!KALTURA_PARTNER_ID || !KALTURA_ADMIN_SECRET) {
-  console.error('Set KALTURA_PARTNER_ID and KALTURA_ADMIN_SECRET in .env');
+const widgetId = resolveWidgetId();
+if (!widgetId) {
+  console.error('No widget id. Set NEVADA_WIDGET_ID or run `npm run provision`.');
   process.exit(2);
 }
-const kaltura = new Management({ partnerId: Number(KALTURA_PARTNER_ID), adminSecret: KALTURA_ADMIN_SECRET });
+const kaltura = makeKaltura(widgetId);
+
+async function listen(home) {
+  const server = createApp({ home, widgetId });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  server.unref();
+  return `http://127.0.0.1:${server.address().port}`;
+}
+const PAIRED_URL = await listen(process.env.NEVADA_HOME || join(homedir(), '.nevada'));
+const UNPAIRED_URL = await listen(mkdtempSync(join(tmpdir(), 'nevada-eval-')));
 
 const grep = process.argv.includes('--grep') ? process.argv[process.argv.indexOf('--grep') + 1] : null;
 
-async function apiFetch(path, body, cookie) {
-  const res = await fetch(`${BASE_URL}${path}`, {
+async function apiFetch(path, body, base) {
+  const res = await fetch(`${base}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', cookie },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? {}),
   });
   return res.json();
@@ -64,8 +73,8 @@ function minutesToHHMM(mins) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-async function scheduleSnapshot(cookie) {
-  const data = await apiFetch('/api/schedule', {}, cookie);
+async function scheduleSnapshot(base) {
+  const data = await apiFetch('/api/schedule', {}, base);
   if (!data.paired) return null;
   const reservedIds = new Set();
   const favoriteIds = new Set();
@@ -86,16 +95,16 @@ async function scheduleSnapshot(cookie) {
 // live: a real account's pre-existing favorites vanished this way. Cleanup
 // must be symmetric: undo new writes AND restore anything the case's turns
 // caused to go missing, not just diff away what's new.
-async function cleanup(cookie, before, after) {
+async function cleanup(base, before, after) {
   if (!before || !after) return;
-  for (const id of after.reservedIds) if (!before.reservedIds.has(id)) await apiFetch('/tools/cancel_reservation', { id }, cookie);
-  for (const id of after.favoriteIds) if (!before.favoriteIds.has(id)) await apiFetch('/tools/unfavorite_session', { id }, cookie);
-  for (const id of after.personal.keys()) if (!before.personal.has(id)) await apiFetch('/tools/delete_personal_time', { id }, cookie);
+  for (const id of after.reservedIds) if (!before.reservedIds.has(id)) await apiFetch('/tools/cancel_reservation', { id }, base);
+  for (const id of after.favoriteIds) if (!before.favoriteIds.has(id)) await apiFetch('/tools/unfavorite_session', { id }, base);
+  for (const id of after.personal.keys()) if (!before.personal.has(id)) await apiFetch('/tools/delete_personal_time', { id }, base);
 
   const missingReserved = [...before.reservedIds].filter((id) => !after.reservedIds.has(id));
-  if (missingReserved.length) await apiFetch('/tools/reserve_sessions', { ids: missingReserved }, cookie);
+  if (missingReserved.length) await apiFetch('/tools/reserve_sessions', { ids: missingReserved }, base);
   const missingFavorites = [...before.favoriteIds].filter((id) => !after.favoriteIds.has(id));
-  if (missingFavorites.length) await apiFetch('/tools/favorite_sessions', { ids: missingFavorites }, cookie);
+  if (missingFavorites.length) await apiFetch('/tools/favorite_sessions', { ids: missingFavorites }, base);
   for (const [id, block] of before.personal) {
     if (after.personal.has(id)) continue;
     const start = parseClock(block.clock);
@@ -106,7 +115,7 @@ async function cleanup(cookie, before, after) {
       // block back on the calendar at all.
       title: block.title, description: block.title, day: block.day,
       start, end: minutesToHHMM(minutesOf(start) + block.length),
-    }, cookie);
+    }, base);
   }
 }
 
@@ -117,11 +126,11 @@ const SERVER_TOOLS = [
 ];
 const CLIENT_TOOLS = ['show_sessions', 'render_schedule', 'highlight_conflict', 'celebrate_action', 'show_recap', 'point_at'];
 
-function wireTools(session, cookie, turnCalls) {
+function wireTools(session, base, turnCalls) {
   const screen = { view: 'home', day: null, visible: [], focused: null };
   for (const name of SERVER_TOOLS) {
     session.onToolCall(name, async (args, call) => {
-      const result = await apiFetch(`/tools/${name}`, args, cookie)
+      const result = await apiFetch(`/tools/${name}`, args, base)
         .catch(() => ({ answer: "That didn't work and I don't know why. Try again in a moment." }));
       turnCalls.push({ name, args, result });
       if (call.toolMetadata?.waitForResponse) session.respondToTool(call.toolMetadata.id, result).catch(() => {});
@@ -154,22 +163,22 @@ function runCase(kase) {
 }
 
 async function runCaseBody(kase) {
-  let cookie;
+  let base;
   try {
-    cookie = kase.paired === false ? await unpairedCookie(BASE_URL) : await getPairedCookie();
+    base = kase.paired === false ? UNPAIRED_URL : await getPairedUrl();
   } catch (e) {
-    // A rejected pairedCookiePromise (see getPairedCookie) stays rejected for
+    // A rejected pairedUrlPromise (see getPairedUrl) stays rejected for
     // every later case that awaits it. Report per case, and don't let one
     // throw crash the whole concurrent run.
     return { name: kase.name, failures: [`crashed: ${e.message}`] };
   }
-  const before = kase.paired === false ? null : await scheduleSnapshot(cookie);
+  const before = kase.paired === false ? null : await scheduleSnapshot(base);
 
-  const conv = await kaltura.sessions.createConversationToken({ configId });
+  const { ks } = await kaltura.appInit();
   const transcript = { turns: [] };
   const turnCalls = []; // mutated in place: wireTools's handlers close over this exact array
-  const session = new KalturaChatSession({ token: conv, requestVars: { returning: '', page_context: '', paired: '1', topInterest: '' } });
-  wireTools(session, cookie, turnCalls);
+  const session = new KalturaChatSession({ token: ks, requestVars: { returning: '', page_context: '', paired: '1', topInterest: '' } });
+  wireTools(session, base, turnCalls);
   await session.connect();
 
   const failures = [];
@@ -195,32 +204,29 @@ async function runCaseBody(kase) {
   } finally {
     try { session.disconnect(); } catch { /* already closed */ }
     if (kase.paired !== false) {
-      const after = await scheduleSnapshot(cookie).catch(() => null);
-      await cleanup(cookie, before, after).catch((e) => console.error(`cleanup failed for "${kase.name}":`, e.message));
+      const after = await scheduleSnapshot(base).catch(() => null);
+      await cleanup(base, before, after).catch((e) => console.error(`cleanup failed for "${kase.name}":`, e.message));
     }
   }
   return { name: kase.name, failures };
 }
 
-// Write cases run for real against whatever account this cookie pairs. Refuse
+// Write cases run for real against whatever account NEVADA_HOME is signed in to. Refuse
 // to touch an account that already has real state. Evals must run against a
 // dedicated, empty throwaway AWS test account, never someone's real week.
-async function assertEmptyAccount(cookie) {
-  const snap = await scheduleSnapshot(cookie);
-  if (!snap) throw new Error('could not read the paired account schedule, refusing to run write evals');
+async function assertEmptyAccount(base) {
+  const snap = await scheduleSnapshot(base);
+  if (!snap) throw new Error('not signed in. Run `npm start`, sign in with the dedicated test account, then rerun');
   const dirty = snap.reservedIds.size || snap.favoriteIds.size || snap.personal.size;
   if (dirty) {
     throw new Error('paired account already has reservations, favorites or personal time and evals need an empty, dedicated test account');
   }
 }
 
-let pairedCookiePromise = null;
-function getPairedCookie() {
-  pairedCookiePromise ??= pairedCookie(BASE_URL).then(async (cookie) => {
-    await assertEmptyAccount(cookie);
-    return cookie;
-  });
-  return pairedCookiePromise;
+let pairedUrlPromise = null;
+function getPairedUrl() {
+  pairedUrlPromise ??= assertEmptyAccount(PAIRED_URL).then(() => PAIRED_URL);
+  return pairedUrlPromise;
 }
 
 async function mapLimit(items, limit, fn) {
@@ -237,7 +243,7 @@ async function mapLimit(items, limit, fn) {
 }
 
 const cases = grep ? CASES.filter((c) => c.name.includes(grep)) : CASES;
-console.log(`Running ${cases.length} eval case(s) against intellect ${configId} at ${BASE_URL}...\n`);
+console.log(`Running ${cases.length} eval case(s)...\n`);
 
 let failed = 0;
 const results = await mapLimit(cases, CONCURRENCY, async (kase) => {

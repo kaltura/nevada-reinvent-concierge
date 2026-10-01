@@ -25,7 +25,7 @@ const PERSONA_NAME = 'Nevada';
 // Rendered on every avatar join, including switchMode. `returning`, `paired`
 // and `topInterest` are request variables the page sets: `returning` on
 // return from the background (cleared with ''), `paired` from the AWS Events
-// pairing state, `topInterest` from the attendee's own top topic across what
+// sign-in state, `topInterest` from the attendee's own top topic across what
 // they've already reserved or favorited (server/catalog.mjs's topTopic), '' if none.
 const OPENING_PHRASE =
   `{%- if returning -%}Welcome back.` +

@@ -129,7 +129,7 @@ export function makeCatalog() {
     } while (nextToken);
     seed(all);
     lastSync = Date.now();
-    return { count: sessions.size, totalCount };
+    return { count: sessions.size, totalCount, raw: all };
   }
 
   function topicCounts(sessionList) {

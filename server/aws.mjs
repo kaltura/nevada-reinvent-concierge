@@ -5,11 +5,13 @@
  * Request and response shapes are confirmed against the live
  * https://api.awsevents.com/v1/openapi.json, not just the integration doc.
  */
+import { randomBytes, createHash } from 'node:crypto';
+
 const BASE = 'https://api.awsevents.com/v1';
 const EVENT_ID = 'reinvent2026';
 const TOKEN_URL = 'https://oauth.awsevents.com/oauth2/token';
 const REVOKE_URL = 'https://oauth.awsevents.com/oauth2/revoke';
-const USERINFO_URL = 'https://oauth.awsevents.com/oauth2/userInfo';
+const AUTHORIZE_URL = 'https://oauth.awsevents.com/oauth2/authorize';
 const CLIENT_ID = '7vmom55m1qstvq8i71ph127bfq';
 
 export class AwsError extends Error {
@@ -31,6 +33,35 @@ export async function refreshAccessToken(refreshToken) {
   return res.json(); // { access_token, refresh_token?, expires_in }
 }
 
+/** The AWS Builder ID sign-in URL (authorization code + PKCE) and the secrets needed to finish it. */
+export function signInRequest(redirectUri) {
+  const verifier = randomBytes(64).toString('base64url');
+  const state = randomBytes(24).toString('base64url');
+  const url = new URL(AUTHORIZE_URL);
+  url.search = new URLSearchParams({
+    response_type: 'code',
+    client_id: CLIENT_ID,
+    redirect_uri: redirectUri,
+    scope: 'openid email events/access',
+    identity_provider: 'AWSBuilderID',
+    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+    code_challenge_method: 'S256',
+    state,
+  }).toString();
+  return { url: url.toString(), state, verifier };
+}
+
+/** Trade the sign-in code for tokens. `redirectUri` must match the one in the authorize URL exactly. */
+export async function exchangeCode({ code, verifier, redirectUri }) {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, redirect_uri: redirectUri, code, code_verifier: verifier }),
+  });
+  if (!res.ok) throw new AwsError(res.status, 'code_exchange_failed');
+  return res.json(); // { access_token, refresh_token, expires_in }
+}
+
 /** @returns {Promise<boolean>} whether AWS confirmed the revoke. */
 export async function revokeRefreshToken(refreshToken) {
   try {
@@ -45,14 +76,6 @@ export async function revokeRefreshToken(refreshToken) {
     console.error('revoke failed:', e.message);
     return false;
   }
-}
-
-/** The attendee's stable AWS account id (`sub`), or null if AWS rejects the token. */
-export async function getUserSub(accessToken) {
-  const res = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessToken}` } }).catch(() => null);
-  if (!res?.ok) return null;
-  const { sub } = await res.json().catch(() => ({}));
-  return typeof sub === 'string' && sub ? sub : null;
 }
 
 async function call(accessToken, method, path, body) {
@@ -96,52 +119,45 @@ export function listSessions(token, { locale, includeAbstracts, nextToken } = {}
 }
 export const getSession = (token, sessionId) => call(token, 'GET', path(`/sessions/${encodeURIComponent(sessionId)}`));
 
-// Two tool calls for the same visitor can both hit a 401 close together. If
-// each called refreshAccessToken separately and AWS rotates the refresh
-// token, the second call's refresh can fail after the first already stored a
-// good token, wrongly deleting it. Dedupe so concurrent callers share one
-// in-flight refresh and both get its result.
-const refreshInFlight = new Map(); // visitor → Promise
+// Two calls can hit a 401 close together. If each refreshed separately and
+// AWS rotates the refresh token, the second refresh could fail after the first
+// already stored a good token, wrongly signing the attendee out. Share one
+// in-flight refresh instead.
+let refreshInFlight = null;
 
-function dedupedRefresh(visitor, refreshToken) {
-  let p = refreshInFlight.get(visitor);
-  if (!p) {
-    p = refreshAccessToken(refreshToken).finally(() => refreshInFlight.delete(visitor));
-    refreshInFlight.set(visitor, p);
-  }
-  return p;
+function dedupedRefresh(refreshToken) {
+  refreshInFlight ??= refreshAccessToken(refreshToken).finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
 }
 
 /**
- * Run `fn(accessToken)` for `visitor`'s stored tokens. Refreshes once on a
- * 401 and retries; deletes the record and reports "must pair again" if the
- * refresh itself fails or the retry still 401s. AWS-EVENTS-INTEGRATION.md
- * § Authentication: "refresh on demand ... a failed refresh means the
- * attendee must pair again."
+ * Run `fn(accessToken)` with the stored tokens. Refreshes once on a 401 and
+ * retries. If AWS rejects the refresh token (or the retry still 401s), clears
+ * the tokens and reports "sign in again". A network error or AWS outage does
+ * not sign anyone out: it is rethrown. AWS-EVENTS-INTEGRATION.md § Authentication.
  * @returns {Promise<{paired:false,expired?:boolean}|{paired:true,result:*}>}
  */
-export async function withToken(tokenStore, visitor, fn) {
-  const tokens = tokenStore.get(visitor);
+export async function withToken(tokenStore, fn) {
+  const tokens = tokenStore.get();
   if (!tokens) return { paired: false };
-  tokenStore.touch(visitor);
   try {
     return { paired: true, result: await fn(tokens.access_token) };
   } catch (e) {
     if (!(e instanceof AwsError) || e.status !== 401) throw e;
-    const fresh = await dedupedRefresh(visitor, tokens.refresh_token).catch((e) => {
-      console.error(`refresh failed for visitor ${visitor.slice(0, 8)}:`, e.message);
-      return null;
-    });
-    if (!fresh) { tokenStore.delete(visitor); return { paired: false, expired: true }; }
-    // AWS can omit refresh_token when it doesn't rotate it; keep the old one
-    // instead of overwriting it with undefined and breaking the next refresh.
-    // Carry pairingId and userId forward too, or a refreshed record would fall
-    // out of its pairing's Disconnect group and lose its Kaltura identity.
-    tokenStore.set(visitor, { ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token, pairingId: tokens.pairingId, userId: tokens.userId });
+    let fresh;
+    try {
+      fresh = await dedupedRefresh(tokens.refresh_token);
+    } catch (refreshError) {
+      if (!(refreshError instanceof AwsError) || ![400, 401].includes(refreshError.status)) throw refreshError;
+      tokenStore.clear();
+      return { paired: false, expired: true };
+    }
+    // AWS can omit refresh_token when it doesn't rotate it; keep the old one.
+    tokenStore.set({ ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
     try {
       return { paired: true, result: await fn(fresh.access_token) };
     } catch (e2) {
-      if (e2 instanceof AwsError && e2.status === 401) { tokenStore.delete(visitor); return { paired: false, expired: true }; }
+      if (e2 instanceof AwsError && e2.status === 401) { tokenStore.clear(); return { paired: false, expired: true }; }
       throw e2;
     }
   }

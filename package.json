@@ -1,25 +1,37 @@
 {
-  "name": "nevada",
+  "name": "nevada-reinvent",
+  "version": "0.1.0",
   "description": "Nevada, a live avatar concierge for AWS re:Invent attendees",
-  "private": true,
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kaltura/nevada-reinvent-concierge.git"
   },
   "type": "module",
-  "engines": { "node": ">=20.6" },
-  "bin": { "nevada-pair": "pair/index.mjs" },
+  "engines": {
+    "node": ">=20.6"
+  },
+  "bin": {
+    "nevada-reinvent": "server/index.mjs"
+  },
+  "files": [
+    "server/*.mjs",
+    "server/public.json",
+    "client/",
+    "!client/prototype.html",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
-    "start": "node --env-file=.env server/index.mjs",
+    "start": "node server/index.mjs",
     "provision": "node --env-file=.env scripts/provision.mjs",
     "update-prompts": "node --env-file=.env scripts/update-prompts.mjs",
-    "pair": "node scripts/dev-pair.mjs",
     "catalog-tags": "node scripts/catalog-tags.mjs",
     "test": "node --test server/test/*.test.mjs",
-    "eval": "node --env-file=.env server/evals/runner.mjs"
+    "eval": "node --env-file=.env server/evals/runner.mjs",
+    "prepack": "node scripts/write-public.mjs"
   },
-  "dependencies": {
+  "devDependencies": {
     "@kaltura/intelligent-agents": "https://github.com/kaltura/intelligent-agents-sdk/archive/ece0dcb9cdd8a01bd9a11d1d45167986075c34fb.tar.gz"
   }
 }

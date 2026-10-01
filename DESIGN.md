@@ -68,7 +68,7 @@ AWS's [trademark guidelines](https://aws.amazon.com/trademark-guidelines/) set t
 | No AWS Architecture Icons. Use our own simple icons. | Icons fall under the same guidelines |
 | "re:Invent" never in our name, logo or domain. A URL path such as `/reinvent` is fine. | §7, §11 |
 | Refer to the event in plain text: "for AWS re:Invent attendees" | §13 |
-| Show "Not affiliated with or endorsed by AWS" on the connect gate, the composer footer and every pairing dialog | §13 |
+| Show "Not affiliated with or endorsed by AWS" on the sign-in gate, the composer footer and the account dialog | §13 |
 | Don't copy AWS's product look. Orange is a small accent, not the whole UI. | §10 |
 
 Our mark is a round `--glow` ring with a bold "N" on `--night-3`. It contains no AWS shape.
@@ -192,19 +192,21 @@ Phone, scrolled. She's glided to the bottom-right corner, above the composer, st
 └──────────────────────────────┘
 ```
 
-First run. The connect gate. No top bar, no avatar, no day strip, no composer, just the mark, a line of copy and one button:
+First run. The sign-in gate. No top bar, no avatar, no day strip, no composer, just the mark, a line of copy and one button:
 
 ```
 ┌──────────────────────────────┐
 │                               │
 │             (N)               │  the mark
 │                               │
-│   Connect your AWS Events    │
-│   account and I'll build     │
-│   your plan for the week.    │
+│   Sign in with your AWS      │
+│   Events account and I'll    │
+│   build your plan for the    │
+│   week.                       │
 │                               │
-│   [ Connect my AWS Events    │
-│         account ]             │
+│      [ Sign in with AWS ]    │
+│   Your sign-in stays on      │
+│   this computer.              │
 │                               │
 │ For AWS re:Invent attendees. │
 │ Not affiliated with or       │
@@ -273,9 +275,8 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Day strip | Five day chips with the day in 800 and the date in 300 | Tap to switch days. A dot marks days with a clash. |
 | Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas). `show_sessions` results render as dashed blocks in their real day and time, same as a topic-based pick. |
 | Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text below the option buttons. |
-| Connect gate | Full-screen: mark, "Connect your AWS Events account…", one primary button | Shown until pairing succeeds. No avatar, no QR: the attendee is already on this device. |
-| Pairing screen | 6-character code in display type, "Copy command" button, plain-text status line | Code in monospace, grouped 3 + 3. Valid 10 minutes; the status line says so and reports expiry in text, no ring timer. |
-| Pairing success screen | Centred card: mark, "You're connected", "Show a QR for my phone" button, "Continue here" button | The QR (linking to `/?handoff=TOKEN`) is minted only on tap and replaces the button in place; it's never shown as plain text, so it can't be copied or screenshotted as a string. Right after pairing the card can't be dismissed without picking a device; reopened later from the header pill it's just an FYI dialog. |
+| Sign-in gate | Full-screen: mark, "Sign in with your AWS Events account…", one primary "Sign in with AWS" link, the caption "Your sign-in stays on this computer." | Shown until sign-in succeeds. No avatar. The link goes to `/auth/start`, so it works before any script runs. |
+| Account dialog | Centred card: mark, "You're signed in", "Keep going" button, "Sign out of AWS Events" button | Opened from the header pill when signed in. Says the sign-in is saved on this computer only. |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
 | Recap card | 9:16 poster on a `--glow` background with big numbers | See fun moments |

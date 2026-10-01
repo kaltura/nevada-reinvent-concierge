@@ -14,12 +14,11 @@ What the attendee sees and hears. Visual rules are in [DESIGN.md](DESIGN.md). Th
 
 ## First run
 
-There's no avatar and nothing to search until AWS pairing succeeds. Nevada needs a real account to build a real plan, and a stale spoken greeting from before pairing would be confusing anyway. So the entire experience sits behind a connect gate.
+There's no avatar and nothing to search until AWS sign-in succeeds. Nevada needs a real account to build a real plan, and a stale spoken greeting from before sign-in would be confusing anyway. So the entire experience sits behind a sign-in gate.
 
-1. They open the link on whatever device is at hand. The gate shows Nevada's mark and "Connect your AWS Events account and I'll build your plan for the week", with a single "Connect my AWS Events account" button. No QR code here. They're already on this device.
-2. They tap it. The gate shows a 6-character code and one command to copy and run in a terminal on that same device (see [ARCHITECTURE.md § Pairing](ARCHITECTURE.md#pairing)). A "Never used a terminal?" tip covers opening one and installing Node.js. If the code expires, a new one replaces it without a tap.
-3. Once paired, a success screen offers a "Show a QR for my phone" button to continue the live conversation there instead, or a "Continue here" button to stay on the current device (see [ARCHITECTURE.md § Phone handoff](ARCHITECTURE.md#phone-handoff)).
-4. Whichever device continues: a one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she opens with: "Hi, I'm Nevada. I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." (If the attendee has already favorited or reserved sessions with a clear topic, she opens by naming that topic instead.) They can say a track or type it. The mic permission prompt appears only when they first tap the mic.
+1. They run `npx nevada-reinvent`. The browser opens on the gate: Nevada's mark and "Sign in with your AWS Events account and I'll build your plan for the week", with a single "Sign in with AWS" link and the line "Your sign-in stays on this computer."
+2. They sign in with AWS Builder ID. AWS sends the browser back to the app, which reloads on the home screen (see [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)). There's no code to copy and no handoff step. If sign-in fails or is cancelled, the gate shows a toast and the link works again.
+3. A one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she opens with: "Hi, I'm Nevada. I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." (If the attendee has already favorited or reserved sessions with a clear topic, she opens by naming that topic instead.) They can say a track or type it. The mic permission prompt appears only when they first tap the mic.
 
 ## Talk, type or tap
 
@@ -44,7 +43,7 @@ Nevada is a person-shaped host, not a voice assistant with a chat box. Each inpu
 
 ## Schedule canvas
 
-The home screen after pairing. On a phone it's one day at a time: a day strip (Mon Nov 30 to Fri Dec 4) above a vertical timeline. On a laptop it's the full week.
+The home screen after sign-in. In a narrow window it's one day at a time: a day strip (Mon Nov 30 to Fri Dec 4) above a vertical timeline. In a wide window it's the full week.
 
 | Block | Meaning |
 |---|---|
@@ -138,7 +137,7 @@ On request: "Your re:Invent: 14 sessions, 3 venues, 1 wildcard." It's a shareabl
 | Weak network | A chat fallback that keeps the conversation going as text is planned, not yet built. Today, a stalled connection follows the "Video stalls" row above. |
 | App in the background under 30 s | Nothing. The session holds. |
 | Back after longer | "Welcome back" and a quiet reconnect. No first-visit greeting. |
-| Token expired | A toast: "Your AWS connection lapsed. Reconnect to keep going." If it happens mid-conversation, Nevada may also say "Your AWS connection expired. Pair again to see your schedule." Tap Connect in the header to pair again. |
+| Token expired | A toast: "Your AWS connection lapsed. Sign in again to keep going." If it happens mid-conversation, Nevada may also say the connection expired. Tap "Sign in" in the header to sign in again. |
 
 ## Accessibility
 

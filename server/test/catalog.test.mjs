@@ -187,7 +187,7 @@ test('sync walks paginated pages under the real AWS "items" key and seeds the ca
 
   const catalog = makeCatalog();
   const result = await catalog.sync('token');
-  assert.deepEqual(result, { count: 3, totalCount: 3 });
+  assert.deepEqual([result.count, result.totalCount, result.raw.length], [3, 3, 3]);
   assert.equal(catalog.size(), 3);
   assert.equal(catalog.get('BBB222').title, 'Kubernetes at scale');
 });

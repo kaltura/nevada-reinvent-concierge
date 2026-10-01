@@ -595,23 +595,13 @@ dialog.disclosure {
 dialog.disclosure[open] { display: grid; }
 dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 
-/* Connect gate: full-screen, shown until AWS pairing succeeds. */
+/* Sign-in gate: full-screen, shown until AWS sign-in succeeds. */
 
 .gate {
-  display: grid; place-items: center; gap: var(--s-4); text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-4); text-align: center;
   height: 100dvh; padding: var(--s-5); padding-top: calc(env(safe-area-inset-top) + var(--s-5));
 }
-.gate .btn { max-width: 320px; }
-
-/* Pairing */
-
-.pair-code { font: 800 48px/52px var(--mono); letter-spacing: .08em; }
-.pair-qr svg { width: 180px; height: 180px; justify-self: center; background: #fff; border-radius: var(--radius-s); }
-.pair-help summary { cursor: pointer; text-decoration: underline; }
-.pair-help kbd {
-  font: 600 12px var(--mono); background: var(--night-2); border-radius: var(--radius-s);
-  padding: 2px 5px;
-}
+.gate .btn { max-width: 320px; text-decoration: none; }
 
 /* Recap poster */
 
