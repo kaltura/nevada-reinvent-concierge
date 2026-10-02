@@ -12,11 +12,11 @@ Each spike answers one question that could change the architecture.
 
 | Spike | Question | Pass |
 |---|---|---|
-| Tool reach | Can the tool executor reach our proxy within 10 s? | **Failed**: on localhost, Kaltura's cloud can never reach an `api` tool's webhook URL. Fixed by making every tool `tools.client`. The model's call surfaces on the page, which reaches the proxy same-origin instead (ARCHITECTURE.md § Why a proxy). |
+| Tool reach | How does a tool call reach the local proxy? | **Done**: every tool is `tools.client`. The model's call surfaces on the page, which reaches the proxy same-origin ([ARCHITECTURE.md § Why a proxy](ARCHITECTURE.md#why-a-proxy)). |
 | Client tools | Do `show_sessions` and `highlight_conflict` fire once, with `waitForResponse: false`, and let the agent keep talking? | The page updates and speech continues in 10 of 10 test turns |
 | Sign-in | Does a local server complete PKCE on 8484 to 8489 and store the tokens? | **Changed**: built into the local app ([ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)), and the separate `nevada-pair` helper package is retired. The check with the local app still needs one real Builder ID sign-in. |
 | Live bulk codes | What do real `BulkFailure` codes look like once seating opens? | Record each code seen. Update the [draft speech](AWS-EVENTS-INTEGRATION.md#bulk-results). |
-| Search option A | Can the Kaltura knowledge base hold the whole catalog, keep up with hourly changes and rank well? | 20 test queries rank as well as option B, or A is dropped |
+| Search option A | Does the Kaltura knowledge base rank the catalog as well as our index? | 20 test queries rank as well as option B, or A is dropped |
 | Screen context | Does `{{ page_context }}` from `setDynamicPrompt` reach the prompt on the avatar socket? | "Book this one" with a card open picks the right session in 10 of 10 turns |
 | Typed and tapped turns | Does `sendText` in avatar mode interrupt Nevada, and wait during the opening line? | 10 of 10 turns answered, none lost |
 | `point_at` | Does the agent call `point_at` alongside speech without breaking the one-tool-per-turn cap? | The ring lands on the right card in 8 of 10 turns, or drop the tool |
