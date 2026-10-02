@@ -1,6 +1,6 @@
 {
   "name": "nevada-reinvent",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Nevada, a live avatar concierge for AWS re:Invent attendees",
   "keywords": [
     "aws",
@@ -44,6 +44,6 @@
     "prepack": "node scripts/write-public.mjs"
   },
   "devDependencies": {
-    "@kaltura/intelligent-agents": "https://github.com/kaltura/intelligent-agents-sdk/archive/c581d6b994e09aad0cd74df3550275466d5e7007.tar.gz"
+    "@kaltura/intelligent-agents": "https://github.com/kaltura/intelligent-agents-sdk/archive/80149abd18d322cf95b00d1494e5fc10d950722e.tar.gz"
   }
 }
