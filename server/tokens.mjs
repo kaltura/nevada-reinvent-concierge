@@ -1,70 +1,53 @@
 /**
- * AWS token store, keyed by visitor id, encrypted with AES-256-GCM using
- * TOKEN_ENC_KEY (32 bytes, base64). "At rest" means in this process's memory
- * only: the key lives in the same process. ARCHITECTURE.md § Pairing.
+ * The signed-in attendee's AWS tokens, kept in one file readable only by the
+ * current user (mode 0600). The app serves a single person on their own
+ * machine, so there is nothing to key by. ARCHITECTURE.md § Sign-in.
  */
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
+import { readFileSync, writeFileSync, renameSync, mkdirSync, chmodSync, rmSync, statSync } from 'node:fs';
+import { dirname } from 'node:path';
 
-const ALGO = 'aes-256-gcm';
+export function makeTokenStore(file) {
+  let record = null;
+  try {
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    if (typeof saved?.access_token === 'string' && typeof saved.refresh_token === 'string') record = saved;
+  } catch { /* first run, or an unreadable file: start signed out */ }
 
-export function makeTokenStore(encKeyBase64) {
-  const key = Buffer.from(encKeyBase64, 'base64');
-  if (key.length !== 32) throw new Error('TOKEN_ENC_KEY must decode to 32 bytes');
-  const store = new Map(); // visitor -> { iv, tag, data } (all base64)
-
-  function encrypt(obj) {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv(ALGO, key, iv);
-    const data = Buffer.concat([cipher.update(JSON.stringify(obj)), cipher.final()]);
-    return { iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: data.toString('base64') };
+  // mkdir's mode only applies to a folder it creates, so check one that already exists.
+  function ensurePrivateDir(dir) {
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (process.platform === 'win32') return;
+    const st = statSync(dir);
+    if (st.uid !== process.getuid()) throw Object.assign(new Error(`${dir} belongs to another user`), { code: 'unsafe_home' });
+    if (st.mode & 0o077) chmodSync(dir, 0o700);
   }
-  function decrypt(rec) {
-    const decipher = createDecipheriv(ALGO, key, Buffer.from(rec.iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(rec.tag, 'base64'));
-    const plain = Buffer.concat([decipher.update(Buffer.from(rec.data, 'base64')), decipher.final()]);
-    return JSON.parse(plain.toString());
+
+  function save(next) {
+    ensurePrivateDir(dirname(file));
+    // Write then rename, so a crash never leaves half a token file behind.
+    const tmp = `${file}.${process.pid}.tmp`;
+    try {
+      writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, file);
+    } catch (e) {
+      rmSync(tmp, { force: true });
+      throw e;
+    }
   }
 
   return {
-    /** @param {string} visitor @param {{access_token,refresh_token,expires_in,pairingId?,userId?}} tok */
-    set(visitor, tok) {
-      store.set(visitor, encrypt({
-        access_token: tok.access_token,
-        refresh_token: tok.refresh_token,
-        expiresAt: Date.now() + tok.expires_in * 1000,
-        // Shared by every visitor id that came from the same pairing (the
-        // original device plus any phone handoff copies), so Disconnect can
-        // find and remove all of them, not just the caller's own copy.
-        pairingId: tok.pairingId,
-        // The attendee's Kaltura userId, a pseudonym. server/index.mjs § kalturaUserId.
-        userId: tok.userId,
-        lastUsed: Date.now(),
-      }));
+    /** @returns {{access_token:string,refresh_token:string,expiresAt:number}|null} */
+    get() { return record; },
+    /** @param {{access_token:string,refresh_token:string,expires_in:number}} tok */
+    set(tok) {
+      const next = { access_token: tok.access_token, refresh_token: tok.refresh_token, expiresAt: Date.now() + tok.expires_in * 1000 };
+      save(next);
+      record = next; // only after the write worked, so a failed save never looks signed in
     },
-    get(visitor) {
-      const rec = store.get(visitor);
-      return rec ? decrypt(rec) : null;
-    },
-    /** Marks a record as still in use, so `sweep` doesn't drop it as idle. */
-    touch(visitor) {
-      const rec = store.get(visitor);
-      if (!rec) return;
-      store.set(visitor, encrypt({ ...decrypt(rec), lastUsed: Date.now() }));
-    },
-    has(visitor) { return store.has(visitor); },
-    delete(visitor) { store.delete(visitor); },
-    /** Deletes every record sharing `pairingId`: the original device plus
-     * any phone-handoff copies. Disconnect uses this so it drops a whole
-     * pairing, not just the caller's own copy of it. */
-    deleteGroup(pairingId) {
-      for (const [visitor, rec] of store) if (decrypt(rec).pairingId === pairingId) store.delete(visitor);
-    },
-    size() { return store.size; },
-    /** Drops any record untouched for longer than `maxIdleMs`, so an
-     * attendee who never disconnects doesn't hold a slot forever. */
-    sweep(maxIdleMs) {
-      const now = Date.now();
-      for (const [visitor, rec] of store) if (now - decrypt(rec).lastUsed > maxIdleMs) store.delete(visitor);
+    clear() {
+      record = null;
+      rmSync(file, { force: true });
     },
   };
 }

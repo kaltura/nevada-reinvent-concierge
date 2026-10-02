@@ -7,7 +7,7 @@ import {
   AwsError, withToken, getSchedule, getSession, reserveSessions, cancelReservation,
   associateFavorites, disassociateFavorite, createPersonalTime, updatePersonalTime, deletePersonalTime,
 } from './aws.mjs';
-import { dayToDate, localToUtcNaive, utcNaiveToLocal, utcNaiveSpanToLocal, speakTime, formatClock, minutesOf, dayIndex } from './dates.mjs';
+import { dayToDate, localToUtcNaive, utcNaiveToLocal, utcNaiveSpanToLocal, speakTime, formatClock, minutesOf, dayIndex, EVENTS_API_OPENS } from './dates.mjs';
 import { travelMinutes } from './catalog.mjs';
 
 function label(catalog, id) {
@@ -15,18 +15,31 @@ function label(catalog, id) {
   return s ? `${s.title} (session ${id})` : `session ${id}`;
 }
 
-function pairingMessage(outcome) {
+function signInMessage(outcome) {
   return outcome.expired
-    ? 'Your AWS connection expired. Pair again to see your schedule.'
-    : 'Connect your AWS Events account to do that.';
+    ? 'Your AWS sign-in expired. Sign in again to see your schedule.'
+    : 'Sign in with your AWS Events account to do that.';
+}
+
+/**
+ * One short sentence for an error from an AWS call: an AwsError, a network
+ * error, or a failed token write. Shown in the page banner after "Signed in,
+ * but" and spoken by the tools, so every AWS case starts with "AWS".
+ */
+export function awsProblem(e) {
+  // fs errors (EACCES, EROFS) and tokens.mjs's unsafe_home carry a code; AwsError and fetch's network TypeError don't.
+  if (!(e instanceof AwsError) && typeof e?.code === 'string') return "Nevada can't save your sign-in on this computer. See the terminal.";
+  if (Date.now() < Date.parse(`${localToUtcNaive(EVENTS_API_OPENS, '00:00')}Z`)) return 'AWS opens your schedule to Nevada on 8 October.';
+  if (!(e instanceof AwsError)) return "AWS can't be reached right now. Check your internet connection.";
+  if (e.status === 403 && e.body && typeof e.body === 'object') return 'AWS says you are not registered for re:Invent.';
+  if (e.status === 403) return 'AWS blocked that just now. Try again in a minute.';
+  if (e.status === 429 || e.status >= 500) return 'AWS is busy. Try again in a minute.';
+  return "AWS didn't answer as expected. Try again in a minute.";
 }
 
 function awsErrorMessage(e) {
   if (e.status === 409) return "That's not open right now. Try again later.";
-  if (e.status === 403 && e.body && typeof e.body === 'object') return "You're signed in, but not registered for the event.";
-  if (e.status === 403) return 'AWS blocked that just now. Try again in a moment.';
-  if (e.status === 429) return 'AWS asked me to slow down. Try again in a moment.';
-  return "That didn't work and I don't know why. Try again in a moment.";
+  return awsProblem(e);
 }
 
 const BULK_SPEECH = {
@@ -81,7 +94,7 @@ function conflictSpeech(catalog, f, reservedIds) {
 
 async function reconciled(ctx, checkFn) {
   const outcome = await ctx.withToken((token) => getSchedule(token));
-  return outcome.paired ? checkFn(outcome.result ?? {}) : null;
+  return outcome.signedIn ? checkFn(outcome.result ?? {}) : null;
 }
 
 function validatePersonalTime(title, description, start, end, checkDuration = true) {
@@ -153,6 +166,8 @@ export const TOOL_HANDLERS = {
   },
 
   async search_sessions(args, ctx) {
+    // Otherwise a failed sync sounds like "no match" and the model asks the attendee to rephrase.
+    if (!ctx.catalog.size()) return { answer: "I don't have the catalog loaded yet. Try again in a minute." };
     const results = ctx.catalog.search(args);
     if (!results.length) {
       return { answer: args.mode === 'wildcard' ? "I couldn't find a wildcard pick right now." : 'No sessions matched that. Try different words or drop a filter.' };
@@ -169,12 +184,12 @@ export const TOOL_HANDLERS = {
     // AWS-EVENTS-INTEGRATION.md: seat availability changes fast during event
     // week, syncing hourly. A single session missed by (or gone stale since)
     // the last full sync gets a live GetSession instead of staying wrong or
-    // permanently unreachable until the next sync. Only this visitor's own
-    // token can make the call, so an unpaired visitor keeps today's behavior.
+    // permanently unreachable until the next sync. Needs the attendee's token,
+    // so when signed out this keeps the cached copy.
     const stale = !s || !ctx.catalog.lastSync() || Date.now() - ctx.catalog.lastSync() > 60 * 60 * 1000;
     if (stale) {
       const outcome = await ctx.withToken((token) => getSession(token, sessionId)).catch(() => null);
-      if (outcome?.paired && outcome.result) {
+      if (outcome?.signedIn && outcome.result) {
         ctx.catalog.upsert(outcome.result);
         s = ctx.catalog.get(sessionId);
       }
@@ -194,7 +209,7 @@ export const TOOL_HANDLERS = {
   async get_my_schedule({ day }, ctx) {
     try {
       const outcome = await ctx.withToken((token) => getSchedule(token));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       const { reserved = [], favorites = [], personalTime = [] } = outcome.result ?? {};
       const wantDate = day ? dayToDate(day) : null;
       const items = [
@@ -219,7 +234,7 @@ export const TOOL_HANDLERS = {
     if (!known.length) return { answer: bulkSpeech(ctx.catalog, { failed: unknown }, 'Favorited') };
     try {
       const outcome = await ctx.withToken((token) => associateFavorites(token, known));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       const successful = outcome.result?.successful ?? [];
       const undated = successful.filter((id) => !ctx.catalog.get(id)?.sessionTime).map((id) => label(ctx.catalog, id));
       const note = undated.length ? ` ${undated.join(', ')} ${undated.length > 1 ? "don't" : "doesn't"} have a time yet, so I put ${undated.length > 1 ? 'them' : 'it'} under "not yet scheduled" instead of on a day.` : '';
@@ -240,7 +255,7 @@ export const TOOL_HANDLERS = {
       if (!(e instanceof AwsError)) throw e;
       return { answer: awsErrorMessage(e) };
     }
-    if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
+    if (!schedOutcome.signedIn) return { answer: signInMessage(schedOutcome) };
     // Without this check, a fabricated id 404s AWS, then reconciliation below
     // trivially finds it "gone", a false-positive "Removed" for a session
     // that was never favorited. Same bug and fix as delete_personal_time.
@@ -249,7 +264,7 @@ export const TOOL_HANDLERS = {
     }
     try {
       const outcome = await ctx.withToken((token) => disassociateFavorite(token, id));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       return { answer: `Removed ${label(ctx.catalog, id)} from favorites.` };
     } catch (e) {
       if (!(e instanceof AwsError)) throw e;
@@ -271,14 +286,15 @@ export const TOOL_HANDLERS = {
     if (!known.length) return { answer: `Nothing was reserved, because I don't recognize ${unknown.map((f) => label(ctx.catalog, f.sessionId)).join(', ')}. Tell the attendee nothing was reserved, then offer to search.` };
     try {
       const outcome = await ctx.withToken((token) => reserveSessions(token, known));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       const { successful = [], failed = [] } = outcome.result ?? {};
       const allFailed = [...failed, ...unknown];
       const parts = [];
       if (successful.length) parts.push(`Reserved ${successful.map((id) => label(ctx.catalog, id)).join(', ')}.`);
       if (allFailed.length) {
-        const schedOutcome = await ctx.withToken((token) => getSchedule(token));
-        const reservedIds = schedOutcome.paired ? (schedOutcome.result?.reserved ?? []) : [];
+        // Only for swap options: an AWS error here must not hide the seats already reserved.
+        const schedOutcome = await ctx.withToken((token) => getSchedule(token)).catch(() => null);
+        const reservedIds = schedOutcome?.signedIn ? (schedOutcome.result?.reserved ?? []) : [];
         for (const f of allFailed) {
           parts.push(f.code === 'scheduleConflict' ? conflictSpeech(ctx.catalog, f, reservedIds) : `${label(ctx.catalog, f.sessionId)} ${speakFailure(ctx.catalog, f)}.`);
         }
@@ -290,14 +306,14 @@ export const TOOL_HANDLERS = {
         // EXPERIENCE-UX.md § Lifecycle promises "I'll keep this on your list";
         // make that true instead of just saying it.
         const favOutcome = await ctx.withToken((token) => associateFavorites(token, known)).catch(() => null);
-        const kept = favOutcome?.paired ? (favOutcome.result?.successful ?? []) : [];
+        const kept = favOutcome?.signedIn ? (favOutcome.result?.successful ?? []) : [];
         if (!kept.length) return { answer: "Reserved seating isn't open yet." };
         // A favorite-fallback never goes through AWS's own reservation
         // conflict check (that only runs on a real ReserveSessions), so an
         // overlap with something already on the schedule would otherwise go
         // unmentioned. Check it here instead.
         const schedOutcome = await ctx.withToken((token) => getSchedule(token)).catch(() => null);
-        const priorIds = schedOutcome?.paired
+        const priorIds = schedOutcome?.signedIn
           ? [...(schedOutcome.result?.reserved ?? []), ...(schedOutcome.result?.favorites ?? [])].filter((id) => !kept.includes(id))
           : [];
         const clashes = kept
@@ -319,7 +335,7 @@ export const TOOL_HANDLERS = {
       if (!(e instanceof AwsError)) throw e;
       return { answer: awsErrorMessage(e) };
     }
-    if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
+    if (!schedOutcome.signedIn) return { answer: signInMessage(schedOutcome) };
     // Without this check, a fabricated id 404s AWS, then reconciliation below
     // trivially finds it "gone", a false-positive "Cancelled" for a session
     // that was never reserved. Same bug and fix as delete_personal_time.
@@ -328,7 +344,7 @@ export const TOOL_HANDLERS = {
     }
     try {
       const outcome = await ctx.withToken((token) => cancelReservation(token, id));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       return { answer: `Cancelled ${label(ctx.catalog, id)}.` };
     } catch (e) {
       if (!(e instanceof AwsError)) throw e;
@@ -342,8 +358,8 @@ export const TOOL_HANDLERS = {
 
   async swap_reservation({ dropId, addId }, ctx) {
     if (!dropId || !addId) return { answer: 'Tell me which session to drop and which to add.' };
-    const dropOutcome = await ctx.withToken((token) => cancelReservation(token, dropId)).catch((e) => { if (e instanceof AwsError) return { paired: true, error: e }; throw e; });
-    if (!dropOutcome.paired) return { answer: pairingMessage(dropOutcome) };
+    const dropOutcome = await ctx.withToken((token) => cancelReservation(token, dropId)).catch((e) => { if (e instanceof AwsError) return { signedIn: true, error: e }; throw e; });
+    if (!dropOutcome.signedIn) return { answer: signInMessage(dropOutcome) };
     if (dropOutcome.error) return { answer: `Couldn't drop ${label(ctx.catalog, dropId)}. ${awsErrorMessage(dropOutcome.error)}` };
     try {
       const addOutcome = await ctx.withToken((token) => reserveSessions(token, [addId]));
@@ -375,12 +391,12 @@ export const TOOL_HANDLERS = {
     const endDateTime = localToUtcNaive(date, end);
     try {
       const outcome = await ctx.withToken((token) => createPersonalTime(token, { title, description, startDateTime, endDateTime }));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       // CreatePersonalTime returns no ID (AWS-EVENTS-INTEGRATION.md § Personal
       // time), so read it back so later update/delete calls have a real id
       // instead of the model guessing one.
       const schedOutcome = await ctx.withToken((token) => getSchedule(token)).catch(() => null);
-      const created = schedOutcome?.paired
+      const created = schedOutcome?.signedIn
         ? (schedOutcome.result?.personalTime || []).find((p) => p.startDateTime === startDateTime && p.endDateTime === endDateTime && p.title === title)
         : null;
       const idPart = created ? ` (personal time ${created.personalTimeId})` : '';
@@ -400,7 +416,7 @@ export const TOOL_HANDLERS = {
       if (!(e instanceof AwsError)) throw e;
       return { answer: awsErrorMessage(e) };
     }
-    if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
+    if (!schedOutcome.signedIn) return { answer: signInMessage(schedOutcome) };
     const existing = (schedOutcome.result?.personalTime || []).find((p) => p.personalTimeId === id);
     if (!existing) return { answer: "I can't find that personal time block. Ask for your schedule to see current ones." };
     const existingStart = utcNaiveToLocal(existing.startDateTime);
@@ -421,7 +437,7 @@ export const TOOL_HANDLERS = {
         title: finalTitle, description: finalDescription,
         startDateTime: localToUtcNaive(date, startTime), endDateTime: localToUtcNaive(date, endTime),
       }));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       return { answer: `Updated ${finalTitle}, now ${speakTime(date, startTime)} to ${formatClock(endTime)}.` };
     } catch (e) {
       if (!(e instanceof AwsError)) throw e;
@@ -438,7 +454,7 @@ export const TOOL_HANDLERS = {
       if (!(e instanceof AwsError)) throw e;
       return { answer: awsErrorMessage(e) };
     }
-    if (!schedOutcome.paired) return { answer: pairingMessage(schedOutcome) };
+    if (!schedOutcome.signedIn) return { answer: signInMessage(schedOutcome) };
     // Without this check, a fabricated id (the model guessing instead of using
     // a real one) 404s AWS, then reconciliation below trivially finds it
     // "gone", a false-positive "Removed that block" for a block that never existed.
@@ -446,7 +462,7 @@ export const TOOL_HANDLERS = {
     if (!existing) return { answer: "I can't find that personal time block. Ask for your schedule to see current ones." };
     try {
       const outcome = await ctx.withToken((token) => deletePersonalTime(token, id));
-      if (!outcome.paired) return { answer: pairingMessage(outcome) };
+      if (!outcome.signedIn) return { answer: signInMessage(outcome) };
       return { answer: 'Removed that block.' };
     } catch (e) {
       if (!(e instanceof AwsError)) throw e;
@@ -459,7 +475,7 @@ export const TOOL_HANDLERS = {
   },
 };
 
-/** Build a per-call ctx with withToken already bound to this visitor. */
-export function makeToolCtx(catalog, tokenStore, visitor) {
-  return { catalog, withToken: (fn) => withToken(tokenStore, visitor, fn) };
+/** Build a per-call ctx with withToken already bound to the token store. */
+export function makeToolCtx(catalog, tokenStore) {
+  return { catalog, withToken: (fn) => withToken(tokenStore, fn) };
 }

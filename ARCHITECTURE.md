@@ -2,39 +2,40 @@
 
 # Architecture
 
-One shared Kaltura agent, plus our own backend. The backend holds every attendee's AWS tokens and does all AWS work. The agent only talks, calls our tools and drives the page.
+One Kaltura agent, plus a small local server. The attendee runs the server on their own machine with `npx nevada-reinvent`. It holds their AWS tokens and does all AWS work. The agent only talks, calls our tools and drives the page.
 
 ## Components
 
 ```
-Phone or laptop browser            Our backend (Node)                 AWS Events API
-───────────────────────            ──────────────────                 ──────────────
-Nevada web app ──HTTPS──────────▶ Web API: session, pairing,
- (schedule canvas,                  catalog reads for the page,
-  live avatar, composer)            proxy: tool endpoints ───────────▶ GetSchedule, Reserve…
-       │    ▲                       Token store (encrypted) ─refresh─▶ oauth.awsevents.com
-       │    │ client tools          Sync job + search index ─────────▶ ListSessions (first attendee's token)
-       ▼    │ (same-origin fetch
-Kaltura agent (avatar or chat)       to the proxy, or page-only)
+Attendee's machine (127.0.0.1, first free port of 8484 to 8489)       Outside
+───────────────────────────────────────────────────────────────       ───────
+Browser tab ──HTTP──▶ Local server (Node)
+ Nevada web app        Web API: sign-in, agent init, page data
+ (schedule canvas,     Proxy: tool endpoints ────────────────────▶ AWS Events API
+  live avatar,         Token store ~/.nevada/tokens.json ─refresh─▶ oauth.awsevents.com
+  composer)            Catalog cache ~/.nevada/catalog.json ──────▶ ListSessions (the attendee's token)
+   │    ▲              /api/agent/init ─public widget id─────────▶ Kaltura (session, appInit)
+   │    │ client tools
+   ▼    │ (same-origin fetch to the proxy, or page-only)
+Kaltura agent (avatar or chat) ◀── session KS, browser connects directly
 
-Pairing (once per attendee, on whatever device is at hand):
-Pairing helper ──PKCE on 127.0.0.1:848x──▶ AWS ──code──▶ helper ──tokens + pairing code──▶ backend
-
-Phone handoff (optional, after pairing):
-Paired device ──scan/tap QR or link──▶ phone loads /?handoff=TOKEN, confirms──▶ backend copies tokens to a new visitor cookie
+Sign-in (once, then silent refresh):
+Browser ─▶ /auth/start ─▶ AWS Builder ID (PKCE) ─▶ 127.0.0.1:848x/callback ─▶ server stores tokens
 ```
 
 | Part | Job | Lives in |
 |---|---|---|
-| Web app | Mobile-first UI, SDK sessions, renders from our Web API | `client/` |
-| Web API | Visitor sessions, pairing codes, agent sessions (`/api/agent/init`), page data (`/api/schedule`, `/api/sessions`) | `server/` |
-| Proxy | One endpoint per agent tool. Resolves the attendee, calls AWS, shapes a short answer. | `server/` |
-| Token store | Refresh and access tokens per attendee, encrypted at rest | `server/` |
-| Sync job and index | Catalog snapshot, search, repeats, venue mapping | `server/` |
-| Pairing helper | Single-purpose CLI. Runs PKCE and hands tokens to the backend. | `pair/` |
-| Provisioning | Creates the agent, tools and prompts once | `scripts/provision.mjs` |
+| Launcher | `npx nevada-reinvent`: checks the Node version (20.6 or later), picks the port, starts the server, opens the browser (not with `--no-open`). If Nevada already runs, it opens that one. | `server/index.mjs` |
+| Web app | Desktop UI, SDK sessions, renders from our Web API | `client/` |
+| Web API | Sign-in (`/auth/start`, `/callback`), sign-out, agent sessions (`/api/agent/init`), page data (`/api/schedule`, `/api/sessions`), a health check (`/api/health`) | `server/app.mjs` |
+| Proxy | One endpoint per agent tool. Calls AWS, shapes a short answer. | `server/` |
+| Token store | The attendee's tokens in one private file | `server/tokens.mjs` |
+| Catalog | Snapshot, search, repeats, venue mapping. Cached on disk. | `server/catalog.mjs` |
+| Kaltura session | Widget session plus `appInit`, no secret | `server/kaltura.mjs` |
+| Provisioning | Creates the agent, tools and prompts once. Maintainers only. | `scripts/provision.mjs` |
 | Prompt updates | Pushes edited `prompts/*.md` (except `base-directive.md`) to the already-live intellect | `scripts/update-prompts.mjs` |
 | Catalog tags | Rebuilds `prompts/catalog-tags.md`, the tag list the agent picks search words from (see [Search](#search)) | `scripts/catalog-tags.mjs` |
+| Public config | On `npm pack`, writes the public widget ID into `server/public.json` | `scripts/write-public.mjs` |
 
 ## Why a proxy
 
@@ -46,76 +47,88 @@ An SDK `api` tool is one HTTP request. It has a timeout of 1 to 120 s (default 1
 
 Other reasons:
 
-- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no hosted callback can finish the sign-in.
+- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no remote callback can finish the sign-in.
 - One agent serves everyone. No per-attendee provisioning, and no live AWS tokens in Kaltura's secret store.
 - `secrets.set` is a read-merge-write with unknown propagation delay, so a token-push design would race.
-- A server-side tool can't reach our proxy without a public URL (the Phase 0 spike confirmed this). So every tool is `tools.client`: the model's call surfaces on the page itself, and the page reaches the proxy same-origin, which always works, on localhost or in production.
-- The proxy is plain code we can unit test and deploy.
+- A server-side tool can't reach a proxy on `127.0.0.1` (the Phase 0 spike confirmed this). So every tool is `tools.client`: the model's call surfaces on the page itself, and the page reaches the proxy same-origin.
+- The proxy is plain code we can unit test.
 
 ## Identity
 
-Each attendee's agent session carries their own Kaltura `userId`, so `sys__user_id` resolves and Kaltura sees the same attendee on every visit:
+The attendee's machine holds no Kaltura secret. The package ships a public Kaltura widget ID, like any web widget:
 
-1. At pairing, `/api/pair/complete` calls AWS `oauth2/userInfo` with the attendee's access token and reads their `sub`. It never trusts an id the helper sends. If AWS rejects the token, pairing fails with 401.
-2. The backend stores `aws-` plus a keyed HMAC-SHA256 of that `sub` (key derived from `TOKEN_ENC_KEY`) with the tokens. Kaltura never sees the AWS id itself. Rotating `TOKEN_ENC_KEY` gives every attendee a new `userId`, so Kaltura-side history starts over.
-3. `POST /api/agent/init` (paired visitors only) mints a conversation KS with that `userId` plus `agentid:<agentId>`, runs `application.appInit` on it, and returns only the session KS and the avatar URLs. The admin secret stays on the server.
+1. The ID comes from `NEVADA_WIDGET_ID`, else `server/public.json` (written by `prepack`), else `server/agent.json` (a source checkout). With none of them the launcher exits.
+2. `POST /api/agent/init` (signed-in attendees only) mints a widget session from that ID, then calls `appInit` with it. It returns only the session KS and the avatar URLs. If Kaltura answers 401, it mints a new widget session once and retries.
+3. The session has no per-attendee Kaltura user. Kaltura never sees the AWS id or email. "Welcome back" and the opening's top topic come from the page and the AWS schedule.
 
-Every proxy call is same-origin: the page's own `fetch('/tools/${name}')` carries the same HttpOnly visitor cookie every other Web API route already trusts (`/api/schedule`, `/api/pair/*`). There is no separate identity chain for tools, because Kaltura's cloud never calls our backend directly. There's no third party to authenticate.
+Every proxy call is same-origin: the page's own `fetch('/tools/${name}')`. Kaltura's cloud never calls our server, so tools need no separate identity chain.
 
 Rules:
 
 - Never forward `sys__ks`. Never put an AWS token in a request variable, prompt or tool config.
-- An unpaired visitor's cookie still resolves. Tools that need AWS then answer "pair to connect your schedule". Search still works once the catalog has loaded (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
+- Signed out, tools that need AWS answer "Sign in with your AWS Events account to do that." Search still works from the cached catalog (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
 
-## Pairing
+The widget ID and partner ID are public by design, and Kaltura applies its own usage controls. See [SECURITY.md](SECURITY.md#public-widget-id).
 
-The app shows nothing but a connect gate until AWS pairing succeeds: no avatar, no QR, since there's nothing to hand off to yet. Pairing needs a terminal, so it runs on whatever device the attendee is already on:
+## Sign-in
 
-1. The gate shows a 6-character code, valid 10 minutes, and a command to copy: `npx -y nevada-pair@latest CODE URL`. The code and URL are arguments, not environment variables, so the same command works in any shell, Windows included. When a code expires, the gate swaps in a new one by itself.
-2. The attendee runs it on that device. The helper ([pair/](pair/README.md), published to npm) accepts the code with spaces or in lowercase, the URL with or without `https://`, in either order. Before sign-in, it calls `GET /api/pair/check/CODE`, so a dead code, a wrong URL or no network fails at once with a clear message. `npm run pair` does the same from the repo, against the local server.
-3. The helper binds the first free port from 8484 to 8489 and opens the AWS sign-in page with PKCE.
-4. It swaps the code for tokens and posts them with the pairing code to our backend over HTTPS. The backend checks the access token with AWS and derives the attendee's `userId` (see [§ Identity](#identity)), then replies with two single-use handoff URLs, and the helper's success page shows a button for one ("Open Nevada", for continuing on this device) and a QR code for the other (for a phone). Either lands that device already paired even if it never shared a cookie with whoever started pairing (`npm run pair` starts pairing from a script, not a browser, so this is the case that matters most), and using one doesn't invalidate the other.
-5. Meanwhile the gate polls the pairing status. The first poll to see "paired" rotates the visitor cookie to a freshly minted id and moves the tokens onto it, so a cookie planted on that device before pairing started (session fixation) never ends up holding real tokens. The gate then starts the avatar experience for whichever device actually holds that cookie.
+The app shows nothing but a sign-in gate until AWS sign-in succeeds: no avatar, since there's no schedule to work on. The server runs on the attendee's machine, so the browser can finish the sign-in on loopback:
 
-The helper retries network errors, 429 and 5xx up to four times, because conference Wi-Fi drops requests. It never retries a token exchange that got an answer, since AWS sign-in codes are single-use. If `/api/pair/complete` answers 409 after a try that got no answer, that try got through, so the helper reports success.
+1. The launcher binds the first free port from 8484 to 8489 (AWS accepts only those redirect ports) and opens the browser. It tries the next port when one is busy or blocked (`EADDRINUSE`, `EACCES`). If `GET /api/health` on one of those ports already answers `{ok: true, app: 'nevada-reinvent'}`, Nevada is running, so the launcher opens that one and exits. If the browser doesn't open, it prints "Open the link above in your browser."
+2. The gate's "Sign in with AWS" is a plain link to `/auth/start`. The server makes a PKCE S256 verifier and a random single-use `state` (in memory, 10-minute TTL) and redirects to AWS Builder ID.
+3. AWS redirects to `http://127.0.0.1:<port>/callback`. The server accepts only a `state` it minted, once, so a forged callback can't sign the attendee in to someone else's account. The callback always ends in a redirect to `/`, with one `signin` value on failure:
 
-The helper talks only to AWS and our backend. It stores nothing on disk, prints nothing secret, and exits. We publish its source.
+   | Value | Cause |
+   |---|---|
+   | `failed` | AWS returned an error other than `access_denied`, sent no code, or the code exchange failed |
+   | `cancelled` | The attendee cancelled at AWS (`access_denied`) |
+   | `expired` | The `state` is unknown or older than 10 minutes |
+   | `storage` | The tokens couldn't be saved, for example `unsafe_home`, `EACCES`, `EPERM` or `EROFS`. The terminal says why. |
 
-### Phone handoff
-
-Pairing happens on whatever device is at hand, often a laptop, since that's what can run a terminal. The live avatar conversation is nicer on a phone, so the success screen offers a handoff to one, and the header's "Connected" pill reopens the same dialog any time after, not just right after pairing:
-
-1. `POST /api/pair/handoff` mints a single-use token (2-minute TTL) tied to the paired visitor, and returns a URL carrying it. `/api/pair/complete` mints two independent tokens up front the same way, for the helper's "Open Nevada" button and its QR.
-2. The dialog renders that URL as a QR code and a tap-to-copy link. "Continue here" closes it and starts (or, from the header pill, just resumes) the avatar experience on the current device.
-3. Loading `/?handoff=TOKEN` (typically a phone scanning the QR) shows a confirm page; only a same-origin POST from that page consumes the token. This blocks a bare GET, such as a link preview fetch or a shared screenshot's URL, from silently burning a single-use token before the real attendee taps it. Consuming copies the paired visitor's AWS tokens onto a fresh visitor cookie for that device and redirects to `/`. A token that's already used, expired, or invalid redirects to `/?handoff_failed=1` instead, so the gate can say the link is dead rather than just looking unpaired.
-
-The token store's encryption key is global, not derived per-visitor, so copying a token record to a new visitor id needs no token-store changes, just a new map entry and a cookie. Every visitor id from the same pairing (the original device plus any handoff copies) shares one `pairingId`, so Disconnect can find and remove all of them at once.
+   Each value shows its own toast on the gate (see [EXPERIENCE-UX.md § Sign-in problems](EXPERIENCE-UX.md#sign-in-problems)). `/auth/start` refuses cross-site requests and keeps at most 20 pending sign-ins.
+4. The server swaps the code for tokens, saves them, starts a catalog sync and redirects to `/`.
+5. The page asks `/api/schedule`. On `signedIn: true` it starts the avatar experience. The header pill ("Signed in") then opens an account dialog with "Sign out of AWS Events".
 
 Token rules:
 
-- Encrypt tokens at rest with a key held in an environment secret.
-- Refresh on demand, using `expires_in` to decide when a token is stale.
-- On "Disconnect": revoke the refresh token at AWS, then delete every copy sharing that pairing's `pairingId`. Revoking doesn't kill an access token already issued, so delete that too. It dies within 60 minutes.
-- `/api/pair/complete` also sweeps any record idle for more than 7 days before checking the token-store capacity cap, so an attendee who never disconnects doesn't hold a slot forever. This is a check tied to new pairings, not a standalone scheduled job.
-- Disconnect doesn't end the attendee's Builder ID browser session on their laptop. Point them to `https://profile.aws.amazon.com` if they want that.
+- Tokens live in `tokens.json` under `~/.nevada`. `NEVADA_HOME` overrides the folder and must be an absolute path, or the launcher exits. The folder is `0700` (an existing folder is tightened, and one owned by another user is refused), the file `0600`, written to a temp file and renamed. Sign-out clears the file before it revokes at AWS, so a refresh in flight can't write it back.
+- On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens. The next `/api/schedule` answers `{signedIn: false, expired: true}`. The page ends the avatar session and mic first, resets the header pill to "Sign in", then shows the gate and the "sign-in expired" toast. This includes a lapse mid-session.
+- Sign-out revokes the refresh token at AWS, then deletes the file. An access token already issued dies within 60 minutes.
+- Sign-out doesn't end the attendee's Builder ID browser session. Point them to `https://profile.aws.amazon.com` if they want that.
+
+`POST /api/schedule` never answers with a 500 for an AWS problem. The page reads the shape:
+
+| Answer | Meaning | Page does |
+|---|---|---|
+| `{signedIn: false}` | No tokens | Shows the gate |
+| `{signedIn: false, expired: true}` | The refresh failed or expired | Ends the avatar session and mic, resets the pill to "Sign in", shows the gate and the "sign-in expired" toast |
+| `{signedIn: true, ...schedule}` | Signed in | Starts the experience |
+| `{signedIn: true, error}` | Signed in, but AWS or the network failed (`403`, `404`, `429`, `5xx`, offline). `error` is a short message for the attendee. | Starts the experience anyway, so Nevada can answer catalog questions, and shows a lasting "Signed in, but ..." banner with `error` |
+
+Before 8 October 2026 the `error` says the AWS schedule opens on 8 October. After that it says what went wrong plainly, for example "AWS says you are not registered", "AWS is busy, try again in a minute" or "Couldn't reach AWS".
+
+`GET /api/health` answers `{ok: true, app: 'nevada-reinvent'}` with no auth. The launcher uses it to find a running Nevada.
+
+`POST /api/agent/init` answers `401` when signed out and `502` when Kaltura fails. On a failure the page shows a toast and a "Nevada is offline. Reload to try again." banner. The schedule stays usable without the avatar.
 
 ## Security model
 
 What's protected:
 
-- The visitor cookie (`__Host-mq_v`) is `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` and carries no `Domain` attribute (the `__Host-` prefix, enforced by the browser). No script on the page, ours or a browser extension, can read it, no other site can ride along with it, and no subdomain can plant one that overrides it.
-- Every state-changing request checks `Sec-Fetch-Site` (falling back to `Origin` only when a browser sends neither) so a cross-site page can't ride the cookie into a real request, and every request checks the `Host` header against `PUBLIC_ORIGIN` (or the bound socket's own host and port) so DNS rebinding can't retarget it either.
-- AWS tokens live only in our backend's process, encrypted with a key from an environment secret. They never reach the browser or Kaltura's cloud.
-- The Kaltura admin secret lives only in the backend. The browser gets a session KS for one agent and one `userId`, and only after pairing.
-- Kaltura gets a pseudonymous `userId`, never the attendee's AWS id or email (see [§ Identity](#identity)).
-- Disconnecting revokes the refresh token at AWS and deletes every copy sharing that pairing's `pairingId` (see [§ Phone handoff](#phone-handoff)).
-- The Web API and pairing endpoints are rate-limited per client IP and route (`rateLimited()` in `server/index.mjs`).
+- The server binds to `127.0.0.1` only.
+- Every request checks the `Host` header against `localhost`, `127.0.0.1` or `[::1]` on the real port, else `421`. A DNS-rebinding page can't retarget the app.
+- Every non-GET request, and `GET /auth/start`, checks `Sec-Fetch-Site` (falling back to `Origin` only when a browser sends neither), so a cross-site page can't trigger a tool call, a sign-out or a sign-in.
+- The app sets no cookies. Access control is the loopback bind plus the two checks above.
+- AWS tokens stay on disk in the private file and in the server's memory. They never reach the browser or Kaltura.
+- Logs never contain tokens, codes or upstream response bodies.
+- Responses carry `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and `Permissions-Policy: microphone=(self), camera=()`.
 
-Out of scope for Phase 1:
+Out of scope:
 
-- The encryption key lives in the same process as the data it protects. "At rest" here means in that process's memory, not on disk, so this guards against, for example, a stray log line or a memory dump landing somewhere it shouldn't. It doesn't guard against a fully compromised server.
-- All state (tokens, pairings, the catalog) lives in memory. A restart clears everything; nothing survives on disk.
-- Each pairing trusts whichever browser holds its cookie. Two browsers on the same laptop are two different attendees, by design.
+- Anyone who can read the attendee's home folder or run code as them can use the tokens. The app assumes a single-user machine.
+- Capacity. Each person runs their own server, so there is no shared load to manage.
+
+Windows: the `0700` and `0600` modes and the owner check don't apply. `~/.nevada` relies on the ACL of the user profile, which is private to the account by default. If you set `NEVADA_HOME`, keep it inside your profile.
 
 ## Agent configuration
 
@@ -191,7 +204,7 @@ Option B stays the default because ranking and filters stay in our code. A can r
 Search ranks by how many query words a session matches, so the agent needs the catalog's own words. The `catalogTags` prompt carries every tag in the catalog, shortened, as one line (`prompts/catalog-tags.md`, about 1,100 tokens).
 
 - `npm run catalog-tags` rebuilds it (`scripts/catalog-tags.mjs`). It fails if the line goes over its budget.
-- Tags change rarely, so the file is built once and not per session. After the catalog sync, the server logs a warning if the catalog's tags no longer match the file. Then rerun `npm run catalog-tags` and `npm run update-prompts`.
+- Tags change rarely, so the file is built once and not per session. If the catalog gains new tags, rerun `npm run catalog-tags` (you must be signed in through `npm start`), then `npm run update-prompts`.
 - Shortening (`catalogTags()` in `server/catalog.mjs`): drop "Amazon" and "AWS", keep an abbreviation over the full name, group variants under their parent ("EC2 (Graviton, Spot)") and drop tags on a third of the catalog or more.
 
 Derived data in the index:
@@ -202,19 +215,18 @@ Derived data in the index:
 
 ## Evals
 
-`npm run eval` drives the same shared intellect real attendees use (`server/agent.json`'s `configId`), over a real `KalturaChatSession`, with no browser and no mock. Rules first, then an LLM judge for what rules can't check.
+`npm run eval` drives the same shared intellect real attendees use, over a real `KalturaChatSession`, with no browser and no mock. Rules first, then an LLM judge for what rules can't check.
 
 | Part | Job | Lives in |
 |---|---|---|
-| `session.mjs` | Gets a paired cookie by reusing `/api/pair/start` and `/api/pair/status`, caching it. Pairing needs a real AWS Builder ID sign-in, so this prints the pairing command and waits for a human to run it; an eval never signs in itself. Also mints a fresh unpaired cookie for the connect-gate case. | `server/evals/` |
 | `expectations.mjs` | Rule-check primitives: did the right tool fire, with what args, does the reply contain or exclude given text. | `server/evals/` |
 | `judge.mjs` | Shells out to the `claude` CLI (`-p --model haiku --output-format json --tools '' --bare`, no permissions) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. `--bare` skips OAuth logins, so the CLI needs `ANTHROPIC_API_KEY` or Bedrock credentials. No new npm dependency. | `server/evals/` |
 | `cases.mjs` | About 55 cases: one per tool, `rules.md` compliance, restricted topics, multi-turn flows, edge cases. | `server/evals/` |
-| `runner.mjs` | Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
+| `runner.mjs` | Starts the app in-process twice: once with the tokens in `NEVADA_HOME` (required, so evals never use your real `~/.nevada`), once signed out with an empty temp home. Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
 
-Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS test account is paired. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
+Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS account the tokens in `NEVADA_HOME` belong to. To sign in, run `NEVADA_HOME=<folder> npm start` once with the test account, then run the evals with the same `NEVADA_HOME`. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
 
-Evals run only locally, with Claude Code as the judge, never in CI: pairing needs a human sign-in, and the catalog loads only after pairing. CI still runs `server/test/evals.test.mjs`, which checks every case definition and rule check without any live call. `session.mjs` caches the paired cookie at `server/evals/.cache/paired-cookie.json` (gitignored, owner-only permissions) so a human only has to pair once per machine.
+Evals run only locally, with Claude Code as the judge, never in CI: sign-in needs a human, and the catalog loads only after sign-in. CI still runs `server/test/evals.test.mjs`, which checks every case definition and rule check without any live call.
 
 ## Runtime
 

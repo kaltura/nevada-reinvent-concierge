@@ -13,6 +13,10 @@ export const EVENT_DAYS = {
   friday: '2026-12-04',
 };
 
+// Las Vegas date AWS opens the schedule and reserve calls to apps. Before it,
+// any AWS error on those calls most likely just means "not open yet".
+export const EVENTS_API_OPENS = '2026-10-08';
+
 export function dayToDate(day) {
   if (!day) return null;
   const key = String(day).toLowerCase();

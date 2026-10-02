@@ -7,3 +7,4 @@ server/evals/.cache/
 /*.png
 .DS_Store
 npm-debug.log*
+server/public.json

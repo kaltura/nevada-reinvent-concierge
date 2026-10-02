@@ -3,7 +3,7 @@
  *
  * Built so far: a per-attendee agent session from the server, one
  * KalturaAgentSession in avatar mode with Nevada live the whole visit and
- * keyed out of her green backdrop, disclosure, talk, type or tap turns, captions, quiet mode, screen context, pairing,
+ * keyed out of her green backdrop, disclosure, talk, type or tap turns, captions, quiet mode, screen context, sign-in,
  * the quiet reconnect with `returning` after the background grace, and the
  * client tools that render cards, the schedule timeline, the conflict sheet
  * and the recap poster from our Web API.
@@ -26,6 +26,11 @@ function toast(text) {
   el.textContent = text;
   $('toasts').replaceChildren(el);
   setTimeout(() => el.remove(), 2500);
+}
+// Stays until the next schedule load clears it, unlike a toast.
+function banner(text) {
+  $('banner').textContent = text ?? '';
+  $('banner').hidden = !text;
 }
 
 // A little spark of colour for a booking, favourite or swap. Pure CSS
@@ -118,10 +123,8 @@ function timelineBlockEl(b, opts = {}) {
     }, ...content);
     return b.kind === 'favorite' ? withRemove(block, 'unfavorite_session', b.sessionId, 'Remove from favorites') : block;
   }
-  // Every call site (renderTimeline, renderWeek) always passes compact: true,
-  // so a non-compact block is never actually rendered by the live app. The
-  // full title/venue/meta layout this used to produce lives on only as
-  // client/prototype.html's static markup, which doesn't call this function.
+  // Every call site (renderTimeline, renderWeek, renderUnscheduled) passes
+  // compact: true, so there is no non-compact layout to render.
 }
 
 // A recommended session (sessionCard shape) rendered as a block alongside
@@ -207,10 +210,10 @@ function renderUnscheduled(list = []) {
   $('unscheduled-list').replaceChildren(...list.map((s) => timelineBlockEl({ ...s, kind: 'favorite' }, { compact: true })));
 }
 
-// Set once startExperience() runs, which only happens after pairing. The
-// gate screen (below) is everything an unpaired attendee sees.
+// Set once startExperience() runs, which only happens after sign-in. The
+// gate screen (below) is everything a signed-out attendee sees.
 let session;
-let paired = false;
+let signedIn = false;
 let lastDay;
 let lastSchedule = null;
 // What the attendee sees, as IDs only. setDynamicPrompt replaces the whole
@@ -220,7 +223,7 @@ let lastSchedule = null;
 const screen = { view: 'home', day: null, visible: [], focused: null };
 function syncScreen(patch) {
   Object.assign(screen, patch);
-  session.setDynamicPrompt(screen);
+  session?.setDynamicPrompt(screen); // unset if /api/agent/init failed
 }
 // Sessions from the last show_sessions call, by day. Rendered as the same
 // dashed "suggested" blocks as the server's topic-based picks, right in
@@ -252,14 +255,32 @@ function renderCurrentView() {
 async function loadSchedule(day) {
   const data = await show('/api/schedule', { day });
   if (!data) return null;
-  paired = Boolean(data.paired);
-  if (!data.paired) {
-    if (data.expired) toast('Your AWS connection lapsed. Reconnect to keep going.');
-    return data; // the gate handles the unpaired state
+  signedIn = Boolean(data.signedIn);
+  if (!data.signedIn) {
+    // The sign-in lapsed mid-session. Stop Nevada and her mic so they don't
+    // run on behind the gate. Signing in again reloads the page.
+    try { session?.disconnect(); } catch { /* */ }
+    document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+    lastSchedule = null;
+    banner(null);
+    $('connect').textContent = 'Sign in';
+    $('app').hidden = true;
+    $('gate').hidden = false;
+    if (data.expired) toast('Your AWS sign-in expired. Sign in again to keep going.');
+    return null;
   }
+  $('connect').textContent = 'Signed in';
+  if (data.error) {
+    // server/tools.mjs awsProblem() starts each line with AWS or Nevada, so
+    // it reads on as "Signed in, but AWS is busy. Try again in a minute."
+    banner(`Signed in, but ${data.error}`);
+    if (!lastSchedule) $('timeline').replaceChildren(h('span', {}), h('p', { class: 't-caption' }, 'Your schedule shows here once AWS sends it.'));
+    return null;
+  }
+  // Without a session the "offline" banner from startExperience() must stay.
+  if (session) banner(null);
   // Keeps request vars accurate if a token ever lapses mid-session.
   try { if (session.state === 'connected') session.updateRequestVars({ paired: '1' }); } catch { /* */ }
-  $('connect').textContent = 'Connected';
   lastDay = data.day ?? day;
   lastSchedule = data;
   renderChips(data);
@@ -267,7 +288,7 @@ async function loadSchedule(day) {
   renderCurrentView();
   return data;
 }
-DESKTOP_MQ.addEventListener('change', () => { if (paired) renderCurrentView(); });
+DESKTOP_MQ.addEventListener('change', () => { if (signedIn) renderCurrentView(); });
 
 document.querySelector('.day-strip').addEventListener('click', ({ target }) => {
   const btn = target.closest('.day');
@@ -348,8 +369,12 @@ function renderRecap(recap) {
   $('recap-share').addEventListener('click', async () => {
     const text = `My re:Invent week: ${recap.totalSessions} sessions across ${recap.venues.length} venues.${busiestDay ? ` Busiest day: ${busiestDay}.` : ''}`;
     if (navigator.share) { await navigator.share({ text }).catch(() => {}); return; }
-    await navigator.clipboard.writeText(text).catch(() => {});
-    toast('Copied to clipboard');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard');
+    } catch {
+      toast("Couldn't copy that. Try again.");
+    }
   });
 }
 
@@ -360,9 +385,9 @@ function countdown() {
   $('countdown').textContent = days > 0 ? `${days} day${days > 1 ? 's' : ''}` : day <= 5 ? `Day ${day} of 5` : '';
 }
 
-// Everything below only runs once AWS pairing has succeeded: the gate at the
-// bottom of this file is the entire unpaired experience, so `paired` is
-// always true by the time this is called. ARCHITECTURE.md § Pairing.
+// Everything below only runs once AWS sign-in has succeeded: the gate is the
+// entire signed-out experience, so `signedIn` is always true by the time this
+// is called. ARCHITECTURE.md § Sign-in.
 async function startExperience() {
 $('gate').hidden = true;
 $('app').hidden = false;
@@ -373,14 +398,23 @@ countdown();
 // construction, and request vars set only after connect() arrive too late
 // for the very first opening. scripts/provision.mjs § OPENING_PHRASE.
 const scheduleData = await loadSchedule();
+if (!signedIn) return; // lapsed since the first check, so the gate is showing
 
-// The server mints this session with the attendee's own userId. ARCHITECTURE.md § Identity.
-const init = await api('/api/agent/init', {});
+// The server trades its public widget id for this session. ARCHITECTURE.md § Identity.
+let init;
+try {
+  init = await api('/api/agent/init', {});
+} catch {
+  toast("Couldn't reach Nevada. Reload to try again.");
+  banner('Nevada is offline. Reload to try again.');
+  return;
+}
 
 session = new KalturaAgentSession({
   token: init.ks,
   mode: 'avatar',
   // Request variables stick to the thread. Clear with '', never by omitting a key.
+  // `paired` is the live agent's prompt variable name (scripts/provision.mjs), so it keeps that name.
   requestVars: { returning: '', page_context: '', paired: '1', topInterest: scheduleData?.topInterest ?? '' },
   avatar: {
     conversationManagerUrl: init.conversationManagerUrl,
@@ -407,7 +441,7 @@ session = new KalturaAgentSession({
 let acknowledge;
 let disclosureAcked = false;
 const disclosed = new Promise((resolve) => { acknowledge = resolve; });
-// If the avatar never connects, disclosure never fires. Let AWS pairing
+// If the avatar never connects, disclosure never fires. Let the schedule
 // through anyway instead of hanging on a dialog that will never show.
 function skipDisclosureGate() { disclosureAcked = true; acknowledge(); }
 
@@ -686,6 +720,7 @@ function armMediaWatchdog() {
   if (mediaWatchdog) return;
   mediaWatchdog = setTimeout(() => {
     mediaWatchdog = null;
+    if (!signedIn) return; // loadSchedule() ended the session when the sign-in lapsed
     toast('Lost connection to Nevada. Reload to reconnect.');
     caption('Lost connection to Nevada. Reload to reconnect.');
   }, 5000);
@@ -725,11 +760,19 @@ $('disclosure-ok').addEventListener('click', () => {
   acknowledge();
 });
 
-// Mic taps are the user gesture the browser needs for the mic.
+// No voice says this, so the toast sends it to screen readers too.
+function micOff() {
+  mic.dataset.state = 'off';
+  caption('Mic is off. You can still type, and Nevada answers out loud.');
+  toast('Mic is off. You can still type.');
+}
+
+// Mic taps are the user gesture the browser needs for the mic. In deferred
+// mode a denied or missing mic rejects startMic() instead of firing a warning.
 mic.addEventListener('click', () => {
   const t = session.transport;
   if (!t) return;
-  if (!t.micStarted) return t.startMic();
+  if (!t.micStarted) { t.startMic().catch(micOff); return; }
   if (t.micEnabled) t.mute(); else t.unmute();
   listening(t.micEnabled);
 });
@@ -741,11 +784,7 @@ session.on('warning', ({ code }) => {
     toast('Tap anywhere to hear Nevada.');
     document.addEventListener('click', () => session.transport.startPlayback(), { once: true, capture: true });
   }
-  if (code === 'mic_permission_denied') {
-    mic.dataset.state = 'off';
-    caption('Mic is off. You can still type, and Nevada answers out loud.');
-    toast('Mic is off. You can still type.');
-  }
+  if (code === 'mic_permission_denied') micOff();
 });
 // The frame shows Nevada's side. The mic button shows only the attendee's.
 session.on('responsePending', () => { frame.dataset.voice = 'thinking'; });
@@ -964,7 +1003,9 @@ session.onToolCall('celebrate_action', async ({ kind }) => {
 });
 session.onToolCall('show_recap', async () => {
   const data = await show('/api/schedule', { recap: true });
-  if (!data) return;
+  // No recap when the sign-in lapsed or AWS sent an error instead.
+  if (data?.signedIn === false) { loadSchedule(); return; } // runs the lapse path
+  if (!data?.recap) { if (data?.error) toast(data.error); return; }
   renderRecap(data.recap);
   moveOutOfWay();
   syncScreen({ view: 'recap', visible: [], focused: null });
@@ -1041,109 +1082,50 @@ for (const name of SERVER_TOOLS) {
 await session.connect().catch(() => { skipDisclosureGate(); toast("Couldn't reach Nevada. Reload to try again."); });
 } // startExperience
 
-// Usually just offers the phone handoff again, but a token can lapse
-// mid-session (EXPERIENCE-UX.md § Network and backgrounding), which flips
-// `paired` back to false and needs the same pairing dialog the gate uses.
+// Signed in, the pill opens the account dialog. If the sign-in lapsed mid-session it signs in again.
 $('connect').addEventListener('click', () => {
-  if (paired) { showPairSuccess(); return; }
-  openPairing(() => loadSchedule(lastDay));
+  if (signedIn) $('account').showModal();
+  else location.href = '/auth/start';
 });
-
-// Pairing: a 6-character code the attendee enters in the pairing helper on a
-// laptop with AWS Builder ID sign-in. Runs on the gate, before the avatar
-// experience exists at all. EXPERIENCE-UX.md § First run.
-let pairingTimer = null;
-function stopPairingPoll() {
-  clearInterval(pairingTimer);
-  pairingTimer = null;
-}
-async function openPairing(onPaired) {
-  $('pairing').showModal();
-  $('pair-code').textContent = '';
-  $('pair-command').textContent = '';
-  $('pair-status').textContent = 'Generating your code…';
-  const { code, command } = await api('/api/pair/start', {}).catch(() => ({}));
-  if (!code) { $('pair-status').textContent = "Couldn't generate a code. Try again."; return; }
-  $('pair-code').textContent = `${code.slice(0, 3)} ${code.slice(3)}`;
-  $('pair-command').textContent = command;
-  $('pair-status').textContent = 'Waiting for you to sign in…';
-  stopPairingPoll();
-  pairingTimer = setInterval(async () => {
-    const { state } = await api(`/api/pair/status/${code}`).catch(() => ({ state: 'waiting' }));
-    if (state === 'paired') {
-      stopPairingPoll();
-      $('pair-status').textContent = "Connected. You're all set.";
-      setTimeout(() => { $('pairing').close(); onPaired(); }, 700);
-    } else if (state === 'expired') {
-      stopPairingPoll();
-      // A fresh code, so a slow attendee never has to close and start over.
-      // The helper tells anyone still holding the old command to copy again.
-      if ($('pairing').open) openPairing(onPaired);
-    }
-  }, 2500);
-}
-$('pair-close').addEventListener('click', () => { stopPairingPoll(); $('pairing').close(); });
-$('pair-copy').addEventListener('click', async () => {
-  // navigator.clipboard is missing outside a secure context, so catch the throw too.
-  const copied = await Promise.resolve().then(() => navigator.clipboard.writeText($('pair-command').textContent)).then(() => true, () => false);
-  if (copied) { toast('Copied'); return; }
-  getSelection().selectAllChildren($('pair-command'));
-  toast('Press Ctrl+C or ⌘C to copy');
-});
-
-// Offers a handoff to a phone for the live conversation, right after pairing
-// and any time after from the header pill, instead of assuming the device
-// that paired is the one to keep talking on. The handoff URL is a full
-// bearer credential, so it's only minted on an explicit tap of "Show a QR",
-// never automatically on open, and it never appears as text the attendee
-// could copy, screenshot as a string, or leave in view: only as a QR code.
-let pairSuccessContinue = () => {};
-function showPairSuccess(onContinue = () => {}) {
-  pairSuccessContinue = onContinue;
-  $('pair-qr').hidden = true;
-  $('pair-qr').innerHTML = '';
-  $('pair-show-qr').hidden = false;
-  $('pair-show-qr').disabled = false;
-  $('pair-success').showModal();
-}
-async function requestHandoffQr() {
-  $('pair-show-qr').disabled = true;
-  const { url } = await api('/api/pair/handoff', {}).catch(() => ({}));
-  if (!url) { $('pair-show-qr').disabled = false; toast("Couldn't get a phone link. Try again."); return; }
-  const qr = qrcode(0, 'M');
-  qr.addData(url);
-  qr.make();
-  $('pair-qr').innerHTML = qr.createSvgTag(6, 8);
-  $('pair-qr').hidden = false;
-  $('pair-show-qr').hidden = true;
-}
-// Right after pairing there's no avatar experience yet, so dismissing
-// without picking a device would leave nothing on screen, so block that case
-// only; once already connected (paired is true) it's just an FYI dialog.
-$('pair-success').addEventListener('cancel', (e) => { if (!paired) e.preventDefault(); });
-$('pair-show-qr').addEventListener('click', requestHandoffQr);
-$('pair-continue-here').addEventListener('click', () => { $('pair-success').close(); pairSuccessContinue(); });
-// Reload rather than unwinding state by hand: disconnect drops every device
-// on this pairing (server/tokens.mjs's pairingId group), so the gate is the
-// only thing correct to show next, on this device and on any other tab too.
-$('pair-disconnect').addEventListener('click', async () => {
-  $('pair-disconnect').disabled = true;
-  await api('/api/pair/disconnect', {}).catch(() => {});
+$('account-close').addEventListener('click', () => $('account').close());
+// Reload instead of unwinding state by hand: sign-out clears the saved tokens,
+// so the gate is the only correct screen to show next.
+$('sign-out').addEventListener('click', async () => {
+  $('sign-out').disabled = true;
+  await api('/api/signout', {}).catch(() => {});
   location.reload();
 });
-$('gate-connect').addEventListener('click', () => openPairing(() => showPairSuccess(startExperience)));
 
-const initial = await api('/api/schedule', {}).catch(() => ({}));
-paired = Boolean(initial.paired);
-if (paired) await startExperience();
-else {
-  $('gate').hidden = false;
-  if (initial.expired) toast('Your AWS connection lapsed. Reconnect to keep going.');
+let initial;
+try {
+  initial = await api('/api/schedule', {});
+} catch (e) {
+  // #boot stays up: the gate's link can't help when the server itself is down.
+  const problem = e.status ? 'Nevada hit a snag. Reload to try again.'
+    : "Couldn't reach Nevada. Check that it's still running in your terminal, then reload.";
+  $('boot-text').textContent = problem;
+  $('boot-text').classList.remove('boot-hint');
+  toast(problem);
 }
-// A handoff link that was already used, expired, or otherwise invalid lands
-// here instead of pairing silently. Say so instead of just showing a
-// generic unpaired gate the attendee has no way to explain.
-if (new URLSearchParams(location.search).has('handoff_failed')) {
-  toast("That link already expired or was used. Ask for a fresh one.");
+// /callback sends the browser back here with ?signin= when AWS sign-in did not
+// finish. Handled before startExperience(), which only returns once Nevada connects.
+const SIGN_IN_PROBLEMS = {
+  failed: "Sign-in didn't work. Please try again.",
+  cancelled: 'Sign-in was cancelled.',
+  expired: 'That sign-in link expired. Please try again.',
+  storage: "Nevada couldn't save your sign-in. Check that your home folder is writable, then try again.",
+};
+const signinProblem = SIGN_IN_PROBLEMS[new URLSearchParams(location.search).get('signin')];
+if (signinProblem) {
+  if (initial) toast(signinProblem); // else keep the "Couldn't reach Nevada" toast
   history.replaceState(null, '', location.pathname);
+}
+if (initial) {
+  $('boot').hidden = true;
+  signedIn = Boolean(initial.signedIn);
+  if (signedIn) await startExperience();
+  else {
+    $('gate').hidden = false;
+    if (initial.expired && !signinProblem) toast('Your AWS sign-in expired. Sign in again to keep going.');
+  }
 }
