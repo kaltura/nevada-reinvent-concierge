@@ -2,7 +2,7 @@
 
 # Design
 
-How Nevada looks, moves and feels. Mobile first. What each screen does is in [EXPERIENCE-UX.md](EXPERIENCE-UX.md). The tokens live in `client/styles.css`, and `client/prototype.html` shows them in use.
+How Nevada looks, moves and feels. Desktop browsers, from a narrow window up to a wide one. What each screen does is in [EXPERIENCE-UX.md](EXPERIENCE-UX.md). The tokens live in `client/styles.css`.
 
 ## Idea
 
@@ -14,7 +14,7 @@ Nevada is the host and producer of your week: a realistic avatar you plan with f
 | Part of the page | She is keyed out and stands on the night gradient, not inside a player |
 | Show and tell | When Nevada talks about a session, that session is on screen and glows. |
 | Talk, type or tap | Every input is a turn in one conversation. No mode to pick first. |
-| Thumb first | The composer and main actions sit in the bottom third |
+| Composer at the bottom | The composer and main actions sit at the bottom, where the eye and hands rest |
 | Glow means Nevada | The gradient appears only behind Nevada, on what she points at, and in surprise moments |
 | Calm, then a spark | Plain screens most of the time. Motion is saved for bookings, swaps and reveals. |
 
@@ -154,7 +154,7 @@ The contrast of bold with light echoes the event's wordmark style without copyin
 | All widths | One column of content, full width, top bar to composer. Nevada's frame floats over the content (`position: fixed`), not in its own row. She drifts, drags, and glides on her own, independent of the grid below. |
 | 1024 px and up | Full week grid instead of one day. Content maxes out at 1280 px, centred. |
 
-Phone home screen. She rests at full (`stage`) size, centred near the top, above the day strip:
+Narrow window, home screen. She rests at full (`stage`) size, centred near the top, above the day strip:
 
 ```
 ┌──────────────────────────────┐
@@ -177,7 +177,7 @@ Phone home screen. She rests at full (`stage`) size, centred near the top, above
 └──────────────────────────────┘
 ```
 
-Phone, scrolled. She's glided to the bottom-right corner, above the composer, still full size:
+Narrow window, scrolled. She's glided to the bottom-right corner, above the composer, still full size:
 
 ```
 ┌──────────────────────────────┐
@@ -214,7 +214,7 @@ First run. The sign-in gate. No top bar, no avatar, no day strip, no composer, j
 └──────────────────────────────┘
 ```
 
-Desktop, full-width content. She rests centred near the top by default, same as on phone, and glides to the same bottom-right corner when scrolling or a tool call needs her spot:
+Desktop, full-width content. She rests centred near the top by default, same as in a narrow window, and glides to the same bottom-right corner when scrolling or a tool call needs her spot:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -244,12 +244,10 @@ She stays at full size (`stage`, up to 240×340 px, centred near the top) for th
 - She drifts gently while idle (a slow vertical bob) and drags to reposition with a pointer or a finger. A drag that moves less than 4 px still counts as a tap.
 - Once dragged, she stays wherever she was left, until the page reloads.
 - While `point_at` has a block lit up, she glides to whichever side of it has room and holds there. She glides back to her spot (home, or the corner if content had moved her aside) once the light fades, unless the attendee is mid-drag.
-- The voice toggle (quiet mode) sits bottom right on the frame, clear of her face at every position. On a mouse or trackpad it stays hidden until the frame is hovered or the toggle is muted; on touch, where there's no hover, it stays visible, since that's the only way to mute her.
+- The voice toggle (quiet mode) sits bottom right on the frame, clear of her face at every position. On a mouse or trackpad it stays hidden until the frame is hovered or the toggle is muted; on a touch screen, where there's no hover, it stays visible, since that's the only way to mute her.
 - Captions are a fixed bar above the composer, independent of the frame's position.
 - A sheet or scrim renders above the floating frame, never behind it.
 - Before the first frame arrives, the frame shows the night gradient with the mark. When video stops for a reconnect, the last frame stays as a still and blurs. A chat fallback that keeps the last frame as a still is planned but not yet built.
-
-`client/prototype.html`, the static design reference, still demos smaller `split` and `tile` sizes as a pattern. CSS for both stays in `client/styles.css` for it, even though the live app no longer switches to them.
 
 #### Keying
 
@@ -260,7 +258,7 @@ Nevada is keyed out of her green backdrop, so she stands on the page with no box
 3. CSS crops to that box and scales her to `--zoom` of the frame height, with `--headroom` above her head. Each size and layout sets its own `--zoom`.
 4. The bottom of the cut-out fades into the page, and the aura sits behind her shoulders.
 
-If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video shows in a rounded `--radius-l` box, cropped with `object-fit: cover` at `50% 25%`. The keyed spike in [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes) checks speed and edges on real phones. Her visual must follow [§ Persona](#persona) for the key to be clean.
+If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video shows in a rounded `--radius-l` box, cropped with `object-fit: cover` at `50% 25%`. The keyed spike in [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes) checks speed and edges on a mid-range laptop. Her visual must follow [§ Persona](#persona) for the key to be clean.
 
 ## Components
 
@@ -269,13 +267,13 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Top bar | Mark, name, countdown pill | The countdown uses `--glow` text |
 | Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Floats over the page, draggable. Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
 | Captions | Nevada's current sentence in `--text` on a fixed bar above the composer, over a dark pill. Your own last line shows first in `--glow-lavender`. | Independent of the frame's size and position. Timing is per sentence, not per word. |
-| Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text, so iOS doesn't zoom. Focus ring in `--glow-violet`. |
+| Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text. Focus ring in `--glow-violet`. |
 | Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen: a clash, a gap or favorites with no time. With none of those, the row is hidden. A tap sends the chip's turn text. |
 | Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a block | Set by `point_at`. Fades after 4 s. |
 | Day strip | Five day chips with the day in 800 and the date in 300 | Tap to switch days. A dot marks days with a clash. |
 | Timeline block | Rounded rect, 4 px left bar in the track colour | States from [EXPERIENCE-UX.md § Schedule canvas](EXPERIENCE-UX.md#schedule-canvas). `show_sessions` results render as dashed blocks in their real day and time, same as a topic-based pick. |
 | Conflict sheet | Bottom sheet below the frame. Both sessions side by side with a red link between them, then option buttons. | Main option in `--primary`. Swap warning in plain text below the option buttons. |
-| Sign-in gate | Full-screen: mark, "Sign in with your AWS Events account…", one primary "Sign in with AWS" link, the caption "Your sign-in stays on this computer." | Shown until sign-in succeeds. No avatar. The link goes to `/auth/start`, so it works before any script runs. |
+| Sign-in gate | Full-screen: mark, "Sign in with your AWS Events account…", one primary "Sign in with AWS" link, the caption "Your sign-in stays on this computer." | Shown until sign-in succeeds. No avatar. A `#boot` screen (mark, delayed "Still loading?" hint) shows until `app.js` picks the gate or the app. If the server is down on first load, `#boot` stays with a plain "Couldn't reach Nevada" message. The gate link goes to `/auth/start`. |
 | Account dialog | Centred card: mark, "You're signed in", "Keep going" button, "Sign out of AWS Events" button | Opened from the header pill when signed in. Says the sign-in is saved on this computer only. |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
@@ -318,7 +316,7 @@ Two speeds: quick for feedback, slower for delight.
 
 ### Haptics
 
-On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favorite, behind a feature check. iOS Safari has no vibration API, so iOS gets the visual only.
+`navigator.vibrate(12)` on a booking, a swap or a favorite, behind a feature check. Most desktop browsers have no vibration API, so they get the visual only.
 
 ## Fun moments
 
@@ -326,7 +324,7 @@ On Android Chrome only: `navigator.vibrate(12)` on a booking, a swap or a favori
 |---|---|---|
 | Hello | The first live frame fades in over the night gradient, and Nevada greets you. The aura keeps breathing gently while she's idle. | Disclosure accepted |
 | Pointing | Nevada says "this one has seats" and a ring lights that block | `point_at` |
-| Booked | A soft violet glow pulses around the block once, confetti bursts on the page, and the phone buzzes (Android Chrome only). Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
+| Booked | A soft violet glow pulses around the block once, confetti bursts on the page, and devices that can vibrate buzz. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
 | Swapped | The schedule redraws with the new session in place, the changed block gets the same glow pulse as a booking, and a toast names where it landed, for example "Swapped. Multi-agent systems in production is now thursday · 10am · WYN." | `kind: 'swap'` |
 | Wildcard | Renders as a normal dashed suggested block, in its real day and time, same as any other pick. No special reveal (planned for a later pass). | `search_sessions` with `mode: wildcard` |

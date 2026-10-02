@@ -17,8 +17,19 @@ What the attendee sees and hears. Visual rules are in [DESIGN.md](DESIGN.md). Th
 There's no avatar and nothing to search until AWS sign-in succeeds. Nevada needs a real account to build a real plan, and a stale spoken greeting from before sign-in would be confusing anyway. So the entire experience sits behind a sign-in gate.
 
 1. They run `npx nevada-reinvent`. The browser opens on the gate: Nevada's mark and "Sign in with your AWS Events account and I'll build your plan for the week", with a single "Sign in with AWS" link and the line "Your sign-in stays on this computer."
-2. They sign in with AWS Builder ID. AWS sends the browser back to the app, which reloads on the home screen (see [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)). There's no code to copy and no handoff step. If sign-in fails or is cancelled, the gate shows a toast and the link works again.
+2. They sign in with AWS Builder ID. AWS sends the browser back to the app, which reloads on the home screen (see [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)). There's no code to copy. If sign-in fails, the gate shows a toast and the link works again (see [§ Sign-in problems](#sign-in-problems)).
 3. A one-line disclosure says "Nevada is an AI concierge", with a Continue button. That tap calls `acknowledgeDisclosure()` and also counts as the gesture that unlocks audio. Nevada's live video fades in and she opens with: "Hi, I'm Nevada. I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead." (If the attendee has already favorited or reserved sessions with a clear topic, she opens by naming that topic instead.) They can say a track or type it. The mic permission prompt appears only when they first tap the mic.
+
+## Sign-in problems
+
+AWS sends the browser back to the app with a `signin` value in the address. The gate shows the matching toast, then clears the value from the address.
+
+| Value | Toast |
+|---|---|
+| `failed` | Sign-in didn't work. Please try again. |
+| `cancelled` | Sign-in was cancelled. |
+| `expired` | That sign-in link expired. Please try again. |
+| `storage` | Nevada couldn't save your sign-in. Check that your home folder is writable, then try again. |
 
 ## Talk, type or tap
 
@@ -110,7 +121,7 @@ Nevada detects the phase from API behaviour (see [AWS-EVENTS-INTEGRATION.md § L
 | Catalog live | Explore and favorite. If asked to reserve: "Reserved seating isn't open yet. I'll keep this on your list." A countdown shows on the home screen. |
 | Reserved seating open | Turn favorites into seats, on request. A proactive greeting on the first visit after opening ("Seating is open. Six of your favorites are still unreserved. Want to go through them?") is planned, not yet built. |
 | Event week | Travel checks and quick fixes, on request. Short answers. A morning briefing (see [§ Morning briefing](#morning-briefing)) is planned, not yet built. |
-| After the event | A recap card is available on request (see [§ Recap card](#recap-card)). Disconnecting the AWS account is a manual action, a "Disconnect this AWS account" button in the dialog the header's Connect pill opens, not an automatic post-event step. |
+| After the event | A recap card is available on request (see [§ Recap card](#recap-card)). Signing out is a manual action: the "Sign out of AWS Events" button in the dialog the header pill ("Signed in") opens. It is not an automatic post-event step. |
 
 ## Morning briefing
 
@@ -121,7 +132,7 @@ Planned, not yet built. In event week, the plan is for the first open each day t
 - Gaps worth filling and any clash.
 - One wildcard, if there is a gap.
 
-The briefing would be in-app only at first. Optional push notifications would come later and need the app on the Home Screen on iOS (see [ROADMAP.md](ROADMAP.md)). A notification would open the app, and Nevada would start the briefing.
+The briefing is in-app only, while the tab is open (see [ROADMAP.md](ROADMAP.md)).
 
 ## Recap card
 
@@ -137,7 +148,8 @@ On request: "Your re:Invent: 14 sessions, 3 venues, 1 wildcard." It's a shareabl
 | Weak network | A chat fallback that keeps the conversation going as text is planned, not yet built. Today, a stalled connection follows the "Video stalls" row above. |
 | App in the background under 30 s | Nothing. The session holds. |
 | Back after longer | "Welcome back" and a quiet reconnect. No first-visit greeting. |
-| Token expired | A toast: "Your AWS connection lapsed. Sign in again to keep going." If it happens mid-conversation, Nevada may also say the connection expired. Tap "Sign in" in the header to sign in again. |
+| Sign-in lapsed | A toast: "Your AWS connection lapsed. Sign in again to keep going." The avatar session and mic end, the header pill goes back to "Sign in" and the sign-in gate shows. This includes a lapse mid-conversation. |
+| Signed in, but AWS refused the schedule | The experience still starts, so Nevada can answer catalog questions. A banner that stays on screen says "Signed in, but ..." with the reason, for example "AWS says you are not registered" or "AWS is busy, try again in a minute". Before 8 October it says the AWS schedule opens on 8 October. |
 
 ## Accessibility
 

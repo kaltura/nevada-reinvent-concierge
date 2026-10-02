@@ -27,6 +27,11 @@ function toast(text) {
   $('toasts').replaceChildren(el);
   setTimeout(() => el.remove(), 2500);
 }
+// Stays until the next schedule load clears it, unlike a toast.
+function banner(text) {
+  $('banner').textContent = text ?? '';
+  $('banner').hidden = !text;
+}
 
 // A little spark of colour for a booking, favourite or swap. Pure CSS
 // animation on freshly-appended, absolutely-positioned particles.
@@ -118,10 +123,8 @@ function timelineBlockEl(b, opts = {}) {
     }, ...content);
     return b.kind === 'favorite' ? withRemove(block, 'unfavorite_session', b.sessionId, 'Remove from favorites') : block;
   }
-  // Every call site (renderTimeline, renderWeek) always passes compact: true,
-  // so a non-compact block is never actually rendered by the live app. The
-  // full title/venue/meta layout this used to produce lives on only as
-  // client/prototype.html's static markup, which doesn't call this function.
+  // Every call site (renderTimeline, renderWeek, renderUnscheduled) passes
+  // compact: true, so there is no non-compact layout to render.
 }
 
 // A recommended session (sessionCard shape) rendered as a block alongside
@@ -220,7 +223,7 @@ let lastSchedule = null;
 const screen = { view: 'home', day: null, visible: [], focused: null };
 function syncScreen(patch) {
   Object.assign(screen, patch);
-  session.setDynamicPrompt(screen);
+  session?.setDynamicPrompt(screen); // unset if /api/agent/init failed
 }
 // Sessions from the last show_sessions call, by day. Rendered as the same
 // dashed "suggested" blocks as the server's topic-based picks, right in
@@ -254,12 +257,30 @@ async function loadSchedule(day) {
   if (!data) return null;
   paired = Boolean(data.paired);
   if (!data.paired) {
+    // The sign-in lapsed mid-session. Stop Nevada and her mic so they don't
+    // run on behind the gate. Signing in again reloads the page.
+    try { session?.disconnect(); } catch { /* */ }
+    document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+    lastSchedule = null;
+    banner(null);
+    $('connect').textContent = 'Sign in';
+    $('app').hidden = true;
+    $('gate').hidden = false;
     if (data.expired) toast('Your AWS connection lapsed. Sign in again to keep going.');
-    return data; // the gate handles the unpaired state
+    return null;
   }
+  $('connect').textContent = 'Signed in';
+  if (data.error) {
+    // server/tools.mjs awsProblem() starts each line with AWS or Nevada, so
+    // it reads on as "Signed in, but AWS is busy. Try again in a minute."
+    banner(`Signed in, but ${data.error}`);
+    if (!lastSchedule) $('timeline').replaceChildren(h('span', {}), h('p', { class: 't-caption' }, 'Your schedule shows here once AWS sends it.'));
+    return null;
+  }
+  // Without a session the "offline" banner from startExperience() must stay.
+  if (session) banner(null);
   // Keeps request vars accurate if a token ever lapses mid-session.
   try { if (session.state === 'connected') session.updateRequestVars({ paired: '1' }); } catch { /* */ }
-  $('connect').textContent = 'Connected';
   lastDay = data.day ?? day;
   lastSchedule = data;
   renderChips(data);
@@ -348,8 +369,12 @@ function renderRecap(recap) {
   $('recap-share').addEventListener('click', async () => {
     const text = `My re:Invent week: ${recap.totalSessions} sessions across ${recap.venues.length} venues.${busiestDay ? ` Busiest day: ${busiestDay}.` : ''}`;
     if (navigator.share) { await navigator.share({ text }).catch(() => {}); return; }
-    await navigator.clipboard.writeText(text).catch(() => {});
-    toast('Copied to clipboard');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Copied to clipboard');
+    } catch {
+      toast("Couldn't copy that. Try again.");
+    }
   });
 }
 
@@ -373,9 +398,17 @@ countdown();
 // construction, and request vars set only after connect() arrive too late
 // for the very first opening. scripts/provision.mjs § OPENING_PHRASE.
 const scheduleData = await loadSchedule();
+if (!paired) return; // lapsed since the first check, so the gate is showing
 
 // The server trades its public widget id for this session. ARCHITECTURE.md § Identity.
-const init = await api('/api/agent/init', {});
+let init;
+try {
+  init = await api('/api/agent/init', {});
+} catch {
+  toast("Couldn't reach Nevada. Reload to try again.");
+  banner('Nevada is offline. Reload to try again.');
+  return;
+}
 
 session = new KalturaAgentSession({
   token: init.ks,
@@ -686,6 +719,7 @@ function armMediaWatchdog() {
   if (mediaWatchdog) return;
   mediaWatchdog = setTimeout(() => {
     mediaWatchdog = null;
+    if (!paired) return; // loadSchedule() ended the session when the sign-in lapsed
     toast('Lost connection to Nevada. Reload to reconnect.');
     caption('Lost connection to Nevada. Reload to reconnect.');
   }, 5000);
@@ -725,11 +759,19 @@ $('disclosure-ok').addEventListener('click', () => {
   acknowledge();
 });
 
-// Mic taps are the user gesture the browser needs for the mic.
+// No voice says this, so the toast sends it to screen readers too.
+function micOff() {
+  mic.dataset.state = 'off';
+  caption('Mic is off. You can still type, and Nevada answers out loud.');
+  toast('Mic is off. You can still type.');
+}
+
+// Mic taps are the user gesture the browser needs for the mic. In deferred
+// mode a denied or missing mic rejects startMic() instead of firing a warning.
 mic.addEventListener('click', () => {
   const t = session.transport;
   if (!t) return;
-  if (!t.micStarted) return t.startMic();
+  if (!t.micStarted) { t.startMic().catch(micOff); return; }
   if (t.micEnabled) t.mute(); else t.unmute();
   listening(t.micEnabled);
 });
@@ -741,11 +783,7 @@ session.on('warning', ({ code }) => {
     toast('Tap anywhere to hear Nevada.');
     document.addEventListener('click', () => session.transport.startPlayback(), { once: true, capture: true });
   }
-  if (code === 'mic_permission_denied') {
-    mic.dataset.state = 'off';
-    caption('Mic is off. You can still type, and Nevada answers out loud.');
-    toast('Mic is off. You can still type.');
-  }
+  if (code === 'mic_permission_denied') micOff();
 });
 // The frame shows Nevada's side. The mic button shows only the attendee's.
 session.on('responsePending', () => { frame.dataset.voice = 'thinking'; });
@@ -964,7 +1002,9 @@ session.onToolCall('celebrate_action', async ({ kind }) => {
 });
 session.onToolCall('show_recap', async () => {
   const data = await show('/api/schedule', { recap: true });
-  if (!data) return;
+  // No recap when the sign-in lapsed or AWS sent an error instead.
+  if (data?.paired === false) { loadSchedule(); return; } // runs the lapse path
+  if (!data?.recap) { if (data?.error) toast(data.error); return; }
   renderRecap(data.recap);
   moveOutOfWay();
   syncScreen({ view: 'recap', visible: [], focused: null });
@@ -1055,17 +1095,36 @@ $('sign-out').addEventListener('click', async () => {
   location.reload();
 });
 
-const initial = await api('/api/schedule', {}).catch(() => ({}));
-paired = Boolean(initial.paired);
-if (paired) await startExperience();
-else {
-  $('gate').hidden = false;
-  if (initial.expired) toast('Your AWS connection lapsed. Sign in again to keep going.');
+let initial;
+try {
+  initial = await api('/api/schedule', {});
+} catch (e) {
+  // #boot stays up: the gate's link can't help when the server itself is down.
+  const problem = e.status ? 'Nevada hit a snag. Reload to try again.'
+    : "Couldn't reach Nevada. Check that it's still running in your terminal, then reload.";
+  $('boot-text').textContent = problem;
+  $('boot-text').classList.remove('boot-hint');
+  toast(problem);
 }
-// /callback sends the browser back here with ?signin= when AWS sign-in did not finish.
-const SIGN_IN_PROBLEMS = { failed: "Sign-in didn't work. Please try again.", cancelled: 'Sign-in was cancelled.' };
+// /callback sends the browser back here with ?signin= when AWS sign-in did not
+// finish. Handled before startExperience(), which only returns once Nevada connects.
+const SIGN_IN_PROBLEMS = {
+  failed: "Sign-in didn't work. Please try again.",
+  cancelled: 'Sign-in was cancelled.',
+  expired: 'That sign-in link expired. Please try again.',
+  storage: "Nevada couldn't save your sign-in. Check that your home folder is writable, then try again.",
+};
 const signinProblem = SIGN_IN_PROBLEMS[new URLSearchParams(location.search).get('signin')];
 if (signinProblem) {
-  toast(signinProblem);
+  if (initial) toast(signinProblem); // else keep the "Couldn't reach Nevada" toast
   history.replaceState(null, '', location.pathname);
+}
+if (initial) {
+  $('boot').hidden = true;
+  paired = Boolean(initial.paired);
+  if (paired) await startExperience();
+  else {
+    $('gate').hidden = false;
+    if (initial.expired && !signinProblem) toast('Your AWS connection lapsed. Sign in again to keep going.');
+  }
 }

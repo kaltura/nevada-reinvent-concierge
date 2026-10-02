@@ -3,7 +3,7 @@
  * ARCHITECTURE.md § Search. It reads the catalog (read only) with the sign-in
  * that `npm start` saved in NEVADA_HOME (default ~/.nevada). Needs no .env.
  *
- * Run it when the server logs that the catalog tags changed, then push the
+ * Run it after AWS changes the catalog topics, tracks or levels, then push the
  * prompt with npm run update-prompts.
  *
  * Run:  npm run catalog-tags

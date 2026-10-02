@@ -30,7 +30,13 @@ export async function refreshAccessToken(refreshToken) {
     body: new URLSearchParams({ grant_type: 'refresh_token', client_id: CLIENT_ID, refresh_token: refreshToken }),
   });
   if (!res.ok) throw new AwsError(res.status, 'refresh_failed', await res.text().catch(() => ''));
-  return res.json(); // { access_token, refresh_token?, expires_in }
+  return tokenJson(res); // { access_token, refresh_token?, expires_in }
+}
+
+// A non-JSON 200 (a proxy or captive-portal page) makes res.json() throw a
+// SyntaxError that quotes the body, and error messages reach the logs.
+function tokenJson(res) {
+  return res.json().catch(() => { throw new AwsError(res.status, 'bad_token_response'); });
 }
 
 /** The AWS Builder ID sign-in URL (authorization code + PKCE) and the secrets needed to finish it. */
@@ -59,7 +65,7 @@ export async function exchangeCode({ code, verifier, redirectUri }) {
     body: new URLSearchParams({ grant_type: 'authorization_code', client_id: CLIENT_ID, redirect_uri: redirectUri, code, code_verifier: verifier }),
   });
   if (!res.ok) throw new AwsError(res.status, 'code_exchange_failed');
-  return res.json(); // { access_token, refresh_token, expires_in }
+  return tokenJson(res); // { access_token, refresh_token, expires_in }
 }
 
 /** @returns {Promise<boolean>} whether AWS confirmed the revoke. */
@@ -157,7 +163,14 @@ export async function withToken(tokenStore, fn) {
     const current = tokenStore.get();
     if (!current) return { paired: false };
     // AWS can omit refresh_token when it doesn't rotate it; keep the old one.
-    if (current === tokens) tokenStore.set({ ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
+    if (current === tokens) {
+      try {
+        tokenStore.set({ ...fresh, refresh_token: fresh.refresh_token ?? tokens.refresh_token });
+      } catch (saveError) {
+        // Answer this call anyway; the next one refreshes again or sends the attendee back to sign in.
+        console.error(`Nevada could not save the refreshed sign-in (${saveError.code ?? saveError.message}). You may need to sign in again.`);
+      }
+    }
     try {
       return { paired: true, result: await fn(fresh.access_token) };
     } catch (e2) {

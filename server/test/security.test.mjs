@@ -85,7 +85,7 @@ test('the callback refuses a code without a state the server issued (login CSRF)
   const before = world.tokenRequests.length;
   for (const query of ['code=x', 'code=x&state=forged']) {
     const res = await app.get(`/callback?${query}`);
-    assert.equal(res.headers.get('location'), '/?signin=failed', query);
+    assert.equal(res.headers.get('location'), '/?signin=expired', query);
   }
   assert.equal(world.tokenRequests.length, before);
 });
@@ -94,7 +94,7 @@ test('a sign-in state works once, then is refused', async () => {
   const start = await app.get('/auth/start');
   const state = new URL(start.headers.get('location')).searchParams.get('state');
   assert.equal((await app.get(`/callback?code=c&state=${state}`)).headers.get('location'), '/');
-  assert.equal((await app.get(`/callback?code=c&state=${state}`)).headers.get('location'), '/?signin=failed');
+  assert.equal((await app.get(`/callback?code=c&state=${state}`)).headers.get('location'), '/?signin=expired');
 });
 
 test('each sign-in gets its own state and PKCE challenge', async () => {
@@ -140,7 +140,7 @@ test('the sign-in state expires after ten minutes', async (t) => {
   const realNow = Date.now;
   t.after(() => { Date.now = realNow; });
   Date.now = () => realNow() + 11 * 60_000;
-  assert.equal((await app.get(`/callback?code=c&state=${state}`)).headers.get('location'), '/?signin=failed');
+  assert.equal((await app.get(`/callback?code=c&state=${state}`)).headers.get('location'), '/?signin=expired');
 });
 
 test('error logs carry no token, code or response body', async (t) => {
@@ -202,7 +202,7 @@ test('pending sign-ins are capped, and the newest still works', async () => {
     const res = await fresh.get('/auth/start');
     states.push(new URL(res.headers.get('location')).searchParams.get('state'));
   }
-  assert.equal((await fresh.get(`/callback?code=c&state=${states[0]}`)).headers.get('location'), '/?signin=failed');
+  assert.equal((await fresh.get(`/callback?code=c&state=${states[0]}`)).headers.get('location'), '/?signin=expired');
   assert.equal((await fresh.get(`/callback?code=c&state=${states.at(-1)}`)).headers.get('location'), '/');
 });
 
@@ -212,4 +212,96 @@ test('an AWS error other than access_denied is a failure, not a cancel', async (
   const state = new URL(start.headers.get('location')).searchParams.get('state');
   const res = await fresh.get(`/callback?error=server_error&state=${state}`);
   assert.equal(res.headers.get('location'), '/?signin=failed');
+});
+
+test('/api/health answers without a sign-in so the launcher can find a running app', async () => {
+  const fresh = await startApp();
+  assert.deepEqual(await (await fresh.get('/api/health')).json(), { ok: true, app: 'nevada-reinvent' });
+});
+
+/** A fake folder problem: NEVADA_HOME under a regular file, so every mkdir fails. */
+function unwritableHome() {
+  const file = join(mkdtempSync(join(tmpdir(), 'nevada-unwritable-')), 'not-a-folder');
+  writeFileSync(file, '');
+  return join(file, 'home');
+}
+
+test('a sign-in that cannot be saved sends the browser to ?signin=storage', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const broken = await startApp({ home: unwritableHome() });
+  assert.equal((await broken.signIn()).headers.get('location'), '/?signin=storage');
+});
+
+test('a sign-in that cannot be saved logs the folder problem', async (t) => {
+  const lines = [];
+  t.mock.method(console, 'error', (...a) => lines.push(a.map(String).join(' ')));
+  const home = unwritableHome();
+  const broken = await startApp({ home });
+  await broken.signIn();
+  assert.ok(lines.some((l) => l.includes('not-a-folder') && l.includes('NEVADA_HOME')), lines.join('\n'));
+});
+
+/** A signed-in app whose GetSchedule fails the way `reply` says. */
+async function scheduleFailing(t, reply, body = {}) {
+  t.mock.method(console, 'error', () => {});
+  const fresh = await startApp();
+  await fresh.signIn();
+  world.respond = async (u) => (u.endsWith('/schedule') ? reply() : undefined);
+  t.after(() => { world.respond = null; });
+  const res = await fresh.postJson('/api/schedule', body);
+  return [res.status, await res.json()];
+}
+
+test('/api/schedule says the schedule opens on 8 October when AWS refuses before then', async (t) => {
+  const result = await scheduleFailing(t, () => {
+    t.mock.method(Date, 'now', () => Date.parse('2026-10-07T12:00:00Z'));
+    return { status: 404, ok: false, text: async () => '' };
+  });
+  assert.deepEqual(result, [200, { paired: true, error: 'AWS opens your schedule to Nevada on 8 October.' }]);
+});
+
+test('/api/schedule keeps a signed-in but unregistered attendee signed in, with the reason', async (t) => {
+  const result = await scheduleFailing(t, () => {
+    t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
+    return { status: 403, ok: false, text: async () => '{"code":"forbidden"}' };
+  });
+  assert.deepEqual(result, [200, { paired: true, error: 'AWS says you are not registered for re:Invent.' }]);
+});
+
+test('/api/schedule turns a network error into a message, not a 500', async (t) => {
+  const result = await scheduleFailing(t, () => {
+    t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
+    throw new TypeError('fetch failed');
+  });
+  assert.deepEqual(result, [200, { paired: true, error: "AWS can't be reached right now. Check your internet connection." }]);
+});
+
+test('/api/schedule with recap returns the error and no recap when AWS fails', async (t) => {
+  const result = await scheduleFailing(t, () => {
+    t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
+    return { status: 503, ok: false, text: async () => '' };
+  }, { recap: true });
+  assert.deepEqual(result, [200, { paired: true, error: 'AWS is busy. Try again in a minute.' }]);
+});
+
+test('a failed /api/schedule call logs no response body', async (t) => {
+  const lines = [];
+  await scheduleFailing(t, () => {
+    t.mock.method(console, 'error', (...a) => lines.push(a.map(String).join(' ')));
+    return { status: 500, ok: false, text: async () => '{"reserved":["leak-me"]}' };
+  });
+  assert.ok(!/leak-me/.test(lines.join('\n')), lines.join('\n'));
+});
+
+test('after a failed catalog sync, the next request does not wait on another one', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const listCalls = () => world.calls.filter((c) => c.url.includes('/sessions')).length;
+  world.respond = async (u) => (u.includes('/sessions') ? { status: 500, ok: false, text: async () => '' } : undefined);
+  t.after(() => { world.respond = null; });
+  const fresh = await startApp();
+  await fresh.signIn(); // starts a sync that fails
+  await fresh.postJson('/api/schedule', {}); // empty catalog: waits on that sync
+  const before = listCalls();
+  await fresh.postJson('/api/schedule', {});
+  assert.equal(listCalls(), before);
 });

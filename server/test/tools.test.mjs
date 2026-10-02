@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TOOL_HANDLERS } from '../tools.mjs';
+import { TOOL_HANDLERS, awsProblem } from '../tools.mjs';
 import { AwsError } from '../aws.mjs';
 import { makeCatalog } from '../catalog.mjs';
 
@@ -37,6 +37,10 @@ function catalogWithFixtures() {
   catalog.seed(FIXTURES);
   return catalog;
 }
+
+// awsProblem says "opens on 8 October" for every AWS or network error before then, so
+// tests of the other wording pin the clock to after it.
+const afterApiOpens = (t) => t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
 
 /** Stubs ctx.withToken to return queued outcomes/errors in order, without touching aws.mjs. */
 function ctxWith(catalog, outcomes) {
@@ -79,6 +83,12 @@ test('search_sessions reports no match and a formatted match', async () => {
   assert.equal(some.answer, 'Found: Kubernetes at scale (session BBB222), Tuesday at 9:30am, VEN, few seats left.');
 });
 
+test('search_sessions says the catalog is not loaded instead of "no match" when it is empty', async () => {
+  const ctx = { catalog: makeCatalog(), withToken: async () => { throw new Error('not used'); } };
+  const result = await TOOL_HANDLERS.search_sessions({ query: 'lambda' }, ctx);
+  assert.equal(result.answer, "I don't have the catalog loaded yet. Try again in a minute.");
+});
+
 test('search_sessions wildcard mode has its own no-match message', async () => {
   const catalog = catalogWithFixtures();
   const ctx = { catalog, withToken: async () => { throw new Error('not used'); } };
@@ -101,10 +111,11 @@ test('get_my_schedule asks to pair when there is no token', async () => {
   assert.equal(result.answer, 'Connect your AWS Events account to do that.');
 });
 
-test('get_my_schedule turns an AwsError into a spoken message instead of throwing', async () => {
+test('get_my_schedule turns an AwsError into a spoken message instead of throwing', async (t) => {
+  afterApiOpens(t);
   const ctx = ctxWith(catalogWithFixtures(), [new AwsError(500)]);
   const result = await TOOL_HANDLERS.get_my_schedule({}, ctx);
-  assert.equal(result.answer, "That didn't work and I don't know why. Try again in a moment.");
+  assert.equal(result.answer, 'AWS is busy. Try again in a minute.');
 });
 
 test('get_my_schedule speaks reserved and favorited sessions in time order, flagging their overlap', async () => {
@@ -184,10 +195,11 @@ test('favorite_sessions flags a session AWS has not scheduled yet', async () => 
   assert.match(two.answer, /Wildcard: Reality-TV panel \(session DDD444\) doesn't have a time yet/);
 });
 
-test('favorite_sessions turns an AwsError into a spoken message', async () => {
+test('favorite_sessions turns an AwsError into a spoken message', async (t) => {
+  afterApiOpens(t);
   const ctx = ctxWith(catalogWithFixtures(), [new AwsError(429, 'rate_limited')]);
   const result = await TOOL_HANDLERS.favorite_sessions({ ids: ['AAA111'] }, ctx);
-  assert.equal(result.answer, 'AWS asked me to slow down. Try again in a moment.');
+  assert.equal(result.answer, 'AWS is busy. Try again in a minute.');
 });
 
 test('unfavorite_session reconciles an uncertain 500 by checking the schedule', async () => {
@@ -230,6 +242,15 @@ test('reserve_sessions on a 409 favorite-fallback still flags a schedule clash',
   assert.match(result.answer, /clashes with Kubernetes at scale/);
 });
 
+test('reserve_sessions still reports a reserved seat when the follow-up schedule read fails', async () => {
+  const ctx = ctxWith(catalogWithFixtures(), [
+    { paired: true, result: { successful: ['AAA111'], failed: [{ sessionId: 'BBB222', code: 'scheduleConflict', conflictsWith: ['AAA111'] }] } },
+    new AwsError(503),
+  ]);
+  const result = await TOOL_HANDLERS.reserve_sessions({ ids: ['AAA111', 'BBB222'] }, ctx);
+  assert.match(result.answer, /^Reserved Deep dive on Lambda \(session AAA111\)\./);
+});
+
 test('reserve_sessions checks every id given, not just the first 10', async () => {
   const catalog = catalogWithFixtures();
   const ids = Array.from({ length: 12 }, (_, i) => `S${i}`);
@@ -251,10 +272,11 @@ test('unfavorite_session and cancel_reservation reconcile an uncertain 404 for a
   assert.equal(cancelled.answer, 'Cancelled Deep dive on Lambda (session AAA111).');
 });
 
-test('a 403 with a non-object body is a generic block, not "not registered"', async () => {
+test('a 403 with a non-object body is a generic block, not "not registered"', async (t) => {
+  afterApiOpens(t);
   const ctx = ctxWith(catalogWithFixtures(), [new AwsError(403, undefined, 'plain text from a WAF')]);
   const result = await TOOL_HANDLERS.favorite_sessions({ ids: ['AAA111'] }, ctx);
-  assert.equal(result.answer, 'AWS blocked that just now. Try again in a moment.');
+  assert.equal(result.answer, 'AWS blocked that just now. Try again in a minute.');
 });
 
 test('reserve_sessions speaks a scheduling conflict with a swap option', async () => {
@@ -340,10 +362,11 @@ test('update_personal_time reports an unknown block and updates a known one', as
   assert.equal(ok.answer, 'Updated Lunch, now Tuesday at 12pm to 2pm.');
 });
 
-test('update_personal_time turns an AwsError from the initial schedule fetch into a spoken message', async () => {
+test('update_personal_time turns an AwsError from the initial schedule fetch into a spoken message', async (t) => {
+  afterApiOpens(t);
   const ctx = ctxWith(catalogWithFixtures(), [new AwsError(429)]);
   const result = await TOOL_HANDLERS.update_personal_time({ id: 'pt1', end: '14:00' }, ctx);
-  assert.equal(result.answer, 'AWS asked me to slow down. Try again in a moment.');
+  assert.equal(result.answer, 'AWS is busy. Try again in a minute.');
 });
 
 test('update_personal_time edits a midnight-crossing block without touching its times', async () => {
@@ -384,4 +407,40 @@ test('delete_personal_time reconciles an uncertain 500 when the block is still t
   ]);
   const result = await TOOL_HANDLERS.delete_personal_time({ id: 'pt1' }, ctx);
   assert.equal(result.answer, "I'm not sure that went through. Ask for your schedule to check.");
+});
+
+test('awsProblem says the schedule opens on 8 October for any AWS error before then', (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-07T12:00:00Z'));
+  assert.equal(awsProblem(new AwsError(403, 'forbidden', { code: 'forbidden' })), 'AWS opens your schedule to Nevada on 8 October.');
+});
+
+test('awsProblem stops saying "opens on 8 October" from midnight Las Vegas time that day', (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-08T07:00:00Z'));
+  assert.equal(awsProblem(new AwsError(503)), 'AWS is busy. Try again in a minute.');
+});
+
+test('awsProblem says not registered for a 403 with a JSON body after the API opens', (t) => {
+  afterApiOpens(t);
+  assert.equal(awsProblem(new AwsError(403, 'forbidden', { code: 'forbidden' })), 'AWS says you are not registered for re:Invent.');
+});
+
+test('awsProblem describes a 404 after the API opens without guessing a cause', (t) => {
+  afterApiOpens(t);
+  assert.equal(awsProblem(new AwsError(404)), "AWS didn't answer as expected. Try again in a minute.");
+});
+
+test('awsProblem says the schedule opens on 8 October for a network error before then', (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-07T12:00:00Z'));
+  assert.equal(awsProblem(new TypeError('fetch failed')), 'AWS opens your schedule to Nevada on 8 October.');
+});
+
+test('awsProblem says AWS cannot be reached for a network error after the API opens', (t) => {
+  afterApiOpens(t);
+  assert.equal(awsProblem(new TypeError('fetch failed')), "AWS can't be reached right now. Check your internet connection.");
+});
+
+test('awsProblem points at the terminal when the token file cannot be saved, even before 8 October', (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-07T12:00:00Z'));
+  const e = Object.assign(new Error('/home/x/.nevada belongs to another user'), { code: 'unsafe_home' });
+  assert.equal(awsProblem(e), "Nevada can't save your sign-in on this computer. See the terminal.");
 });

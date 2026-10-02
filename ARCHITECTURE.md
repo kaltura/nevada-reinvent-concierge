@@ -25,9 +25,9 @@ Browser ─▶ /auth/start ─▶ AWS Builder ID (PKCE) ─▶ 127.0.0.1:848x/ca
 
 | Part | Job | Lives in |
 |---|---|---|
-| Launcher | `npx nevada-reinvent`: picks the port, starts the server, opens the browser | `server/index.mjs` |
+| Launcher | `npx nevada-reinvent`: checks the Node version (20.6 or later), picks the port, starts the server, opens the browser (not with `--no-open`). If Nevada already runs, it opens that one. | `server/index.mjs` |
 | Web app | Desktop UI, SDK sessions, renders from our Web API | `client/` |
-| Web API | Sign-in (`/auth/start`, `/callback`), sign-out, agent sessions (`/api/agent/init`), page data (`/api/schedule`, `/api/sessions`) | `server/app.mjs` |
+| Web API | Sign-in (`/auth/start`, `/callback`), sign-out, agent sessions (`/api/agent/init`), page data (`/api/schedule`, `/api/sessions`), a health check (`/api/health`) | `server/app.mjs` |
 | Proxy | One endpoint per agent tool. Calls AWS, shapes a short answer. | `server/` |
 | Token store | The attendee's tokens in one private file | `server/tokens.mjs` |
 | Catalog | Snapshot, search, repeats, venue mapping. Cached on disk. | `server/catalog.mjs` |
@@ -47,7 +47,7 @@ An SDK `api` tool is one HTTP request. It has a timeout of 1 to 120 s (default 1
 
 Other reasons:
 
-- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no hosted callback can finish the sign-in.
+- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no remote callback can finish the sign-in.
 - One agent serves everyone. No per-attendee provisioning, and no live AWS tokens in Kaltura's secret store.
 - `secrets.set` is a read-merge-write with unknown propagation delay, so a token-push design would race.
 - A server-side tool can't reach a proxy on `127.0.0.1` (the Phase 0 spike confirmed this). So every tool is `tools.client`: the model's call surfaces on the page itself, and the page reaches the proxy same-origin.
@@ -68,24 +68,48 @@ Rules:
 - Never forward `sys__ks`. Never put an AWS token in a request variable, prompt or tool config.
 - Signed out, tools that need AWS answer "Connect your AWS Events account to do that." Search still works from the cached catalog (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
 
-Open question for Kaltura: what limits apply to a public widget ID. See [SECURITY.md](SECURITY.md#public-widget-id).
+The widget ID and partner ID are public by design, and Kaltura applies its own usage controls. See [SECURITY.md](SECURITY.md#public-widget-id).
 
 ## Sign-in
 
 The app shows nothing but a sign-in gate until AWS sign-in succeeds: no avatar, since there's no schedule to work on. The server runs on the attendee's machine, so the browser can finish the sign-in on loopback:
 
-1. The launcher binds the first free port from 8484 to 8489 (AWS accepts only those redirect ports) and opens the browser.
-2. The gate's "Sign in with AWS" is a plain link to `/auth/start`, so it works before any script runs. The server makes a PKCE S256 verifier and a random single-use `state` (in memory, 10-minute TTL) and redirects to AWS Builder ID.
-3. AWS redirects to `http://127.0.0.1:<port>/callback`. The server accepts only a `state` it minted, once, so a forged callback can't sign the attendee in to someone else's account. A bad or expired `state`, or any AWS error except `access_denied`, redirects to `/?signin=failed`. A cancel at AWS (`access_denied`) redirects to `/?signin=cancelled`. `/auth/start` refuses cross-site requests and keeps at most 20 pending sign-ins.
+1. The launcher binds the first free port from 8484 to 8489 (AWS accepts only those redirect ports) and opens the browser. It tries the next port when one is busy or blocked (`EADDRINUSE`, `EACCES`). If `GET /api/health` on one of those ports already answers `{ok: true, app: 'nevada-reinvent'}`, Nevada is running, so the launcher opens that one and exits. If the browser doesn't open, it prints "Open the link above in your browser."
+2. The gate's "Sign in with AWS" is a plain link to `/auth/start`. The server makes a PKCE S256 verifier and a random single-use `state` (in memory, 10-minute TTL) and redirects to AWS Builder ID.
+3. AWS redirects to `http://127.0.0.1:<port>/callback`. The server accepts only a `state` it minted, once, so a forged callback can't sign the attendee in to someone else's account. The callback always ends in a redirect to `/`, with one `signin` value on failure:
+
+   | Value | Cause |
+   |---|---|
+   | `failed` | AWS returned an error other than `access_denied`, sent no code, or the code exchange failed |
+   | `cancelled` | The attendee cancelled at AWS (`access_denied`) |
+   | `expired` | The `state` is unknown or older than 10 minutes |
+   | `storage` | The tokens couldn't be saved, for example `unsafe_home`, `EACCES`, `EPERM` or `EROFS`. The terminal says why. |
+
+   Each value shows its own toast on the gate (see [EXPERIENCE-UX.md § Sign-in problems](EXPERIENCE-UX.md#sign-in-problems)). `/auth/start` refuses cross-site requests and keeps at most 20 pending sign-ins.
 4. The server swaps the code for tokens, saves them, starts a catalog sync and redirects to `/`.
-5. The page asks `/api/schedule`. On `paired: true` it starts the avatar experience. The header pill then opens an account dialog with "Sign out".
+5. The page asks `/api/schedule`. On `paired: true` it starts the avatar experience. The header pill ("Signed in") then opens an account dialog with "Sign out of AWS Events".
 
 Token rules:
 
-- Tokens live in `tokens.json` under `~/.nevada` (`NEVADA_HOME` overrides). The folder is `0700` (an existing folder is tightened, and one owned by another user is refused), the file `0600`, written to a temp file and renamed. Sign-out clears the file before it revokes at AWS, so a refresh in flight can't write it back.
-- On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens and the page shows the gate with a "lapsed" toast.
+- Tokens live in `tokens.json` under `~/.nevada`. `NEVADA_HOME` overrides the folder and must be an absolute path, or the launcher exits. The folder is `0700` (an existing folder is tightened, and one owned by another user is refused), the file `0600`, written to a temp file and renamed. Sign-out clears the file before it revokes at AWS, so a refresh in flight can't write it back.
+- On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens. The next `/api/schedule` answers `{paired: false, expired: true}`. The page ends the avatar session and mic first, resets the header pill to "Sign in", then shows the gate and a "lapsed" toast. This includes a lapse mid-session.
 - Sign-out revokes the refresh token at AWS, then deletes the file. An access token already issued dies within 60 minutes.
 - Sign-out doesn't end the attendee's Builder ID browser session. Point them to `https://profile.aws.amazon.com` if they want that.
+
+`POST /api/schedule` never answers with a 500 for an AWS problem. The page reads the shape:
+
+| Answer | Meaning | Page does |
+|---|---|---|
+| `{paired: false}` | No tokens | Shows the gate |
+| `{paired: false, expired: true}` | The refresh failed or expired | Ends the avatar session and mic, resets the pill to "Sign in", shows the gate and the "lapsed" toast |
+| `{paired: true, ...schedule}` | Signed in | Starts the experience |
+| `{paired: true, error}` | Signed in, but AWS or the network failed (`403`, `404`, `429`, `5xx`, offline). `error` is a short message for the attendee. | Starts the experience anyway, so Nevada can answer catalog questions, and shows a lasting "Signed in, but ..." banner with `error` |
+
+Before 8 October 2026 the `error` says the AWS schedule opens on 8 October. After that it says what went wrong plainly, for example "AWS says you are not registered", "AWS is busy, try again in a minute" or "Couldn't reach AWS".
+
+`GET /api/health` answers `{ok: true, app: 'nevada-reinvent'}` with no auth. The launcher uses it to find a running Nevada.
+
+`POST /api/agent/init` answers `401` when signed out and `502` when Kaltura fails. On a failure the page shows a toast and a "Nevada is offline. Reload to try again." banner. The schedule stays usable without the avatar.
 
 ## Security model
 
@@ -93,16 +117,18 @@ What's protected:
 
 - The server binds to `127.0.0.1` only.
 - Every request checks the `Host` header against `localhost`, `127.0.0.1` or `[::1]` on the real port, else `421`. A DNS-rebinding page can't retarget the app.
-- Every non-GET request checks `Sec-Fetch-Site` (falling back to `Origin` only when a browser sends neither), so a cross-site page can't trigger a tool call or sign-out.
+- Every non-GET request, and `GET /auth/start`, checks `Sec-Fetch-Site` (falling back to `Origin` only when a browser sends neither), so a cross-site page can't trigger a tool call, a sign-out or a sign-in.
 - The app sets no cookies. Access control is the loopback bind plus the two checks above.
 - AWS tokens stay on disk in the private file and in the server's memory. They never reach the browser or Kaltura.
 - Logs never contain tokens, codes or upstream response bodies.
-- Responses carry `nosniff`, `no-referrer`, `X-Frame-Options: DENY` and `Permissions-Policy: microphone=(self)`.
+- Responses carry `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'` and `Permissions-Policy: microphone=(self), camera=()`.
 
 Out of scope:
 
 - Anyone who can read the attendee's home folder or run code as them can use the tokens. The app assumes a single-user machine.
-- No rate limits or capacity caps. One person uses one local server.
+- Capacity. Each person runs their own server, so there is no shared load to manage.
+
+Windows: the `0700` and `0600` modes and the owner check don't apply. `~/.nevada` relies on the ACL of the user profile, which is private to the account by default. If you set `NEVADA_HOME`, keep it inside your profile.
 
 ## Agent configuration
 
@@ -178,7 +204,7 @@ Option B stays the default because ranking and filters stay in our code. A can r
 Search ranks by how many query words a session matches, so the agent needs the catalog's own words. The `catalogTags` prompt carries every tag in the catalog, shortened, as one line (`prompts/catalog-tags.md`, about 1,100 tokens).
 
 - `npm run catalog-tags` rebuilds it (`scripts/catalog-tags.mjs`). It fails if the line goes over its budget.
-- Tags change rarely, so the file is built once and not per session. After the catalog sync, the server logs a warning if the catalog's tags no longer match the file. Then rerun `npm run catalog-tags` and `npm run update-prompts`.
+- Tags change rarely, so the file is built once and not per session. If the catalog gains new tags, rerun `npm run catalog-tags` (you must be signed in through `npm start`), then `npm run update-prompts`.
 - Shortening (`catalogTags()` in `server/catalog.mjs`): drop "Amazon" and "AWS", keep an abbreviation over the full name, group variants under their parent ("EC2 (Graviton, Spot)") and drop tags on a third of the catalog or more.
 
 Derived data in the index:
@@ -196,9 +222,9 @@ Derived data in the index:
 | `expectations.mjs` | Rule-check primitives: did the right tool fire, with what args, does the reply contain or exclude given text. | `server/evals/` |
 | `judge.mjs` | Shells out to the `claude` CLI (`-p --model haiku --output-format json --tools '' --bare`, no permissions) for one-line PASS/FAIL judgments on tone, helpfulness and correctness. `--bare` skips OAuth logins, so the CLI needs `ANTHROPIC_API_KEY` or Bedrock credentials. No new npm dependency. | `server/evals/` |
 | `cases.mjs` | About 55 cases: one per tool, `rules.md` compliance, restricted topics, multi-turn flows, edge cases. | `server/evals/` |
-| `runner.mjs` | Starts the app in-process twice: once with the tokens in `NEVADA_HOME` (default `~/.nevada`), once signed out with an empty temp home. Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
+| `runner.mjs` | Starts the app in-process twice: once with the tokens in `NEVADA_HOME` (required, so evals never use your real `~/.nevada`), once signed out with an empty temp home. Builds one `KalturaChatSession` per case, wires all 18 tools the same way `client/app.js` does, runs each case's turns, checks rules then judge rubrics, and undoes any real AWS change a case made, both new and removed items, by diffing `/api/schedule` before and after. | `server/evals/` |
 
-Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS account the tokens in `NEVADA_HOME` belong to. To sign in, run `npm start` once with the test account. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
+Write-tool cases (reserve, favorite, cancel, personal time) run for real against whatever AWS account the tokens in `NEVADA_HOME` belong to. To sign in, run `NEVADA_HOME=<folder> npm start` once with the test account, then run the evals with the same `NEVADA_HOME`. `runner.mjs` refuses to run them against an account that already has reservations, favorites or personal time: evals need a dedicated, empty AWS test account, never a real attendee's week. Cleanup is generic, not per-case: `runner.mjs` snapshots the schedule before and after each case and cancels/unfavorites/deletes exactly what's new, since the live catalog's session IDs aren't known ahead of time. It also puts back anything the case removed. A recreated personal-time block keeps its title, day and times but not its description.
 
 Evals run only locally, with Claude Code as the judge, never in CI: sign-in needs a human, and the catalog loads only after sign-in. CI still runs `server/test/evals.test.mjs`, which checks every case definition and rule check without any live call.
 

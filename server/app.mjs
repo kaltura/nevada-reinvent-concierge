@@ -16,7 +16,7 @@ import { makeTokenStore } from './tokens.mjs';
 import { makeCatalog } from './catalog.mjs';
 import { makeKaltura } from './kaltura.mjs';
 import { withToken, getSchedule, signInRequest, exchangeCode, revokeRefreshToken } from './aws.mjs';
-import { TOOL_HANDLERS, makeToolCtx } from './tools.mjs';
+import { TOOL_HANDLERS, makeToolCtx, awsProblem } from './tools.mjs';
 import { sessionCard, buildTimeline } from './schedule.mjs';
 import { EVENT_DAYS } from './dates.mjs';
 
@@ -24,6 +24,7 @@ const CLIENT = join(dirname(fileURLToPath(import.meta.url)), '..', 'client');
 const SIGN_IN_TTL_MS = 10 * 60 * 1000;
 const MAX_PENDING_SIGN_INS = 20;
 const SYNC_MAX_AGE_MS = 60 * 60 * 1000;
+const SYNC_RETRY_MS = 60 * 1000;
 const TOOLS = new Set(Object.keys(TOOL_HANDLERS));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
@@ -40,6 +41,7 @@ export function createApp({ home, widgetId }) {
   const catalogFile = join(home, 'catalog.json');
   let syncedAt = 0;
   let syncInFlight = null;
+  let syncFailedAt = 0;
 
   try {
     const cached = JSON.parse(readFileSync(catalogFile, 'utf8'));
@@ -51,6 +53,8 @@ export function createApp({ home, widgetId }) {
   function syncIfStale() {
     if (syncInFlight) return syncInFlight;
     if (!tokenStore.get() || (catalog.size() > 0 && Date.now() - syncedAt < SYNC_MAX_AGE_MS)) return null;
+    // Without this, a sync that keeps failing on an empty catalog makes every request wait for a new one.
+    if (Date.now() - syncFailedAt < SYNC_RETRY_MS) return null;
     syncInFlight = withToken(tokenStore, (t) => catalog.sync(t))
       .then((outcome) => {
         if (!outcome.paired) return;
@@ -61,7 +65,10 @@ export function createApp({ home, widgetId }) {
         writeFileSync(tmp, JSON.stringify({ syncedAt, sessions: outcome.result.raw }));
         renameSync(tmp, catalogFile);
       })
-      .catch((e) => console.error('catalog sync failed:', e.name, e.status ?? '', e.message))
+      .catch((e) => {
+        syncFailedAt = Date.now();
+        console.error('catalog sync failed:', e.name, e.status ?? '', e.message);
+      })
       .finally(() => { syncInFlight = null; });
     return syncInFlight;
   }
@@ -132,21 +139,34 @@ export function createApp({ home, widgetId }) {
   async function signInCallback(req, res, params) {
     const pending = pendingSignIns.get(params.get('state') ?? '');
     pendingSignIns.delete(params.get('state') ?? '');
-    if (!pending || pending.expires < Date.now()) return redirect(res, '/?signin=failed');
+    // Unknown covers a server restart mid sign-in too: pendingSignIns is in memory.
+    if (!pending || pending.expires < Date.now()) return redirect(res, '/?signin=expired');
     if (params.get('error') === 'access_denied') return redirect(res, '/?signin=cancelled');
     if (params.get('error') || !params.get('code')) return redirect(res, '/?signin=failed');
+    let tokens;
     try {
-      tokenStore.set(await exchangeCode({ code: params.get('code'), verifier: pending.verifier, redirectUri: pending.redirectUri }));
+      tokens = await exchangeCode({ code: params.get('code'), verifier: pending.verifier, redirectUri: pending.redirectUri });
     } catch (e) {
       console.error('sign-in failed:', e.name, e.status ?? '', e.code ?? '');
       return redirect(res, '/?signin=failed');
     }
+    try {
+      tokenStore.set(tokens);
+    } catch (e) {
+      // e.message names the folder (unsafe_home, EACCES, EROFS), never a token.
+      console.error(`Couldn't save your sign-in: ${e.message}\nSet NEVADA_HOME to a folder you own, then sign in again.`);
+      return redirect(res, '/?signin=storage');
+    }
+    syncFailedAt = 0; // a new sign-in may fix what made the last sync fail
     syncIfStale();
     redirect(res, '/');
   }
 
   async function api(req, res, path) {
     if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: 'cross_site_blocked' });
+
+    // The launcher asks this to find an instance that is already running.
+    if (path === '/api/health' && req.method === 'GET') return send(res, 200, { ok: true, app: 'nevada-reinvent' });
 
     if (path === '/api/agent/init' && req.method === 'POST') {
       // Signed-in attendees only: the agent is only useful with a schedule to work on.
@@ -178,7 +198,14 @@ export function createApp({ home, widgetId }) {
       if (!tokenStore.get()) return send(res, 200, { paired: false });
       // The first load after sign-in races the first sync. Without the catalog it has no picks.
       await catalogReady();
-      const outcome = await withToken(tokenStore, (t) => getSchedule(t));
+      let outcome;
+      try {
+        outcome = await withToken(tokenStore, (t) => getSchedule(t));
+      } catch (e) {
+        // A 500 here would show a signed-in attendee the sign-in gate again, in a loop.
+        console.error('schedule failed:', e.name, e.status ?? '', e.code ?? '', e.status === undefined ? e.message : '');
+        return send(res, 200, { paired: true, error: awsProblem(e) });
+      }
       if (!outcome.paired) return send(res, 200, { paired: false, expired: Boolean(outcome.expired) });
       const { reserved = [], favorites = [], personalTime = [] } = outcome.result ?? {};
       if (recap) {

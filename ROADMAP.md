@@ -14,7 +14,7 @@ Each spike answers one question that could change the architecture.
 |---|---|---|
 | Tool reach | Can the tool executor reach our proxy within 10 s? | **Failed**: on localhost, Kaltura's cloud can never reach an `api` tool's webhook URL. Fixed by making every tool `tools.client`. The model's call surfaces on the page, which reaches the proxy same-origin instead (ARCHITECTURE.md § Why a proxy). |
 | Client tools | Do `show_sessions` and `highlight_conflict` fire once, with `waitForResponse: false`, and let the agent keep talking? | The page updates and speech continues in 10 of 10 test turns |
-| Sign-in | Does a local server complete PKCE on 8484 to 8489 and store the tokens? | **Changed**: built into the local app ([ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)), and the `npx nevada-pair` helper is gone. The check with the local app still needs one real Builder ID sign-in. |
+| Sign-in | Does a local server complete PKCE on 8484 to 8489 and store the tokens? | **Changed**: built into the local app ([ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in)), and the separate `nevada-pair` helper package is retired. The check with the local app still needs one real Builder ID sign-in. |
 | Live bulk codes | What do real `BulkFailure` codes look like once seating opens? | Record each code seen. Update the [draft speech](AWS-EVENTS-INTEGRATION.md#bulk-results). |
 | Search option A | Can the Kaltura knowledge base hold the whole catalog, keep up with hourly changes and rank well? | 20 test queries rank as well as option B, or A is dropped |
 | Screen context | Does `{{ page_context }}` from `setDynamicPrompt` reach the prompt on the avatar socket? | "Book this one" with a card open picks the right session in 10 of 10 turns |
@@ -33,15 +33,15 @@ Each spike answers one question that could change the architecture.
 - All server tools and client tools.
 - Web app: disclosure, first run, keyed avatar frame in all sizes with the framed fallback, composer with open mic and text, chips and taps as turns, screen context and `point_at`, quiet mode, schedule canvas, session cards, conflict sheet, quiet reconnect with "Welcome back" after the background grace.
 - Fill my gaps, see all times, wildcard.
+- Done: `client/prototype.html` is removed. `client/index.html` is the only page.
 
 Check: one real, unscripted conversation. "What should I do Tuesday if I care about agentic AI?" → cards appear → "favorite the second one" → the canvas updates from a real `GetSchedule`. Then type "what else is on then?" with a card open, and tap Reserve on a card. After seating opens, repeat it with a reservation and a conflict swap.
 
 ## Phase 2: wider release
 
-Each attendee runs their own copy, so there is nothing to scale on our side. Hosting and multi-user backends are not planned.
+Each attendee runs their own copy, so there is nothing to scale on our side. Hosting and multi-user backends are not planned. The widget ID and partner ID are public by design, and Kaltura applies its own usage controls.
 
 - Single-binary download for attendees without Node.
-- Kaltura's answer on quotas for the public widget ID.
 - Travel check, once AWS publishes 2026 transport details.
 - In-app morning briefing, while the tab is open.
 
@@ -58,7 +58,6 @@ Check: start with the avatar, drop to the chat fallback, go back. `threadContinu
 ## Phase 4: polish and launch
 
 - Recap card with Web Share.
-- Optional morning push notification, behind a real-device test. On iOS it needs Home Screen install.
 - Accessibility pass against [EXPERIENCE-UX.md § Accessibility](EXPERIENCE-UX.md#accessibility).
 - Public landing page with the non-affiliation line.
 

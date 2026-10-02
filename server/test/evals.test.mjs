@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { calledTool, notCalledTool, toolArgs, replyContains, replyExcludes } from '../evals/expectations.mjs';
 import { CASES } from '../evals/cases.mjs';
@@ -48,3 +50,23 @@ for (const kase of CASES) {
     }
   });
 }
+
+const runner = fileURLToPath(new URL('../evals/runner.mjs', import.meta.url));
+function runRunner(home) {
+  const env = { ...process.env };
+  delete env.NEVADA_HOME;
+  if (home !== undefined) env.NEVADA_HOME = home;
+  return spawnSync(process.execPath, [runner], { env, encoding: 'utf8' });
+}
+
+test('the eval runner exits with 2 when NEVADA_HOME is not set', () => {
+  assert.equal(runRunner().status, 2);
+});
+
+test('the eval runner exits with 2 when NEVADA_HOME is relative', () => {
+  assert.equal(runRunner('relative/folder').status, 2);
+});
+
+test('the eval runner explains a relative NEVADA_HOME', () => {
+  assert.match(runRunner('relative/folder').stderr, /must be an absolute path/);
+});

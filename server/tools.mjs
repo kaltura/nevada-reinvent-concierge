@@ -7,7 +7,7 @@ import {
   AwsError, withToken, getSchedule, getSession, reserveSessions, cancelReservation,
   associateFavorites, disassociateFavorite, createPersonalTime, updatePersonalTime, deletePersonalTime,
 } from './aws.mjs';
-import { dayToDate, localToUtcNaive, utcNaiveToLocal, utcNaiveSpanToLocal, speakTime, formatClock, minutesOf, dayIndex } from './dates.mjs';
+import { dayToDate, localToUtcNaive, utcNaiveToLocal, utcNaiveSpanToLocal, speakTime, formatClock, minutesOf, dayIndex, EVENTS_API_OPENS } from './dates.mjs';
 import { travelMinutes } from './catalog.mjs';
 
 function label(catalog, id) {
@@ -21,12 +21,25 @@ function pairingMessage(outcome) {
     : 'Connect your AWS Events account to do that.';
 }
 
+/**
+ * One short sentence for an error from an AWS call: an AwsError, a network
+ * error, or a failed token write. Shown in the page banner after "Signed in,
+ * but" and spoken by the tools, so every AWS case starts with "AWS".
+ */
+export function awsProblem(e) {
+  // fs errors (EACCES, EROFS) and tokens.mjs's unsafe_home carry a code; AwsError and fetch's network TypeError don't.
+  if (!(e instanceof AwsError) && typeof e?.code === 'string') return "Nevada can't save your sign-in on this computer. See the terminal.";
+  if (Date.now() < Date.parse(`${localToUtcNaive(EVENTS_API_OPENS, '00:00')}Z`)) return 'AWS opens your schedule to Nevada on 8 October.';
+  if (!(e instanceof AwsError)) return "AWS can't be reached right now. Check your internet connection.";
+  if (e.status === 403 && e.body && typeof e.body === 'object') return 'AWS says you are not registered for re:Invent.';
+  if (e.status === 403) return 'AWS blocked that just now. Try again in a minute.';
+  if (e.status === 429 || e.status >= 500) return 'AWS is busy. Try again in a minute.';
+  return "AWS didn't answer as expected. Try again in a minute.";
+}
+
 function awsErrorMessage(e) {
   if (e.status === 409) return "That's not open right now. Try again later.";
-  if (e.status === 403 && e.body && typeof e.body === 'object') return "You're signed in, but not registered for the event.";
-  if (e.status === 403) return 'AWS blocked that just now. Try again in a moment.';
-  if (e.status === 429) return 'AWS asked me to slow down. Try again in a moment.';
-  return "That didn't work and I don't know why. Try again in a moment.";
+  return awsProblem(e);
 }
 
 const BULK_SPEECH = {
@@ -153,6 +166,8 @@ export const TOOL_HANDLERS = {
   },
 
   async search_sessions(args, ctx) {
+    // Otherwise a failed sync sounds like "no match" and the model asks the attendee to rephrase.
+    if (!ctx.catalog.size()) return { answer: "I don't have the catalog loaded yet. Try again in a minute." };
     const results = ctx.catalog.search(args);
     if (!results.length) {
       return { answer: args.mode === 'wildcard' ? "I couldn't find a wildcard pick right now." : 'No sessions matched that. Try different words or drop a filter.' };
@@ -277,8 +292,9 @@ export const TOOL_HANDLERS = {
       const parts = [];
       if (successful.length) parts.push(`Reserved ${successful.map((id) => label(ctx.catalog, id)).join(', ')}.`);
       if (allFailed.length) {
-        const schedOutcome = await ctx.withToken((token) => getSchedule(token));
-        const reservedIds = schedOutcome.paired ? (schedOutcome.result?.reserved ?? []) : [];
+        // Only for swap options: an AWS error here must not hide the seats already reserved.
+        const schedOutcome = await ctx.withToken((token) => getSchedule(token)).catch(() => null);
+        const reservedIds = schedOutcome?.paired ? (schedOutcome.result?.reserved ?? []) : [];
         for (const f of allFailed) {
           parts.push(f.code === 'scheduleConflict' ? conflictSpeech(ctx.catalog, f, reservedIds) : `${label(ctx.catalog, f.sessionId)} ${speakFailure(ctx.catalog, f)}.`);
         }

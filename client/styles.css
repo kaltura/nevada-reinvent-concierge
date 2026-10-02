@@ -185,9 +185,8 @@ button {
 
 /* Room for the floating split avatar so a block's title truncates with its
    own ellipsis instead of just disappearing under her. The live app never
-   uses this state now (client/app.js keeps her at "stage" size and moves
-   the frame instead of shrinking it), but client/prototype.html's split
-   demo state still does. */
+   uses this state now: client/app.js keeps her at "stage" size and moves
+   the frame instead of shrinking it. */
 [data-avatar="split"] .timeline[data-view="day"] {
   padding-right: calc(128px + var(--s-4) + var(--s-3));
 }
@@ -305,9 +304,7 @@ button {
    state change and a drag glide smoothly; dragging (and the tile state,
    where she's a static bubble) turn the transition and idle bob off.
    The live app now only ever uses the "stage" state below: content moves
-   her aside instead of shrinking her to "split" or "tile", but
-   client/prototype.html's demo states still switch between all three, so
-   those rules stay here for it. */
+   her aside instead of shrinking her to "split" or "tile". */
 
 .avatar {
   position: fixed; z-index: 2; isolation: isolate;
@@ -481,9 +478,10 @@ button {
 }
 .mic[data-state="off"] { color: var(--muted); }
 .mic:disabled { opacity: .4; }
-.send { display: none; background: var(--primary); color: var(--bg); }
-/* With text in the field, Send replaces the mic. */
-.composer:has(input:not(:placeholder-shown)) .send { display: grid; }
+.send { background: var(--primary); color: var(--bg); }
+/* With text in the field, Send replaces the mic. A browser without :has()
+   skips both rules and shows both buttons, so Send is never missing. */
+.composer:has(input:placeholder-shown) .send { display: none; }
 .composer:has(input:not(:placeholder-shown)) .mic { display: none; }
 
 /* Buttons */
@@ -499,8 +497,7 @@ button {
 
 /* Session card and stack. The live app no longer uses this: search results
    now render as dashed "suggested" blocks inside the day/week grid, in their
-   real day and time, instead of a separate floating card list. Only
-   client/prototype.html's cards demo state still uses it. */
+   real day and time, instead of a separate floating card list. */
 
 .card-stack {
   display: grid; grid-auto-flow: column; grid-auto-columns: 84%; gap: var(--s-3);
@@ -563,10 +560,11 @@ button {
   position: fixed; z-index: 4; top: calc(var(--s-3) + env(safe-area-inset-top)); left: 50%;
   transform: translateX(-50%); padding: var(--s-2) var(--s-4); border-radius: 999px;
   background: var(--elevated); font-weight: 600; box-shadow: 0 8px 24px rgb(0 0 0 / .4);
-  display: flex; align-items: center; gap: var(--s-2); white-space: nowrap;
+  display: flex; align-items: center; gap: var(--s-2);
+  width: max-content; max-width: calc(100vw - 2 * var(--s-4));
   animation: pop var(--dur-reveal) var(--ease-spring);
 }
-.toast::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.toast::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
 
 /* Confetti burst: a handful of particles flung out from where the toast
    lands, for a booking, favourite or swap. app.js's burst(). */
@@ -602,6 +600,17 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
   height: 100dvh; padding: var(--s-5); padding-top: calc(env(safe-area-inset-top) + var(--s-5));
 }
 .gate .btn { max-width: 320px; text-decoration: none; }
+/* app.js hides #boot once the first schedule check answers. The delay keeps
+   the hint out of a normal load. visibility also hides it from screen readers
+   until it shows. */
+.boot-hint { animation: boot-hint var(--dur-base) 5s backwards; }
+@keyframes boot-hint { from { opacity: 0; visibility: hidden; } }
+
+/* AWS errors that outlast a toast: "Signed in, but AWS is busy..." */
+.banner {
+  flex: none; margin: var(--s-2) var(--s-4) 0; padding: var(--s-2) var(--s-3); border-radius: var(--radius-m);
+  background: var(--surface); box-shadow: inset 4px 0 0 var(--danger-text);
+}
 
 /* Recap poster */
 
@@ -629,9 +638,8 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 @keyframes star-pop { from { opacity: 0; transform: scale(.2) rotate(-15deg); } 60% { opacity: 1; transform: scale(1.3) rotate(8deg); } to { opacity: 0; transform: scale(1) rotate(0); } }
 
 /* Nevada docks as a round bubble, top-left, over the mark. Tap it to go back to split.
-   Unconditional so tile works at every breakpoint, not just phones. Only
-   client/prototype.html's demo states reach this now; the live app keeps her at
-   "stage" size. */
+   Unconditional so tile works at every breakpoint, not just phones. The live
+   app keeps her at stage size, so these tile rules are unused. */
 
 [data-avatar="tile"] .top-bar .mark { display: none; }
 [data-avatar="tile"] .avatar { cursor: pointer; background: var(--night-2); box-shadow: 0 4px 16px rgb(0 0 0 / .5); }

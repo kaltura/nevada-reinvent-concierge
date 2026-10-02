@@ -37,7 +37,6 @@ Nevada plans your event week face to face. Talk, type or tap, and she finds sess
 | Text-only fallback for weak signal | 3 | Same conversation, last frame as a still |
 | Cut-out avatar on the night gradient | 4 | Only if the Phase 0 spike passes |
 | Recap card | 4 | |
-| Morning push notification | 4 | iOS needs Home Screen install. Behind a device test. |
 
 ## Not in v1
 
@@ -45,7 +44,8 @@ Nevada plans your event week face to face. Talk, type or tap, and she finds sess
 |---|---|
 | Team planning | Each teammate signs in on their own laptop. Heavy for a first release. |
 | Maps and directions | Not in the API. The official app already does it well. |
-| Phone support, QR handoff | The app runs on the attendee's own machine, so a phone has nothing to connect to |
+| Phone and tablet support | The app runs on the attendee's own computer, so a phone has nothing to connect to |
+| Push notifications | The app runs only while the terminal command is running, so it can't wake a device |
 | Popularity score | The API gives only a seat band, not numbers |
 | Speaker follow | Speakers are bare names with no ID, so matches would misfire |
 | Live keynote watching | Out of scope for a planning tool |

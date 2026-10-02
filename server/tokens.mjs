@@ -22,13 +22,18 @@ export function makeTokenStore(file) {
     if (st.mode & 0o077) chmodSync(dir, 0o700);
   }
 
-  function save() {
+  function save(next) {
     ensurePrivateDir(dirname(file));
     // Write then rename, so a crash never leaves half a token file behind.
     const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(record), { mode: 0o600 });
-    chmodSync(tmp, 0o600);
-    renameSync(tmp, file);
+    try {
+      writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, file);
+    } catch (e) {
+      rmSync(tmp, { force: true });
+      throw e;
+    }
   }
 
   return {
@@ -36,8 +41,9 @@ export function makeTokenStore(file) {
     get() { return record; },
     /** @param {{access_token:string,refresh_token:string,expires_in:number}} tok */
     set(tok) {
-      record = { access_token: tok.access_token, refresh_token: tok.refresh_token, expiresAt: Date.now() + tok.expires_in * 1000 };
-      save();
+      const next = { access_token: tok.access_token, refresh_token: tok.refresh_token, expiresAt: Date.now() + tok.expires_in * 1000 };
+      save(next);
+      record = next; // only after the write worked, so a failed save never looks signed in
     },
     clear() {
       record = null;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   AwsError, withToken, signInRequest, exchangeCode, getSchedule, reserveSessions, associateFavorites,
-  cancelReservation, listSessions, getSession, revokeRefreshToken,
+  cancelReservation, listSessions, getSession, revokeRefreshToken, refreshAccessToken,
 } from '../aws.mjs';
 
 function fakeFetch(t, body) {
@@ -170,6 +170,25 @@ test('withToken keeps the old refresh token when AWS omits a new one', async (t)
   assert.deepEqual([result, store.get().refresh_token], [{ paired: true, result: 'ok:fresh' }, 'r1']);
 });
 
+test('withToken still answers with the fresh token when saving it to disk fails', async (t) => {
+  const realFetch = globalThis.fetch;
+  const realError = console.error;
+  t.after(() => { globalThis.fetch = realFetch; console.error = realError; });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ access_token: 'fresh', refresh_token: 'r2', expires_in: 3600 }) });
+  const logged = [];
+  console.error = (line) => logged.push(line);
+
+  const store = fakeTokenStore(SIGNED_IN);
+  store.set = () => { throw Object.assign(new Error('EROFS: read-only file system'), { code: 'EROFS' }); };
+  const result = await withToken(store, async (token) => { if (token === 'stale') throw new AwsError(401); return `ok:${token}`; });
+
+  assert.deepEqual([result, store.get(), logged], [
+    { paired: true, result: 'ok:fresh' },
+    SIGNED_IN,
+    ['Nevada could not save the refreshed sign-in (EROFS). You may need to sign in again.'],
+  ]);
+});
+
 test('withToken signs out and reports expired when the refresh token is rejected', async (t) => {
   const realFetch = globalThis.fetch;
   t.after(() => { globalThis.fetch = realFetch; });
@@ -249,5 +268,28 @@ test('exchangeCode throws an AwsError when AWS refuses the code', async (t) => {
   await assert.rejects(
     () => exchangeCode({ code: 'c', verifier: 'v', redirectUri: 'http://127.0.0.1:8484/callback' }),
     (e) => e instanceof AwsError && e.status === 400 && e.code === 'code_exchange_failed',
+  );
+});
+
+// Node's SyntaxError message quotes the start of the body, and error messages reach the logs.
+const htmlReply = () => ({
+  ok: true, status: 200,
+  json: async () => { throw new SyntaxError('Unexpected token \'<\', "<html>leak"... is not valid JSON'); },
+});
+
+test('a non-JSON refresh reply is an AwsError that quotes no body', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  globalThis.fetch = async () => htmlReply();
+  await assert.rejects(() => refreshAccessToken('r1'), (e) => e instanceof AwsError && e.message === 'AWS 200 bad_token_response');
+});
+
+test('a non-JSON code exchange reply is an AwsError that quotes no body', async (t) => {
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  globalThis.fetch = async () => htmlReply();
+  await assert.rejects(
+    () => exchangeCode({ code: 'c', verifier: 'v', redirectUri: 'http://127.0.0.1:8484/callback' }),
+    (e) => e instanceof AwsError && e.message === 'AWS 200 bad_token_response',
   );
 });

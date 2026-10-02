@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, rmSync, statSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, chmodSync, writeFileSync, rmSync, statSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeTokenStore } from '../tokens.mjs';
+
+const noModes = process.platform === 'win32' && 'Windows has no POSIX file modes';
 
 function tempFile(t) {
   const dir = mkdtempSync(join(tmpdir(), 'nevada-tokens-'));
@@ -28,13 +30,13 @@ test('a new store reads back what the last one saved', (t) => {
   assert.equal(makeTokenStore(file).get().refresh_token, 'r');
 });
 
-test('the token file is readable only by the current user', (t) => {
+test('the token file is readable only by the current user', { skip: noModes }, (t) => {
   const file = tempFile(t);
   makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
   assert.equal(statSync(file).mode & 0o777, 0o600);
 });
 
-test('the folder is created private', (t) => {
+test('the folder is created private', { skip: noModes }, (t) => {
   const file = tempFile(t);
   makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
   assert.equal(statSync(join(file, '..')).mode & 0o777, 0o700);
@@ -65,10 +67,39 @@ test('a token file without both tokens starts signed out', (t) => {
   }
 });
 
-test('a folder that already exists with open permissions is made private', { skip: process.platform === 'win32' }, (t) => {
+test('a folder that already exists with open permissions is made private', { skip: noModes }, (t) => {
   const file = tempFile(t);
   mkdirSync(join(file, '..'), { mode: 0o755 });
   chmodSync(join(file, '..'), 0o755);
   makeTokenStore(file).set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
   assert.equal(statSync(join(file, '..')).mode & 0o777, 0o700);
+});
+
+// A folder where the token file belongs makes the final rename fail on every OS.
+function blockedStore(t) {
+  const file = tempFile(t);
+  mkdirSync(file, { recursive: true });
+  return { file, store: makeTokenStore(file) };
+}
+
+test('a failed save throws and leaves the store signed out', (t) => {
+  const { store } = blockedStore(t);
+  assert.throws(() => store.set({ access_token: 'a', refresh_token: 'r', expires_in: 60 }));
+  assert.equal(store.get(), null);
+});
+
+test('a failed save removes its temporary file', (t) => {
+  const { file, store } = blockedStore(t);
+  assert.throws(() => store.set({ access_token: 'a', refresh_token: 'r', expires_in: 60 }));
+  assert.deepEqual(readdirSync(join(file, '..')), ['tokens.json']);
+});
+
+test('a failed save keeps the tokens the store already had', (t) => {
+  const file = tempFile(t);
+  const store = makeTokenStore(file);
+  store.set({ access_token: 'a', refresh_token: 'r', expires_in: 60 });
+  rmSync(file);
+  mkdirSync(file);
+  assert.throws(() => store.set({ access_token: 'b', refresh_token: 's', expires_in: 60 }));
+  assert.equal(store.get().refresh_token, 'r');
 });

@@ -119,8 +119,18 @@
 
   <a class="skip-link" href="#main">Skip to schedule</a>
 
-  <!-- Shown until AWS sign-in succeeds. /auth/start is a plain link, so the
-       sign-in works before any script runs. ARCHITECTURE.md § Sign-in. -->
+  <!-- Shown until app.js decides between the gate and the app. If the SDK
+       can't load from the CDN, app.js never runs and this is all that shows,
+       so the hint fades in after a few seconds (styles.css .boot-hint). -->
+  <section class="gate" id="boot">
+    <svg class="mark" style="width:64px;height:64px" aria-hidden="true"><use href="#mark" /></svg>
+    <p class="t-title" style="margin:0">Nevada</p>
+    <noscript><p class="t-caption" style="margin:0">Nevada needs JavaScript. Turn it on, then reload.</p></noscript>
+    <p class="t-caption boot-hint" id="boot-text" style="margin:0">Still loading? If nothing changes, check your internet connection and reload. Nevada works in current Chrome, Edge, Firefox and Safari.</p>
+  </section>
+
+  <!-- Shown until AWS sign-in succeeds. app.js unhides it once it knows the
+       attendee isn't signed in. ARCHITECTURE.md § Sign-in. -->
   <section class="gate" id="gate" hidden>
     <svg class="mark" style="width:64px;height:64px" aria-hidden="true"><use href="#mark" /></svg>
     <p class="t-title" style="margin:0">Nevada</p>
@@ -153,6 +163,7 @@
          Nevada's voice already says these words. -->
     <p class="captions" id="captions" aria-live="off"></p>
     <main id="main" tabindex="-1">
+      <p class="banner" id="banner" role="status" hidden></p>
       <nav class="day-strip" aria-label="Days">
         <button class="day" data-day="monday"><b>MON</b><span>30</span></button>
         <button class="day" data-day="tuesday"><b>TUE</b><span>1</span></button>

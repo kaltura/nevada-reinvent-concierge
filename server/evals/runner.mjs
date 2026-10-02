@@ -2,15 +2,16 @@
  * Live eval runner. Drives the real agent through server/evals/cases.mjs, over a
  * real KalturaChatSession, using the same tool-dispatch contract as
  * client/app.js, minus the DOM. It starts the app in-process twice: one signed
- * in with the tokens in NEVADA_HOME (run `npm start` once and sign in with a
- * dedicated, empty test account), and one signed out for the unpaired cases.
+ * in with the tokens in NEVADA_HOME (required, so evals never touch your real
+ * ~/.nevada account; run `NEVADA_HOME=<folder> npm start` once and sign in with
+ * a dedicated, empty test account), and one signed out for the unpaired cases.
  * Design: ARCHITECTURE.md § Evals.
  *
- * Usage: npm run eval [-- --grep "name substring"]
+ * Usage: NEVADA_HOME=<absolute folder> npm run eval [-- --grep "name substring"]
  */
 import { mkdtempSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import { KalturaChatSession } from '@kaltura/intelligent-agents/experience';
 import { createApp } from '../app.mjs';
 import { makeKaltura } from '../kaltura.mjs';
@@ -31,6 +32,16 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+const evalHome = process.env.NEVADA_HOME;
+if (!evalHome) {
+  console.error('Set NEVADA_HOME to a folder for the test account.\nEvals never use your real ~/.nevada.');
+  process.exit(2);
+}
+if (!isAbsolute(evalHome)) {
+  console.error(`NEVADA_HOME must be an absolute path. You set "${evalHome}".`);
+  process.exit(2);
+}
+
 const widgetId = resolveWidgetId();
 if (!widgetId) {
   console.error('No widget id. Set NEVADA_WIDGET_ID or run `npm run provision`.');
@@ -44,7 +55,7 @@ async function listen(home) {
   server.unref();
   return `http://127.0.0.1:${server.address().port}`;
 }
-const PAIRED_URL = await listen(process.env.NEVADA_HOME || join(homedir(), '.nevada'));
+const PAIRED_URL = await listen(evalHome);
 const UNPAIRED_URL = await listen(mkdtempSync(join(tmpdir(), 'nevada-eval-')));
 
 const grep = process.argv.includes('--grep') ? process.argv[process.argv.indexOf('--grep') + 1] : null;

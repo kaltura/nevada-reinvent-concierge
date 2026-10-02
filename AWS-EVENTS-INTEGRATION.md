@@ -4,7 +4,7 @@
 
 The API contract Nevada depends on. `eventId` is `reinvent2026` everywhere. Sources: the [devguide](https://docs.aws.amazon.com/events/latest/devguide/) and the live spec at `https://api.awsevents.com/v1/openapi.json`.
 
-Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.md § Why a proxy](ARCHITECTURE.md#why-a-proxy)).
+Only the local server calls this API. The Kaltura agent never does (see [ARCHITECTURE.md § Why a proxy](ARCHITECTURE.md#why-a-proxy)).
 
 ## Authentication
 
@@ -13,7 +13,7 @@ Only our proxy calls this API. The Kaltura agent never does (see [ARCHITECTURE.m
 | Flow | OAuth 2.0 Authorization Code + PKCE, via AWS Builder ID |
 | Client | Shared public client, `client_id` `7vmom55m1qstvq8i71ph127bfq`, no secret. AWS publishes it. |
 | Redirect | Exactly `http://localhost:{port}/callback` or `http://127.0.0.1:{port}/callback`, port 8484 to 8489. No wildcards. Any other value gets `redirect_mismatch`. |
-| Hosted redirect | None. The devguide says sign-in "has to run locally", so the local server finishes it. |
+| Where sign-in runs | On the attendee's computer. The devguide says sign-in "has to run locally", so the local server finishes it. |
 | Authorize | `https://oauth.awsevents.com/oauth2/authorize`, with `scope=openid email events/access`, `identity_provider=AWSBuilderID`, `code_challenge_method=S256` |
 | Token | `https://oauth.awsevents.com/oauth2/token`, for both the code exchange and `grant_type=refresh_token` |
 | Revoke | `https://oauth.awsevents.com/oauth2/revoke`, takes the refresh token |
@@ -24,7 +24,7 @@ Rules for our backend:
 
 - Refresh on demand: when AWS answers `401`, refresh once and retry. Concurrent calls share one refresh. No timer.
 - If a refresh response carries a new refresh token, store it. If it carries none, keep the old one.
-- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Say so in speech, never fail silently.
+- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Never fail silently: the page shows the sign-in gate and a toast, and tools answer "Your AWS connection expired. Sign in again to see your schedule."
 - The devguide asks that server-side tokens stay server-side. Tokens never reach the browser or Kaltura.
 
 The sign-in flow that gets the first token is in [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in).
@@ -46,7 +46,7 @@ The sign-in flow that gets the first token is in [ARCHITECTURE.md § Sign-in](AR
 | `UpdatePersonalTime` | `PUT /v1/events/{eventId}/personal-time/{personalTimeId}` | Required | Edit a block |
 | `DeletePersonalTime` | `DELETE /v1/events/{eventId}/personal-time/{personalTimeId}` | Required | Remove a block |
 
-Note: `ListSessions` and `GetSession` need no auth in the API's own terms. re:Invent sets `authenticationRequired: true`, so they return `401` or `403` without a registered attendee's token. The sync job uses its own service registration.
+Note: `ListSessions` and `GetSession` need no auth in the API's own terms. re:Invent sets `authenticationRequired: true`, so they return `401` or `403` without a registered attendee's token. Nevada reads them with the signed-in attendee's own token.
 
 `ListSessions` takes `locale`, `includeAbstracts` and `nextToken`. `includeAbstracts=false` drops only `abstract`.
 
@@ -90,7 +90,7 @@ Per attendee token, per minute. A `429` carries `Retry-After`.
 | `ReserveSessions`, `AssociateFavorites` | 30 sessions (a batch of 10 costs 10) |
 | All single-item writes | 30 requests |
 
-Live attendee traffic is far below these limits. The sync job is the only heavy caller, and it runs on its own credential.
+Live attendee traffic is far below these limits. The catalog sync is the only heavy caller, and it uses the attendee's own token.
 
 ## Errors
 
@@ -104,6 +104,18 @@ Live attendee traffic is far below these limits. The sync job is the only heavy 
 | `409` | Operation closed, e.g. before reserved seating opens | Don't retry. Say "not open yet". |
 | `429` | Quota used up | Wait `Retry-After`, retry once |
 | `500`, `503` | Server error | Retry reads with backoff. Reconcile writes. |
+
+What the attendee sees when a schedule or tool call fails (`awsProblem()` in `server/tools.mjs`). The page shows it after "Signed in, but". Tools speak it. The first matching row wins.
+
+| Cause | Message |
+|---|---|
+| The token file can't be saved | Nevada can't save your sign-in on this computer. See the terminal. |
+| Any other failure before 8 October 2026 (Las Vegas) | AWS opens your schedule to Nevada on 8 October. |
+| Network error | AWS can't be reached right now. Check your internet connection. |
+| `403` with JSON body | AWS says you are not registered for re:Invent. |
+| `403` with no body | AWS blocked that just now. Try again in a minute. |
+| `429`, `5xx` | AWS is busy. Try again in a minute. |
+| Anything else | AWS didn't answer as expected. Try again in a minute. |
 
 Writes have no idempotency key. After any write with an unknown outcome, call `GetSchedule` and send only what is still missing. Never re-send blind. A blind `CreatePersonalTime` retry makes a duplicate.
 
@@ -159,17 +171,16 @@ From AWS's own re:Invent site.
 |---|---|---|
 | Catalog live | Until reserved seating opens | Browse and favorite. `ReserveSessions` and `CancelReservation` return `409`. |
 | Reserved seating open | Oct 6, 2026 on AWS's own site. Oct 8, 2026 through the API. | `ReserveSessions` and `CancelReservation` start working |
-| Event week | Nov 30 to Dec 4 | Seat availability changes fast. Sync hourly. |
+| Event week | Nov 30 to Dec 4 | Seat availability changes fast. The cache refreshes hourly. |
 
-Detect the phase from API behaviour (a `409` vs a result), not from a hardcoded date. Dates can move. For two days, attendees can reserve on AWS's site but not through us. Say so: "Seating opened on the AWS site. I can book for you from October 8." The concierge's matching behaviour is in [EXPERIENCE-UX.md § Lifecycle](EXPERIENCE-UX.md#lifecycle).
+Detect the phase from API behaviour (a `409` vs a result), not from a hardcoded date. Dates can move. The one date in code is `EVENTS_API_OPENS` (`server/dates.mjs`). It only picks the wording of the error message above. For two days, attendees can reserve on AWS's site but not through us. Say so: "Seating opened on the AWS site. I can book for you from October 8." The concierge's matching behaviour is in [EXPERIENCE-UX.md § Lifecycle](EXPERIENCE-UX.md#lifecycle).
 
 ## Catalog sync
 
-- Runs outside any conversation, on its own service registration.
-- Cadence: daily until reserved seating opens, then every 6 hours, then hourly in event week.
+- Runs outside any conversation, with the attendee's own token.
 - Each run walks `ListSessions` with `includeAbstracts=true`, diffs against the last snapshot, and updates the search index.
 - A full walk is about 10 pages, well inside 120 requests a minute.
-- Phase 1 has no service registration of its own. The server syncs with the attendee's own token after sign-in and caches the result in `~/.nevada/catalog.json`. A cache older than 1 hour is served at once and refreshed in the background. A restart reads the disk cache. Before the first sign-in, with no cache, the catalog is empty and search finds nothing. While the first sync runs, schedule loads and tool calls wait for it.
+- The server syncs after sign-in and caches the result in `~/.nevada/catalog.json`. A cache older than 1 hour is served at once and refreshed in the background. A restart reads the disk cache. Before the first sign-in, with no cache, the catalog is empty and search finds nothing. While the first sync runs, schedule loads and tool calls wait for it.
 
 ## Out of scope for the API
 

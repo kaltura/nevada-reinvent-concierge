@@ -18,7 +18,6 @@
     "server/*.mjs",
     "server/public.json",
     "client/",
-    "!client/prototype.html",
     "LICENSE",
     "README.md"
   ],
@@ -27,7 +26,7 @@
     "provision": "node --env-file=.env scripts/provision.mjs",
     "update-prompts": "node --env-file=.env scripts/update-prompts.mjs",
     "catalog-tags": "node scripts/catalog-tags.mjs",
-    "test": "node --test server/test/*.test.mjs",
+    "test": "node --test",
     "eval": "node server/evals/runner.mjs",
     "prepack": "node scripts/write-public.mjs"
   },
