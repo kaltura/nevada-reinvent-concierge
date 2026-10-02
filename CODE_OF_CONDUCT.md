@@ -4,4 +4,4 @@ This project follows the [Contributor Covenant, version 2.1](https://www.contrib
 
 Be respectful and constructive in issues, pull requests and discussions.
 
-To report a concern, open a [private security advisory](../../security) on this repository. Use it for conduct reports too. It reaches the maintainers privately.
+To report a concern, open a [private security advisory](../../security) on this repository. It is the repo's only private channel, so conduct reports go there too.

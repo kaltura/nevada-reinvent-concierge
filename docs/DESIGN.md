@@ -1,4 +1,4 @@
-[← Back to README](README.md)
+[← Back to README](../README.md)
 
 # Design
 
@@ -247,7 +247,7 @@ She stays at full size (`stage`, up to 240×340 px, centred near the top) for th
 - The voice toggle (quiet mode) sits bottom right on the frame, clear of her face at every position. On a mouse or trackpad it stays hidden until the frame is hovered or the toggle is muted; on a touch screen, where there's no hover, it stays visible, since that's the only way to mute her.
 - Captions are a fixed bar above the composer, independent of the frame's position.
 - A sheet or scrim renders above the floating frame, never behind it.
-- Before the first frame arrives, the frame shows the night gradient with the mark. When video stops for a reconnect, the last frame stays as a still and blurs. A chat fallback that keeps the last frame as a still is planned but not yet built.
+- Before the first frame arrives, the frame shows the night gradient with the mark. When video stops for a reconnect, the last frame stays as a still and blurs. A chat fallback that keeps the last frame as a still is planned (see [EXPERIENCE-UX.md § Status](EXPERIENCE-UX.md#status)).
 
 #### Keying
 
@@ -258,7 +258,7 @@ Nevada is keyed out of her green backdrop, so she stands on the page with no box
 3. CSS crops to that box and scales her to `--zoom` of the frame height, with `--headroom` above her head. Each size and layout sets its own `--zoom`.
 4. The bottom of the cut-out fades into the page, and the aura sits behind her shoulders.
 
-If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video shows in a rounded `--radius-l` box, cropped with `object-fit: cover` at `50% 25%`. The keyed spike in [ROADMAP.md § Phase 0](ROADMAP.md#phase-0-spikes) checks speed and edges on a mid-range laptop. Her visual must follow [§ Persona](#persona) for the key to be clean.
+If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video shows in a rounded `--radius-l` box, cropped with `object-fit: cover` at `50% 25%`. Keying speed and edges are checked on a mid-range laptop before launch (see [CONTRIBUTING.md § Before launch](../CONTRIBUTING.md#before-launch)). Her visual must follow [§ Persona](#persona) for the key to be clean.
 
 ## Components
 
@@ -266,7 +266,7 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 |---|---|---|
 | Top bar | Mark, name, countdown pill | The countdown uses `--glow` text |
 | Avatar frame | Nevada keyed onto the night gradient, the aura behind her shoulders, voice toggle. Fallback: the video in a rounded `--radius-l` box. | Floats over the page, draggable. Sizes and rules in [§ Avatar frame](#avatar-frame). States below. |
-| Captions | Nevada's current sentence in `--text` on a fixed bar above the composer, over a dark pill. Your own last line shows first in `--glow-lavender`. | Independent of the frame's size and position. Timing is per sentence, not per word. |
+| Captions | Nevada's current sentence in `--text` on a fixed bar above the composer, over a dark pill. Your own last line shows first in `--glow-lavender`. | Independent of the frame's size and position. |
 | Composer | Pill text field on `--elevated`, 56 px round mic on the right. With text in the field, the mic becomes Send in `--primary`. | Always visible, even before Nevada connects. 16 px text. Focus ring in `--glow-violet`. |
 | Suggestion chips | One row of `--surface` pills above the composer, horizontal scroll | The page picks them from what's on screen: a clash, a gap or favorites with no time. With none of those, the row is hidden. A tap sends the chip's turn text. |
 | Point ring | 2 px `--glow-lavender` ring with a soft outer glow on a block | Set by `point_at`. Fades after 4 s. |
@@ -277,7 +277,7 @@ If keying can't start (no WebGL or Canvas2D) or finds no one, the plain video sh
 | Account dialog | Centred card: mark, "You're signed in", "Keep going" button, "Sign out of AWS Events" button | Opened from the header pill when signed in. Says the sign-in is saved on this computer only. |
 | Disclosure dialog | Centred card on `--night-1`, one line and a Continue button | A real `<dialog>` |
 | Toast | Pill at the top, 2.5 s | Also sent to the live region |
-| Recap card | 9:16 poster on a `--glow` background with big numbers | See fun moments |
+| Recap card | Card with big numbers (sessions, venues, days, busiest day) and a Share button | See fun moments |
 
 Stacking, top first: disclosure dialog, toast, conflict sheet (and its scrim), avatar frame, composer, content. Only the dialog blocks input behind it.
 
@@ -294,7 +294,7 @@ The aura behind Nevada shows what she is doing. The mic button shows only your s
 | Quiet mode | Voice toggle crossed out. Video and captions carry on. | Unchanged |
 | Mic denied | Unchanged | Crossed mic, grey |
 | Reconnecting | Blurred last frame or cut-out, "Reconnecting…" on the frame | Disabled |
-| Chat fallback (planned, not yet built) | Last frame as a still, "Video paused" badge, "Try video" button | Hidden |
+| Chat fallback (planned) | Last frame as a still, "Video paused" badge, "Try video" button | Hidden |
 
 ## Motion
 
@@ -304,13 +304,12 @@ Two speeds: quick for feedback, slower for delight.
 |---|---|---|
 | `--dur-fast` | 120 ms | Press, toggle |
 | `--dur-base` | 220 ms | Sheets, cards in and out |
-| `--dur-slow` | 420 ms | Day switch, avatar frame size change |
+| `--dur-slow` | 420 ms | Day switch, avatar frame glide |
 | `--dur-reveal` | 700 ms | Hello fade-in, celebrate pulses, toast pop |
 | `--ease-out` | `cubic-bezier(.2, .8, .2, 1)` | Things arriving |
 | `--ease-spring` | `cubic-bezier(.3, 1.4, .5, 1)` | Celebrate pop |
 
-- Use the View Transitions API (single document, Safari 18+) for day switches. When it's missing, the change happens instantly.
-- Animate only `transform` and `opacity`. The avatar frame is the one exception: it animates its height, so the content below can reflow.
+- Animate only `transform` and `opacity`. The avatar frame is the one exception: it animates its position and size as it glides.
 - Never move content the attendee is reading while Nevada speaks about it. `point_at` scrolls only when the target is off screen, jumps there with no smooth scroll, and never while the attendee is scrolling.
 - With `prefers-reduced-motion: reduce`, every move becomes a fade of 150 ms or less. No bursts, pulses, orbits or confetti. State still shows through colour and text.
 
@@ -327,10 +326,10 @@ Two speeds: quick for feedback, slower for delight.
 | Booked | A soft violet glow pulses around the block once, confetti bursts on the page, and devices that can vibrate buzz. Toast: "You're in." | `celebrate_action {kind: 'reserve'}` |
 | Favorited | A star pops with a spring | `kind: 'favorite'` |
 | Swapped | The schedule redraws with the new session in place, the changed block gets the same glow pulse as a booking, and a toast names where it landed, for example "Swapped. Multi-agent systems in production is now thursday · 10am · WYN." | `kind: 'swap'` |
-| Wildcard | Renders as a normal dashed suggested block, in its real day and time, same as any other pick. No special reveal (planned for a later pass). | `search_sessions` with `mode: wildcard` |
-| Clash found | The red edge appears on the clashing block. No nudge or draw-in animation yet. | `highlight_conflict` |
+| Wildcard | Renders as a normal dashed suggested block, in its real day and time, same as any other pick. A reveal is planned. | `search_sessions` with `mode: wildcard` |
+| Clash found | The red edge appears on the clashing block. A nudge is planned. | `highlight_conflict` |
 | Countdown | "12 days" in the top bar. On event week it becomes "Day 2 of 5". | Home |
-| Recap | Poster: big session count, venues visited, wildcard taken, busiest day. Share through Web Share. | On request today. A last-day auto-trigger and a phase-change greeting for "Seating is open" are both planned (see [EXPERIENCE-UX.md § Lifecycle](EXPERIENCE-UX.md#lifecycle)). |
+| Recap | Card: big session count, venues, days, busiest day. Share through Web Share, or copy where there is no share sheet. | On request. Planned follow-ups are in [EXPERIENCE-UX.md § Status](EXPERIENCE-UX.md#status). |
 
 Empty states have a voice too, for example "Tuesday afternoon is wide open. Want ideas?"
 
