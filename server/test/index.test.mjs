@@ -27,9 +27,9 @@ const app = await startApp();
 
 test('a signed-out app says so instead of failing', async () => {
   const schedule = await (await app.postJson('/api/schedule', {})).json();
-  assert.deepEqual(schedule, { paired: false });
+  assert.deepEqual(schedule, { signedIn: false });
   const tool = await (await app.postJson('/tools/get_my_schedule', {})).json();
-  assert.equal(tool.answer, 'Connect your AWS Events account to do that.');
+  assert.equal(tool.answer, 'Sign in with your AWS Events account to do that.');
 });
 
 test('sign-in sends the browser to AWS with PKCE, then back to the app', async () => {
@@ -61,7 +61,7 @@ test('reserve, schedule and cancel round-trip through the real server', async ()
   assert.equal((await reserve.json()).answer, 'Reserved Deep dive on Lambda (session AAA111).');
 
   const body = await (await app.postJson('/api/schedule', {})).json();
-  assert.equal(body.paired, true);
+  assert.equal(body.signedIn, true);
   assert.deepEqual(body.reserved.map((s) => s.sessionId), ['AAA111']);
   assert.equal(body.blocks[0].kind, 'reserved');
   // AAA111 is reserved and tagged 'serverless': the opening line's topInterest branch reads this.
@@ -131,7 +131,7 @@ test('an expired access token is refreshed silently and the call still works', a
   };
   const body = await (await app.postJson('/api/schedule', {})).json();
   world.respond = null;
-  assert.equal(body.paired, true);
+  assert.equal(body.signedIn, true);
   assert.equal(JSON.parse(readFileSync(join(app.home, 'tokens.json'), 'utf8')).refresh_token, 'r2');
 });
 
@@ -139,13 +139,13 @@ test('sign-out revokes the refresh token at AWS and deletes the token file', asy
   const out = await (await app.postJson('/api/signout', {})).json();
   assert.deepEqual(out, { ok: true, revoked: true });
   assert.ok(world.revoked.includes('r2'));
-  assert.equal((await (await app.postJson('/api/schedule', {})).json()).paired, false);
+  assert.equal((await (await app.postJson('/api/schedule', {})).json()).signedIn, false);
   assert.throws(() => statSync(join(app.home, 'tokens.json')));
 });
 
 test('/api/agent/init refuses a signed-out app', async () => {
   const res = await app.postJson('/api/agent/init', {});
-  assert.deepEqual([res.status, await res.json()], [401, { error: 'not_paired' }]);
+  assert.deepEqual([res.status, await res.json()], [401, { error: 'not_signed_in' }]);
 });
 
 test('a restarted app picks up the saved tokens and the cached catalog without re-syncing', async (t) => {
@@ -160,7 +160,7 @@ test('a restarted app picks up the saved tokens and the cached catalog without r
   const body = await (await second.postJson('/api/sessions', { ids: ['AAA111'] })).json();
   assert.equal(body.sessions[0].title, 'Deep dive on Lambda');
   assert.equal(sessionCalls(), before);
-  assert.equal((await (await second.postJson('/api/schedule', {})).json()).paired, true);
+  assert.equal((await (await second.postJson('/api/schedule', {})).json()).signedIn, true);
 });
 
 test('a fresh disk cache counts as synced, so get_session skips the live fetch', async (t) => {

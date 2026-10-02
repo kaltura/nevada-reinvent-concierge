@@ -66,7 +66,7 @@ Every proxy call is same-origin: the page's own `fetch('/tools/${name}')`. Kaltu
 Rules:
 
 - Never forward `sys__ks`. Never put an AWS token in a request variable, prompt or tool config.
-- Signed out, tools that need AWS answer "Connect your AWS Events account to do that." Search still works from the cached catalog (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
+- Signed out, tools that need AWS answer "Sign in with your AWS Events account to do that." Search still works from the cached catalog (see [Catalog sync](AWS-EVENTS-INTEGRATION.md#catalog-sync)).
 
 The widget ID and partner ID are public by design, and Kaltura applies its own usage controls. See [SECURITY.md](SECURITY.md#public-widget-id).
 
@@ -87,12 +87,12 @@ The app shows nothing but a sign-in gate until AWS sign-in succeeds: no avatar, 
 
    Each value shows its own toast on the gate (see [EXPERIENCE-UX.md § Sign-in problems](EXPERIENCE-UX.md#sign-in-problems)). `/auth/start` refuses cross-site requests and keeps at most 20 pending sign-ins.
 4. The server swaps the code for tokens, saves them, starts a catalog sync and redirects to `/`.
-5. The page asks `/api/schedule`. On `paired: true` it starts the avatar experience. The header pill ("Signed in") then opens an account dialog with "Sign out of AWS Events".
+5. The page asks `/api/schedule`. On `signedIn: true` it starts the avatar experience. The header pill ("Signed in") then opens an account dialog with "Sign out of AWS Events".
 
 Token rules:
 
 - Tokens live in `tokens.json` under `~/.nevada`. `NEVADA_HOME` overrides the folder and must be an absolute path, or the launcher exits. The folder is `0700` (an existing folder is tightened, and one owned by another user is refused), the file `0600`, written to a temp file and renamed. Sign-out clears the file before it revokes at AWS, so a refresh in flight can't write it back.
-- On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens. The next `/api/schedule` answers `{paired: false, expired: true}`. The page ends the avatar session and mic first, resets the header pill to "Sign in", then shows the gate and a "lapsed" toast. This includes a lapse mid-session.
+- On a `401` from AWS the server refreshes once (concurrent calls share one refresh), stores the new tokens and retries. If AWS rejects the refresh (`400` or `401`), the server deletes the tokens. The next `/api/schedule` answers `{signedIn: false, expired: true}`. The page ends the avatar session and mic first, resets the header pill to "Sign in", then shows the gate and the "sign-in expired" toast. This includes a lapse mid-session.
 - Sign-out revokes the refresh token at AWS, then deletes the file. An access token already issued dies within 60 minutes.
 - Sign-out doesn't end the attendee's Builder ID browser session. Point them to `https://profile.aws.amazon.com` if they want that.
 
@@ -100,10 +100,10 @@ Token rules:
 
 | Answer | Meaning | Page does |
 |---|---|---|
-| `{paired: false}` | No tokens | Shows the gate |
-| `{paired: false, expired: true}` | The refresh failed or expired | Ends the avatar session and mic, resets the pill to "Sign in", shows the gate and the "lapsed" toast |
-| `{paired: true, ...schedule}` | Signed in | Starts the experience |
-| `{paired: true, error}` | Signed in, but AWS or the network failed (`403`, `404`, `429`, `5xx`, offline). `error` is a short message for the attendee. | Starts the experience anyway, so Nevada can answer catalog questions, and shows a lasting "Signed in, but ..." banner with `error` |
+| `{signedIn: false}` | No tokens | Shows the gate |
+| `{signedIn: false, expired: true}` | The refresh failed or expired | Ends the avatar session and mic, resets the pill to "Sign in", shows the gate and the "sign-in expired" toast |
+| `{signedIn: true, ...schedule}` | Signed in | Starts the experience |
+| `{signedIn: true, error}` | Signed in, but AWS or the network failed (`403`, `404`, `429`, `5xx`, offline). `error` is a short message for the attendee. | Starts the experience anyway, so Nevada can answer catalog questions, and shows a lasting "Signed in, but ..." banner with `error` |
 
 Before 8 October 2026 the `error` says the AWS schedule opens on 8 October. After that it says what went wrong plainly, for example "AWS says you are not registered", "AWS is busy, try again in a minute" or "Couldn't reach AWS".
 

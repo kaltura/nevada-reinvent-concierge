@@ -101,11 +101,6 @@ button {
 
 :focus-visible { outline: 2px solid var(--glow-lavender); outline-offset: 2px; }
 
-.sr-only {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); white-space: nowrap;
-}
-
 .skip-link {
   position: absolute; left: var(--s-2); top: -100px; z-index: 10;
   background: var(--surface); padding: var(--s-2) var(--s-3); border-radius: var(--radius-s);
@@ -114,13 +109,11 @@ button {
 
 /* Type roles */
 
-.t-display { font-size: 48px; line-height: 52px; font-weight: 800; letter-spacing: -.02em; }
 .t-title { font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -.01em; }
 .t-section { font-size: 18px; line-height: 24px; font-weight: 600; }
 .t-caption { font-size: 13px; line-height: 18px; color: var(--muted); }
 .t-kicker { font-size: 12px; line-height: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.t-light { font-weight: 300; }
-.t-num, time { font-variant-numeric: tabular-nums; }
+time { font-variant-numeric: tabular-nums; }
 .t-glow { background: var(--glow); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 /* App frame */
@@ -182,14 +175,6 @@ button {
   align-content: start; grid-auto-rows: max-content;
 }
 .timeline time { font-size: 13px; line-height: 18px; color: var(--muted); padding-top: var(--s-3); text-align: right; }
-
-/* Room for the floating split avatar so a block's title truncates with its
-   own ellipsis instead of just disappearing under her. The live app never
-   uses this state now: client/app.js keeps her at "stage" size and moves
-   the frame instead of shrinking it. */
-[data-avatar="split"] .timeline[data-view="day"] {
-  padding-right: calc(128px + var(--s-4) + var(--s-3));
-}
 
 /* Favorites AWS hasn't given a time yet: kept out of the day/time grid
    (client/app.js's renderUnscheduled), so they don't imply a time slot they
@@ -317,7 +302,7 @@ button {
 }
 .avatar[data-dragging] { transition: none; cursor: grabbing; }
 .avatar[data-voice="idle"] { animation: bob 6s ease-in-out infinite; }
-[data-avatar="tile"] .avatar, .avatar[data-dragging] { animation: none; }
+.avatar[data-dragging] { animation: none; }
 
 /* Both rest well above the fixed caption bar at the bottom: a spoken
    sentence can wrap to several lines, so her resting spot stays clear of
@@ -329,20 +314,7 @@ button {
   left: calc(50% - min(66vw, 240px) / 2); top: calc(env(safe-area-inset-top) + 64px);
   width: min(66vw, 240px); height: min(46dvh, 340px);
 }
-/* Below the top bar and day strip, not on top of them: at split's width,
-   the default top-right rest spot would otherwise sit right over the day
-   buttons on a phone. */
-[data-avatar="split"] .avatar {
-  right: var(--s-4); top: calc(env(safe-area-inset-top) + 136px); left: auto;
-  width: 128px; height: 188px; --zoom: 1.1;
-}
-[data-avatar="tile"] .avatar {
-  left: var(--s-3); top: calc(env(safe-area-inset-top) + var(--s-2)); bottom: auto; right: auto;
-  width: 52px; height: 52px; border-radius: 50%; overflow: hidden;
-  --zoom: 1.9; --headroom: 4%;
-}
 .avatar-mark { position: absolute; left: 50%; top: 40%; width: 56px; height: 56px; transform: translate(-50%, -50%); }
-[data-avatar="tile"] .avatar-mark { width: 28px; height: 28px; }
 [data-keyed="ready"] .avatar-mark { display: none; }
 
 /* Fallback when keying can't start: the plain video in a framed box. */
@@ -495,34 +467,6 @@ button {
 .btn-primary:hover, .btn-primary:active { background: var(--primary-hover); }
 .btn-block { width: 100%; }
 
-/* Session card and stack. The live app no longer uses this: search results
-   now render as dashed "suggested" blocks inside the day/week grid, in their
-   real day and time, instead of a separate floating card list. */
-
-.card-stack {
-  display: grid; grid-auto-flow: column; grid-auto-columns: 84%; gap: var(--s-3);
-  overflow-x: auto; scroll-snap-type: x mandatory; padding: var(--s-2) var(--s-4) var(--s-4);
-  align-items: start;
-  scrollbar-width: none;
-}
-.card {
-  scroll-snap-align: start; background: var(--surface); border-radius: var(--radius-l);
-  padding: var(--s-4); display: grid; gap: var(--s-3); align-content: start;
-  animation: rise var(--dur-slow) var(--ease-out) backwards;
-}
-.card .title { font-size: 18px; line-height: 24px; font-weight: 800; }
-.card .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
-
-.chip {
-  display: inline-block; padding: 2px var(--s-2); border-radius: var(--radius-s);
-  font-size: 12px; font-weight: 600; background: var(--muted); color: var(--ink);
-}
-
-.seat-band { display: flex; align-items: center; gap: var(--s-2); font-size: 13px; color: var(--muted); }
-.seat-band i { display: flex; gap: 2px; }
-.seat-band i b { width: 14px; height: 6px; border-radius: 2px; background: var(--elevated); }
-.seat-band i b.on { background: var(--success); }
-
 /* Sheet */
 
 .scrim { position: fixed; z-index: 3; inset: 0; background: rgb(0 0 0 / .55); }
@@ -552,7 +496,6 @@ button {
 .option small { display: block; font-size: 13px; color: var(--muted); }
 .option.btn-primary { background: var(--primary); color: var(--bg); font-weight: 600; }
 .option.btn-primary small { color: var(--bg); font-weight: 400; }
-.option .fit { font-size: 12px; font-weight: 600; color: var(--success); }
 
 /* Toast */
 
@@ -636,27 +579,6 @@ dialog.disclosure::backdrop { background: rgb(0 0 0 / .7); }
 @keyframes bob { 50% { translate: 0 -8px; } }
 @keyframes booked-pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 30% { box-shadow: 0 0 0 6px rgb(107 79 255 / .35); } }
 @keyframes star-pop { from { opacity: 0; transform: scale(.2) rotate(-15deg); } 60% { opacity: 1; transform: scale(1.3) rotate(8deg); } to { opacity: 0; transform: scale(1) rotate(0); } }
-
-/* Nevada docks as a round bubble, top-left, over the mark. Tap it to go back to split.
-   Unconditional so tile works at every breakpoint, not just phones. The live
-   app keeps her at stage size, so these tile rules are unused. */
-
-[data-avatar="tile"] .top-bar .mark { display: none; }
-[data-avatar="tile"] .avatar { cursor: pointer; background: var(--night-2); box-shadow: 0 4px 16px rgb(0 0 0 / .5); }
-[data-avatar="tile"] .avatar video { left: 0; width: 100%; border-radius: 0; }
-[data-avatar="tile"] .cutout { mask-image: none; }
-[data-avatar="tile"] .avatar::after {
-  inset: 0; height: auto; top: 0; left: 0; transform: none; filter: none; background: none;
-  box-shadow: inset 0 0 0 calc(2px + 3px * var(--mic-level, 0)) var(--glow-violet); z-index: 2;
-}
-[data-avatar="tile"] .voice-toggle,
-[data-avatar="tile"] .avatar::before { display: none; }
-
-/* Wider screens: more room for cards, nothing else changes about the avatar. */
-
-@media (min-width: 600px) {
-  .card-stack { grid-auto-columns: 320px; }
-}
 
 @media (min-width: 1024px) {
   .app > main { max-width: 1280px; margin: 0 auto; width: 100%; }

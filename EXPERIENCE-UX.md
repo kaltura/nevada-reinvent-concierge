@@ -148,7 +148,7 @@ On request: "Your re:Invent: 14 sessions, 3 venues, 1 wildcard." It's a shareabl
 | Weak network | A chat fallback that keeps the conversation going as text is planned, not yet built. Today, a stalled connection follows the "Video stalls" row above. |
 | App in the background under 30 s | Nothing. The session holds. |
 | Back after longer | "Welcome back" and a quiet reconnect. No first-visit greeting. |
-| Sign-in lapsed | A toast: "Your AWS connection lapsed. Sign in again to keep going." The avatar session and mic end, the header pill goes back to "Sign in" and the sign-in gate shows. This includes a lapse mid-conversation. |
+| Sign-in lapsed | A toast: "Your AWS sign-in expired. Sign in again to keep going." The avatar session and mic end, the header pill goes back to "Sign in" and the sign-in gate shows. This includes a lapse mid-conversation. |
 | Signed in, but AWS refused the schedule | The experience still starts, so Nevada can answer catalog questions. A banner that stays on screen says "Signed in, but ..." with the reason, for example "AWS says you are not registered" or "AWS is busy, try again in a minute". Before 8 October it says the AWS schedule opens on 8 October. |
 
 ## Accessibility

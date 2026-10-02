@@ -114,13 +114,13 @@ function fakeTokenStore(initial) {
 }
 const SIGNED_IN = { access_token: 'stale', refresh_token: 'r1', expiresAt: 0 };
 
-test('withToken returns paired:false when nobody is signed in', async () => {
-  assert.deepEqual(await withToken(fakeTokenStore(null), async () => 'never'), { paired: false });
+test('withToken returns signedIn:false when nobody is signed in', async () => {
+  assert.deepEqual(await withToken(fakeTokenStore(null), async () => 'never'), { signedIn: false });
 });
 
 test('withToken passes the result through on success', async () => {
   const result = await withToken(fakeTokenStore(SIGNED_IN), async (token) => `ok:${token}`);
-  assert.deepEqual(result, { paired: true, result: 'ok:stale' });
+  assert.deepEqual(result, { signedIn: true, result: 'ok:stale' });
 });
 
 test('withToken dedupes concurrent refreshes', async (t) => {
@@ -142,7 +142,7 @@ test('withToken dedupes concurrent refreshes', async (t) => {
   const [a, b] = await Promise.all([withToken(store, fn), withToken(store, fn)]);
 
   assert.equal(refreshCalls, 1);
-  assert.deepEqual([a, b], [{ paired: true, result: 'ok:fresh' }, { paired: true, result: 'ok:fresh' }]);
+  assert.deepEqual([a, b], [{ signedIn: true, result: 'ok:fresh' }, { signedIn: true, result: 'ok:fresh' }]);
 });
 
 test('a refresh that finishes after sign-out does not bring the tokens back', async (t) => {
@@ -156,7 +156,7 @@ test('a refresh that finishes after sign-out does not bring the tokens back', as
 
   const result = await withToken(store, async (token) => { if (token === 'stale') throw new AwsError(401); return `ok:${token}`; });
 
-  assert.deepEqual([result, store.get()], [{ paired: false }, null]);
+  assert.deepEqual([result, store.get()], [{ signedIn: false }, null]);
 });
 
 test('withToken keeps the old refresh token when AWS omits a new one', async (t) => {
@@ -167,7 +167,7 @@ test('withToken keeps the old refresh token when AWS omits a new one', async (t)
   const store = fakeTokenStore(SIGNED_IN);
   const result = await withToken(store, async (token) => { if (token === 'stale') throw new AwsError(401); return `ok:${token}`; });
 
-  assert.deepEqual([result, store.get().refresh_token], [{ paired: true, result: 'ok:fresh' }, 'r1']);
+  assert.deepEqual([result, store.get().refresh_token], [{ signedIn: true, result: 'ok:fresh' }, 'r1']);
 });
 
 test('withToken still answers with the fresh token when saving it to disk fails', async (t) => {
@@ -183,7 +183,7 @@ test('withToken still answers with the fresh token when saving it to disk fails'
   const result = await withToken(store, async (token) => { if (token === 'stale') throw new AwsError(401); return `ok:${token}`; });
 
   assert.deepEqual([result, store.get(), logged], [
-    { paired: true, result: 'ok:fresh' },
+    { signedIn: true, result: 'ok:fresh' },
     SIGNED_IN,
     ['Nevada could not save the refreshed sign-in (EROFS). You may need to sign in again.'],
   ]);
@@ -197,7 +197,7 @@ test('withToken signs out and reports expired when the refresh token is rejected
   const store = fakeTokenStore(SIGNED_IN);
   const result = await withToken(store, async () => { throw new AwsError(401); });
 
-  assert.deepEqual([result, store.get()], [{ paired: false, expired: true }, null]);
+  assert.deepEqual([result, store.get()], [{ signedIn: false, expired: true }, null]);
 });
 
 test('withToken keeps the tokens when the refresh fails on the network', async (t) => {
@@ -218,7 +218,7 @@ test('withToken signs out and reports expired when the retry still 401s', async 
   const store = fakeTokenStore(SIGNED_IN);
   const result = await withToken(store, async () => { throw new AwsError(401); });
 
-  assert.deepEqual([result, store.get()], [{ paired: false, expired: true }, null]);
+  assert.deepEqual([result, store.get()], [{ signedIn: false, expired: true }, null]);
 });
 
 test('withToken lets a non-401 AwsError propagate instead of trying to refresh', async () => {

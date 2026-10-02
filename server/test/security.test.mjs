@@ -158,7 +158,7 @@ test('a corrupt token file means signed out, not a crash', async () => {
   const home = mkdtempSync(join(tmpdir(), 'nevada-corrupt-'));
   writeFileSync(join(home, 'tokens.json'), '{not json');
   const broken = await startApp({ home });
-  assert.deepEqual(await (await broken.postJson('/api/schedule', {})).json(), { paired: false });
+  assert.deepEqual(await (await broken.postJson('/api/schedule', {})).json(), { signedIn: false });
 });
 
 test('the token file is private to the user', () => {
@@ -257,7 +257,7 @@ test('/api/schedule says the schedule opens on 8 October when AWS refuses before
     t.mock.method(Date, 'now', () => Date.parse('2026-10-07T12:00:00Z'));
     return { status: 404, ok: false, text: async () => '' };
   });
-  assert.deepEqual(result, [200, { paired: true, error: 'AWS opens your schedule to Nevada on 8 October.' }]);
+  assert.deepEqual(result, [200, { signedIn: true, error: 'AWS opens your schedule to Nevada on 8 October.' }]);
 });
 
 test('/api/schedule keeps a signed-in but unregistered attendee signed in, with the reason', async (t) => {
@@ -265,7 +265,7 @@ test('/api/schedule keeps a signed-in but unregistered attendee signed in, with 
     t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
     return { status: 403, ok: false, text: async () => '{"code":"forbidden"}' };
   });
-  assert.deepEqual(result, [200, { paired: true, error: 'AWS says you are not registered for re:Invent.' }]);
+  assert.deepEqual(result, [200, { signedIn: true, error: 'AWS says you are not registered for re:Invent.' }]);
 });
 
 test('/api/schedule turns a network error into a message, not a 500', async (t) => {
@@ -273,7 +273,7 @@ test('/api/schedule turns a network error into a message, not a 500', async (t) 
     t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
     throw new TypeError('fetch failed');
   });
-  assert.deepEqual(result, [200, { paired: true, error: "AWS can't be reached right now. Check your internet connection." }]);
+  assert.deepEqual(result, [200, { signedIn: true, error: "AWS can't be reached right now. Check your internet connection." }]);
 });
 
 test('/api/schedule with recap returns the error and no recap when AWS fails', async (t) => {
@@ -281,7 +281,7 @@ test('/api/schedule with recap returns the error and no recap when AWS fails', a
     t.mock.method(Date, 'now', () => Date.parse('2026-10-09T12:00:00Z'));
     return { status: 503, ok: false, text: async () => '' };
   }, { recap: true });
-  assert.deepEqual(result, [200, { paired: true, error: 'AWS is busy. Try again in a minute.' }]);
+  assert.deepEqual(result, [200, { signedIn: true, error: 'AWS is busy. Try again in a minute.' }]);
 });
 
 test('a failed /api/schedule call logs no response body', async (t) => {

@@ -2,6 +2,19 @@
   "name": "nevada-reinvent",
   "version": "0.1.0",
   "description": "Nevada, a live avatar concierge for AWS re:Invent attendees",
+  "keywords": [
+    "aws",
+    "reinvent",
+    "kaltura",
+    "avatar",
+    "concierge",
+    "schedule"
+  ],
+  "homepage": "https://github.com/kaltura/nevada-reinvent-concierge#readme",
+  "bugs": {
+    "url": "https://github.com/kaltura/nevada-reinvent-concierge/issues"
+  },
+  "author": "Kaltura",
   "license": "MIT",
   "repository": {
     "type": "git",

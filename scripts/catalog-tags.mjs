@@ -24,7 +24,7 @@ const MAX_CHARS = 7000;
 const tokenStore = makeTokenStore(join(process.env.NEVADA_HOME || join(homedir(), '.nevada'), 'tokens.json'));
 const catalog = makeCatalog();
 const outcome = await withToken(tokenStore, (token) => catalog.sync(token));
-if (!outcome.paired) {
+if (!outcome.signedIn) {
   console.error('Not signed in. Run `npm start`, sign in to AWS Events, then run this again.');
   process.exit(1);
 }

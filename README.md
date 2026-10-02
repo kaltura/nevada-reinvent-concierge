@@ -41,7 +41,7 @@ Your sign-in is saved in `~/.nevada/tokens.json`, readable only by you. Set `NEV
 | The sign-in screen shows again, with a message | Read the message. Then try again with the link the app opens. Each sign-in link works once, for 10 minutes. |
 | "Nevada couldn't save your sign-in" | Nevada can't write to its folder. Read the terminal, then set `NEVADA_HOME` to a folder you own and sign in again. |
 | "Signed in, but ..." banner | Sign-in worked, but AWS refused the schedule. "Not registered" means your Builder ID isn't linked to your re:Invent registration. Before 8 October the AWS schedule API isn't open yet, and the banner says so. |
-| "Your AWS connection lapsed" | Sign in again. Saved sign-ins last 30 days. |
+| "Your AWS sign-in expired" | Sign in again. Saved sign-ins last 30 days. |
 | "Open the link above in your browser." | Nevada couldn't open a browser. Copy the printed link into one. |
 | Nevada is already running | Running the command again opens the running one. |
 | No microphone | Allow the mic for `127.0.0.1` in your browser. Typing works without it. |

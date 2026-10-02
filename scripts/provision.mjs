@@ -29,7 +29,7 @@ const PERSONA_NAME = 'Nevada';
 // they've already reserved or favorited (server/catalog.mjs's topTopic), '' if none.
 const OPENING_PHRASE =
   `{%- if returning -%}Welcome back.` +
-  `{%- elif not paired -%}Hi, I'm ${PERSONA_NAME}. Connect your AWS Events account and I'll build your plan for the week.` +
+  `{%- elif not paired -%}Hi, I'm ${PERSONA_NAME}. Sign in with your AWS Events account and I'll build your plan for the week.` +
   `{%- elif sys__is_new_thread -%}Hi, I'm ${PERSONA_NAME}.` +
   `{%- if topInterest -%} I noticed you've been favoriting {{ topInterest }} sessions, so I've lined up more like that for the week. Tell me if you'd rather go a different direction.` +
   `{%- else -%} I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead.{%- endif -%}` +

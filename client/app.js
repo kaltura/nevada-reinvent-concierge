@@ -211,9 +211,9 @@ function renderUnscheduled(list = []) {
 }
 
 // Set once startExperience() runs, which only happens after sign-in. The
-// gate screen (below) is everything an unpaired attendee sees.
+// gate screen (below) is everything a signed-out attendee sees.
 let session;
-let paired = false;
+let signedIn = false;
 let lastDay;
 let lastSchedule = null;
 // What the attendee sees, as IDs only. setDynamicPrompt replaces the whole
@@ -255,8 +255,8 @@ function renderCurrentView() {
 async function loadSchedule(day) {
   const data = await show('/api/schedule', { day });
   if (!data) return null;
-  paired = Boolean(data.paired);
-  if (!data.paired) {
+  signedIn = Boolean(data.signedIn);
+  if (!data.signedIn) {
     // The sign-in lapsed mid-session. Stop Nevada and her mic so they don't
     // run on behind the gate. Signing in again reloads the page.
     try { session?.disconnect(); } catch { /* */ }
@@ -266,7 +266,7 @@ async function loadSchedule(day) {
     $('connect').textContent = 'Sign in';
     $('app').hidden = true;
     $('gate').hidden = false;
-    if (data.expired) toast('Your AWS connection lapsed. Sign in again to keep going.');
+    if (data.expired) toast('Your AWS sign-in expired. Sign in again to keep going.');
     return null;
   }
   $('connect').textContent = 'Signed in';
@@ -288,7 +288,7 @@ async function loadSchedule(day) {
   renderCurrentView();
   return data;
 }
-DESKTOP_MQ.addEventListener('change', () => { if (paired) renderCurrentView(); });
+DESKTOP_MQ.addEventListener('change', () => { if (signedIn) renderCurrentView(); });
 
 document.querySelector('.day-strip').addEventListener('click', ({ target }) => {
   const btn = target.closest('.day');
@@ -386,7 +386,7 @@ function countdown() {
 }
 
 // Everything below only runs once AWS sign-in has succeeded: the gate is the
-// entire signed-out experience, so `paired` is always true by the time this
+// entire signed-out experience, so `signedIn` is always true by the time this
 // is called. ARCHITECTURE.md § Sign-in.
 async function startExperience() {
 $('gate').hidden = true;
@@ -398,7 +398,7 @@ countdown();
 // construction, and request vars set only after connect() arrive too late
 // for the very first opening. scripts/provision.mjs § OPENING_PHRASE.
 const scheduleData = await loadSchedule();
-if (!paired) return; // lapsed since the first check, so the gate is showing
+if (!signedIn) return; // lapsed since the first check, so the gate is showing
 
 // The server trades its public widget id for this session. ARCHITECTURE.md § Identity.
 let init;
@@ -414,6 +414,7 @@ session = new KalturaAgentSession({
   token: init.ks,
   mode: 'avatar',
   // Request variables stick to the thread. Clear with '', never by omitting a key.
+  // `paired` is the live agent's prompt variable name (scripts/provision.mjs), so it keeps that name.
   requestVars: { returning: '', page_context: '', paired: '1', topInterest: scheduleData?.topInterest ?? '' },
   avatar: {
     conversationManagerUrl: init.conversationManagerUrl,
@@ -719,7 +720,7 @@ function armMediaWatchdog() {
   if (mediaWatchdog) return;
   mediaWatchdog = setTimeout(() => {
     mediaWatchdog = null;
-    if (!paired) return; // loadSchedule() ended the session when the sign-in lapsed
+    if (!signedIn) return; // loadSchedule() ended the session when the sign-in lapsed
     toast('Lost connection to Nevada. Reload to reconnect.');
     caption('Lost connection to Nevada. Reload to reconnect.');
   }, 5000);
@@ -1003,7 +1004,7 @@ session.onToolCall('celebrate_action', async ({ kind }) => {
 session.onToolCall('show_recap', async () => {
   const data = await show('/api/schedule', { recap: true });
   // No recap when the sign-in lapsed or AWS sent an error instead.
-  if (data?.paired === false) { loadSchedule(); return; } // runs the lapse path
+  if (data?.signedIn === false) { loadSchedule(); return; } // runs the lapse path
   if (!data?.recap) { if (data?.error) toast(data.error); return; }
   renderRecap(data.recap);
   moveOutOfWay();
@@ -1083,7 +1084,7 @@ await session.connect().catch(() => { skipDisclosureGate(); toast("Couldn't reac
 
 // Signed in, the pill opens the account dialog. If the sign-in lapsed mid-session it signs in again.
 $('connect').addEventListener('click', () => {
-  if (paired) $('account').showModal();
+  if (signedIn) $('account').showModal();
   else location.href = '/auth/start';
 });
 $('account-close').addEventListener('click', () => $('account').close());
@@ -1121,10 +1122,10 @@ if (signinProblem) {
 }
 if (initial) {
   $('boot').hidden = true;
-  paired = Boolean(initial.paired);
-  if (paired) await startExperience();
+  signedIn = Boolean(initial.signedIn);
+  if (signedIn) await startExperience();
   else {
     $('gate').hidden = false;
-    if (initial.expired && !signinProblem) toast('Your AWS connection lapsed. Sign in again to keep going.');
+    if (initial.expired && !signinProblem) toast('Your AWS sign-in expired. Sign in again to keep going.');
   }
 }

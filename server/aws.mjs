@@ -141,13 +141,13 @@ function dedupedRefresh(refreshToken) {
  * retries. If AWS rejects the refresh token (or the retry still 401s), clears
  * the tokens and reports "sign in again". A network error or AWS outage does
  * not sign anyone out: it is rethrown. AWS-EVENTS-INTEGRATION.md § Authentication.
- * @returns {Promise<{paired:false,expired?:boolean}|{paired:true,result:*}>}
+ * @returns {Promise<{signedIn:false,expired?:boolean}|{signedIn:true,result:*}>}
  */
 export async function withToken(tokenStore, fn) {
   const tokens = tokenStore.get();
-  if (!tokens) return { paired: false };
+  if (!tokens) return { signedIn: false };
   try {
-    return { paired: true, result: await fn(tokens.access_token) };
+    return { signedIn: true, result: await fn(tokens.access_token) };
   } catch (e) {
     if (!(e instanceof AwsError) || e.status !== 401) throw e;
     let fresh;
@@ -156,12 +156,12 @@ export async function withToken(tokenStore, fn) {
     } catch (refreshError) {
       if (!(refreshError instanceof AwsError) || ![400, 401].includes(refreshError.status)) throw refreshError;
       if (tokenStore.get() === tokens) tokenStore.clear();
-      return { paired: false, expired: true };
+      return { signedIn: false, expired: true };
     }
     // Signed out while the refresh ran: don't bring the tokens back. A sibling
     // call may already have stored the refreshed record, so only replace ours.
     const current = tokenStore.get();
-    if (!current) return { paired: false };
+    if (!current) return { signedIn: false };
     // AWS can omit refresh_token when it doesn't rotate it; keep the old one.
     if (current === tokens) {
       try {
@@ -172,11 +172,11 @@ export async function withToken(tokenStore, fn) {
       }
     }
     try {
-      return { paired: true, result: await fn(fresh.access_token) };
+      return { signedIn: true, result: await fn(fresh.access_token) };
     } catch (e2) {
       if (e2 instanceof AwsError && e2.status === 401) {
         if (tokenStore.get()?.access_token === fresh.access_token) tokenStore.clear();
-        return { paired: false, expired: true };
+        return { signedIn: false, expired: true };
       }
       throw e2;
     }

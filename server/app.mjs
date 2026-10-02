@@ -57,7 +57,7 @@ export function createApp({ home, widgetId }) {
     if (Date.now() - syncFailedAt < SYNC_RETRY_MS) return null;
     syncInFlight = withToken(tokenStore, (t) => catalog.sync(t))
       .then((outcome) => {
-        if (!outcome.paired) return;
+        if (!outcome.signedIn) return;
         syncedAt = Date.now();
         console.log(`catalog sync: ${outcome.result.count} of ${outcome.result.totalCount} sessions`);
         mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -170,7 +170,7 @@ export function createApp({ home, widgetId }) {
 
     if (path === '/api/agent/init' && req.method === 'POST') {
       // Signed-in attendees only: the agent is only useful with a schedule to work on.
-      if (!tokenStore.get()) return send(res, 401, { error: 'not_paired' });
+      if (!tokenStore.get()) return send(res, 401, { error: 'not_signed_in' });
       if (!kaltura) return send(res, 503, { error: 'not_provisioned' });
       try {
         return send(res, 200, await kaltura.appInit());
@@ -195,7 +195,7 @@ export function createApp({ home, widgetId }) {
     }
     if (path === '/api/schedule' && req.method === 'POST') {
       const { day, focusIds, recap } = await readJson(req).catch(() => ({}));
-      if (!tokenStore.get()) return send(res, 200, { paired: false });
+      if (!tokenStore.get()) return send(res, 200, { signedIn: false });
       // The first load after sign-in races the first sync. Without the catalog it has no picks.
       await catalogReady();
       let outcome;
@@ -204,9 +204,9 @@ export function createApp({ home, widgetId }) {
       } catch (e) {
         // A 500 here would show a signed-in attendee the sign-in gate again, in a loop.
         console.error('schedule failed:', e.name, e.status ?? '', e.code ?? '', e.status === undefined ? e.message : '');
-        return send(res, 200, { paired: true, error: awsProblem(e) });
+        return send(res, 200, { signedIn: true, error: awsProblem(e) });
       }
-      if (!outcome.paired) return send(res, 200, { paired: false, expired: Boolean(outcome.expired) });
+      if (!outcome.signedIn) return send(res, 200, { signedIn: false, expired: Boolean(outcome.expired) });
       const { reserved = [], favorites = [], personalTime = [] } = outcome.result ?? {};
       if (recap) {
         const items = catalog.getMany(reserved);
@@ -218,7 +218,7 @@ export function createApp({ home, widgetId }) {
         // nothing dated. The date with the most reserved sessions, ties broken
         // by whichever came first in `items`.
         const busiestDay = [...dayCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-        return send(res, 200, { paired: true, recap: { totalSessions: items.length, venues, days, busiestDay } });
+        return send(res, 200, { signedIn: true, recap: { totalSessions: items.length, venues, days, busiestDay } });
       }
       const reservedCards = catalog.getMany(reserved).map(sessionCard);
       const favoriteCards = catalog.getMany(favorites).map(sessionCard);
@@ -236,7 +236,7 @@ export function createApp({ home, widgetId }) {
         return { day: t.day, blocks: t.blocks, recommended };
       });
       return send(res, 200, {
-        paired: true,
+        signedIn: true,
         day: timeline.day,
         blocks: timeline.blocks,
         clashDays: timeline.clashDays,

@@ -4,7 +4,7 @@
  * client/app.js, minus the DOM. It starts the app in-process twice: one signed
  * in with the tokens in NEVADA_HOME (required, so evals never touch your real
  * ~/.nevada account; run `NEVADA_HOME=<folder> npm start` once and sign in with
- * a dedicated, empty test account), and one signed out for the unpaired cases.
+ * a dedicated, empty test account), and one signed out for the signed-out cases.
  * Design: ARCHITECTURE.md § Evals.
  *
  * Usage: NEVADA_HOME=<absolute folder> npm run eval [-- --grep "name substring"]
@@ -55,8 +55,8 @@ async function listen(home) {
   server.unref();
   return `http://127.0.0.1:${server.address().port}`;
 }
-const PAIRED_URL = await listen(evalHome);
-const UNPAIRED_URL = await listen(mkdtempSync(join(tmpdir(), 'nevada-eval-')));
+const SIGNED_IN_URL = await listen(evalHome);
+const SIGNED_OUT_URL = await listen(mkdtempSync(join(tmpdir(), 'nevada-eval-')));
 
 const grep = process.argv.includes('--grep') ? process.argv[process.argv.indexOf('--grep') + 1] : null;
 
@@ -86,7 +86,7 @@ function minutesToHHMM(mins) {
 
 async function scheduleSnapshot(base) {
   const data = await apiFetch('/api/schedule', {}, base);
-  if (!data.paired) return null;
+  if (!data.signedIn) return null;
   const reservedIds = new Set();
   const favoriteIds = new Set();
   const personal = new Map(); // id -> {day, clock, length, title}, needed to recreate one a case wrongly deletes
@@ -157,33 +157,33 @@ function wireTools(session, base, turnCalls) {
   }
 }
 
-// All paired cases share one real AWS test account. Running their
+// All signedIn cases share one real AWS test account. Running their
 // snapshot→turns→cleanup sequences concurrently would let one case's writes
 // land inside another's before/after diff, cleaning up the wrong session.
-// Serialize them; only the single unpaired (no AWS access) case runs outside
+// Serialize them; only the single signed-out (no AWS access) case runs outside
 // this lock, so mapLimit's concurrency only shortens judge-call wait time.
-let pairedLock = Promise.resolve();
-function withPairedLock(fn) {
-  const run = pairedLock.then(fn, fn);
-  pairedLock = run.then(() => {}, () => {});
+let signedInLock = Promise.resolve();
+function withSignedInLock(fn) {
+  const run = signedInLock.then(fn, fn);
+  signedInLock = run.then(() => {}, () => {});
   return run;
 }
 
 function runCase(kase) {
-  return kase.paired === false ? runCaseBody(kase) : withPairedLock(() => runCaseBody(kase));
+  return kase.signedIn === false ? runCaseBody(kase) : withSignedInLock(() => runCaseBody(kase));
 }
 
 async function runCaseBody(kase) {
   let base;
   try {
-    base = kase.paired === false ? UNPAIRED_URL : await getPairedUrl();
+    base = kase.signedIn === false ? SIGNED_OUT_URL : await getSignedInUrl();
   } catch (e) {
-    // A rejected pairedUrlPromise (see getPairedUrl) stays rejected for
+    // A rejected signedInUrlPromise (see getSignedInUrl) stays rejected for
     // every later case that awaits it. Report per case, and don't let one
     // throw crash the whole concurrent run.
     return { name: kase.name, failures: [`crashed: ${e.message}`] };
   }
-  const before = kase.paired === false ? null : await scheduleSnapshot(base);
+  const before = kase.signedIn === false ? null : await scheduleSnapshot(base);
 
   const { ks } = await kaltura.appInit();
   const transcript = { turns: [] };
@@ -214,7 +214,7 @@ async function runCaseBody(kase) {
     failures.push(`crashed: ${e.message}`);
   } finally {
     try { session.disconnect(); } catch { /* already closed */ }
-    if (kase.paired !== false) {
+    if (kase.signedIn !== false) {
       const after = await scheduleSnapshot(base).catch(() => null);
       await cleanup(base, before, after).catch((e) => console.error(`cleanup failed for "${kase.name}":`, e.message));
     }
@@ -230,14 +230,14 @@ async function assertEmptyAccount(base) {
   if (!snap) throw new Error('not signed in. Run `npm start`, sign in with the dedicated test account, then rerun');
   const dirty = snap.reservedIds.size || snap.favoriteIds.size || snap.personal.size;
   if (dirty) {
-    throw new Error('paired account already has reservations, favorites or personal time and evals need an empty, dedicated test account');
+    throw new Error('signedIn account already has reservations, favorites or personal time and evals need an empty, dedicated test account');
   }
 }
 
-let pairedUrlPromise = null;
-function getPairedUrl() {
-  pairedUrlPromise ??= assertEmptyAccount(PAIRED_URL).then(() => PAIRED_URL);
-  return pairedUrlPromise;
+let signedInUrlPromise = null;
+function getSignedInUrl() {
+  signedInUrlPromise ??= assertEmptyAccount(SIGNED_IN_URL).then(() => SIGNED_IN_URL);
+  return signedInUrlPromise;
 }
 
 async function mapLimit(items, limit, fn) {

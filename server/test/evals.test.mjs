@@ -37,7 +37,7 @@ test('eval case names are unique', () => {
 for (const kase of CASES) {
   test(`eval case is well formed: ${kase.name}`, () => {
     assert.ok(kase.turns.length > 0 && kase.turns.every((t) => typeof t === 'function' || (typeof t === 'string' && t.trim())));
-    assert.ok(kase.paired === undefined || kase.paired === false);
+    assert.ok(kase.signedIn === undefined || kase.signedIn === false);
     for (const { turn, rubric } of kase.judge ?? []) {
       assert.equal(typeof rubric, 'string');
       assert.ok(turn === undefined || (turn >= 0 && turn < kase.turns.length), `judge turn ${turn} out of range`);

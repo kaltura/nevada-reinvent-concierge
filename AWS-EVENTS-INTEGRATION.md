@@ -24,7 +24,7 @@ Rules for our backend:
 
 - Refresh on demand: when AWS answers `401`, refresh once and retry. Concurrent calls share one refresh. No timer.
 - If a refresh response carries a new refresh token, store it. If it carries none, keep the old one.
-- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Never fail silently: the page shows the sign-in gate and a toast, and tools answer "Your AWS connection expired. Sign in again to see your schedule."
+- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Never fail silently: the page shows the sign-in gate and a toast, and tools answer "Your AWS sign-in expired. Sign in again to see your schedule."
 - The devguide asks that server-side tokens stay server-side. Tokens never reach the browser or Kaltura.
 
 The sign-in flow that gets the first token is in [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in).
