@@ -6,6 +6,17 @@ Inspired by [How to plan re:Invent 2026 with the new AWS Events API and MCP serv
 
 Not affiliated with or endorsed by AWS.
 
+## What Nevada does
+
+1. "That clashes, but it repeats Thursday at 10 and you're free. Want that?" She solves clashes out loud and offers the swap.
+2. "Book this one." Nevada knows what's on your screen, and lights up the block she's talking about.
+3. "Your next one is at MGM Grand. Leave by 2:50." She warns when two venues are too far apart for the gap.
+4. "It's full. Here's a repeat with seats." She finds the repeat and says if walk-up is an option.
+5. "Surprise me." One wildcard session far from your usual topics that still fits your week.
+6. A recap of your week to share, on request.
+
+Everything on screen comes from your real AWS schedule. Nothing gets booked without a clear yes.
+
 ## Run it
 
 ```sh
@@ -55,89 +66,15 @@ Your sign-in is saved in `~/.nevada/tokens.json`, readable only by you. Set `NEV
 | Nevada is already running | Running the command again opens the running one. |
 | No microphone | Allow the mic for `127.0.0.1` in your browser. Typing works without it. |
 
-## Run it from source
-
-```sh
-npm install
-NEVADA_WIDGET_ID=<public widget id> npm start
-```
-
-On Windows PowerShell, use `$env:NEVADA_WIDGET_ID='<public widget id>'; npm start`.
-
-`npm start` is the same app as `npx nevada-reinvent`. The widget ID is public and fine to share. Without `NEVADA_WIDGET_ID`, the app reads `server/agent.json`, which `npm run provision` writes for maintainers. No secret is needed to run it.
-
-## Maintainers
-
-Only the person who owns the Kaltura agent needs `.env`. Attendees and contributors never do.
-
-```sh
-cp -n .env.example .env # fill it in, never commit it
-npm run provision       # creates the agent, tools and widget; run once
-```
-
-| Variable | Needed by | How to get it |
-|---|---|---|
-| `KALTURA_PARTNER_ID` | `provision`, `update-prompts` | Your Kaltura account's partner ID |
-| `KALTURA_ADMIN_SECRET` | `provision`, `update-prompts` | Your Kaltura account's admin secret. Never ship it. |
-| `KALTURA_VISUAL_ID`, `KALTURA_VOICE_ID` | `provision` | Avatar look and voice IDs, from `avatars.listTemplates` |
-
-### npm scripts
-
-| Script | What it does |
-|---|---|
-| `npm start` | Runs the local app |
-| `npm run provision` | Creates the Kaltura agent, tools and widget; writes `server/agent.json`. Stops if that file already exists. |
-| `npm run update-prompts` | Pushes prompt changes in `prompts/` to the existing agent. `base-directive.md` needs `npm run provision` instead. |
-| `npm run catalog-tags` | Rebuilds `prompts/catalog-tags.md` from the live catalog. Needs you to be signed in through `npm start` first. Run `npm run update-prompts` after. |
-| `npm test` | Runs the unit test suite (`server/test/*.test.mjs`) |
-| `NEVADA_HOME=<folder> npm run eval` | Runs the agent evals. `NEVADA_HOME` is required so evals never use your real sign-in. It writes to the AWS account signed in under that folder, so use a dedicated empty test account. |
-
-### Release
-
-The package is [nevada-reinvent on npm](https://www.npmjs.com/package/nevada-reinvent). To release, bump `version` in `package.json` on `main`, then run `npm pack --dry-run` and check the file list. It must not contain `.env`, `server/agent.json` or `server/evals/.cache/`. `prepack` writes `server/public.json` (the public widget ID) from `server/agent.json`. Then run `npm publish --otp=<code>` and check it with `npx nevada-reinvent@latest` from an empty folder.
-
-## Repo layout
-
-| Path | What |
-|---|---|
-| `client/` | Browser app: avatar session, composer, disclosure, captions, screen context, client tools |
-| `server/` | The local app: static files, server tools, sign-in, token file, catalog sync and search, unit tests, evals. `index.mjs` is the `npx` entry point. |
-| `scripts/` | `provision.mjs` creates the agent, tools and widget; `update-prompts.mjs` pushes prompt changes; `catalog-tags.mjs` rebuilds the catalog tag list; `write-public.mjs` writes the public widget ID into the package |
-| `prompts/` | Agent prompts, read by provisioning. `catalog-tags.md` is generated. |
-
 ## Docs
 
 | Doc | Covers |
 |---|---|
-| [FEATURES.md](FEATURES.md) | What Nevada does, ranked awe moments, feature menu |
-| [EXPERIENCE-UX.md](EXPERIENCE-UX.md) | What the attendee sees and hears |
-| [DESIGN.md](DESIGN.md) | Look and feel: tokens, layout, components, motion |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, identity, sign-in, security model, agent config, tools |
-| [AWS-EVENTS-INTEGRATION.md](AWS-EVENTS-INTEGRATION.md) | The AWS Events API contract we depend on |
-| [ROADMAP.md](ROADMAP.md) | Phases and spikes |
-| [SECURITY.md](SECURITY.md) | Supported versions and how to report a vulnerability |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Run from source, tests, pull requests, maintainer scripts, release |
+| [docs/EXPERIENCE-UX.md](docs/EXPERIENCE-UX.md) | What the attendee sees and hears, what's built and what's planned |
+| [docs/DESIGN.md](docs/DESIGN.md) | Look and feel: persona, tokens, layout, components, motion |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, identity, sign-in, security model, agent config, tools, search, evals |
+| [docs/AWS-EVENTS-INTEGRATION.md](docs/AWS-EVENTS-INTEGRATION.md) | The AWS Events API contract we depend on |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community standards |
 | [LICENSE](LICENSE) | MIT license |
-
-## Key decisions
-
-| Decision | Why |
-|---|---|
-| One shared agent, plus a local backend | The local app holds the AWS tokens and does all AWS work. The agent never sees a token. |
-| Run locally with `npx` | AWS sign-in only redirects to `127.0.0.1` on ports 8484 to 8489. Running there means no hosting and no shared secret. See [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in). |
-| Avatar always on screen. Talk, type or tap in one conversation. | The avatar is the product. No mode to pick, and a loud hall or a quiet room never blocks you. |
-| Desktop browser only | Sign-in needs `127.0.0.1`, which a phone can't give. |
-| Open mic, mic button just mutes | No push-to-talk to hold on a crowded floor. Noise handled by client-side suppression, not by gating the mic. |
-| No AWS logos, icons or trade dress | AWS trademark rules. "re:Invent" appears only in plain text, in the "for AWS re:Invent attendees" form. |
-
-## Headline moments
-
-Ranked, with sources, in [FEATURES.md § Awe moments](FEATURES.md#awe-moments-ranked).
-
-1. "That clashes, but it repeats Thursday at 10 and you're free. Want that?"
-2. "Book this one." Nevada knows what's on your screen, and lights up the block she's talking about.
-3. "Your next one is at MGM Grand. Leave by 2:50."
-4. "It's full. Here's a repeat with seats."
-5. Planned: a face-to-face morning briefing in event week.
-6. A shareable recap card of your week, on request.

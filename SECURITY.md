@@ -30,8 +30,4 @@ Out of scope: the AWS Events API itself and the `@kaltura/intelligent-agents` SD
 
 ## Design
 
-Nevada runs on the attendee's own machine, bound to `127.0.0.1`. It sets no cookies and checks the `Host` header on every request and `Sec-Fetch-Site` on requests that change state. The sign-in tokens live in `~/.nevada` (or the absolute path in `NEVADA_HOME`), in a `0600` file in a `0700` folder on macOS and Linux. It is built for a single-user machine. See [ARCHITECTURE.md § Security model](ARCHITECTURE.md#security-model).
-
-## Public widget ID
-
-The package ships a public Kaltura widget ID. The widget ID and partner ID are public by design and carry no secret. Kaltura applies its own usage controls.
+How Nevada protects the attendee's machine and tokens is in [docs/ARCHITECTURE.md § Security model](docs/ARCHITECTURE.md#security-model). Why the shipped widget ID is not a secret is in [docs/ARCHITECTURE.md § Identity](docs/ARCHITECTURE.md#identity).

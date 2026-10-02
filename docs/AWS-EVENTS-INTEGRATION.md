@@ -1,4 +1,4 @@
-[← Back to README](README.md)
+[← Back to README](../README.md)
 
 # AWS Events API integration
 
@@ -20,14 +20,7 @@ Only the local server calls this API. The Kaltura agent never does (see [ARCHITE
 | Access token | 60 minutes. The only token the API accepts. The ID token is not a substitute. |
 | Refresh token | 30 days. A refresh doesn't extend the Builder ID sign-in session, which has its own lifetime the devguide doesn't state. Signing in again can be needed sooner than 30 days. |
 
-Rules for our backend:
-
-- Refresh on demand: when AWS answers `401`, refresh once and retry. Concurrent calls share one refresh. No timer.
-- If a refresh response carries a new refresh token, store it. If it carries none, keep the old one.
-- If AWS rejects the refresh (`400` or `401`), delete the tokens. The attendee must sign in again. Never fail silently: the page shows the sign-in gate and a toast, and tools answer "Your AWS sign-in expired. Sign in again to see your schedule."
-- The devguide asks that server-side tokens stay server-side. Tokens never reach the browser or Kaltura.
-
-The sign-in flow that gets the first token is in [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in).
+If a refresh response carries a new refresh token, store it. If it carries none, keep the old one. The devguide asks that server-side tokens stay server-side, so tokens never reach the browser or Kaltura. The sign-in flow and the token rules (refresh once on `401`, delete on a rejected refresh, what the attendee then sees) are in [ARCHITECTURE.md § Sign-in](ARCHITECTURE.md#sign-in).
 
 ## Endpoints
 
