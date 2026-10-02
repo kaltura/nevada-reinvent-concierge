@@ -1,6 +1,6 @@
 {
   "name": "nevada-reinvent",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Nevada, a live avatar concierge for AWS re:Invent attendees",
   "keywords": [
     "aws",
