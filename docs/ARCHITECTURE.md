@@ -232,8 +232,8 @@ Evals run only locally, with Claude Code as the judge, never in CI: sign-in need
 
 ## Runtime
 
-- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/index.js`. Never `@latest`. Node code uses the GitHub tarball of the commit that tag points to.
-- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.26.0` in the SDK repo once per subpath used (today `experience/index.js`, `experience/chroma-key.js` and `experience/noise-suppressor.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
+- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.1/src/experience/index.js`. Never `@latest`. Node code uses the GitHub tarball of the commit that tag points to.
+- Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.26.1` in the SDK repo once per subpath used (today `experience/index.js`, `experience/chroma-key.js` and `experience/noise-suppressor.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
 - Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
 - Token: the page posts to `/api/agent/init` and gets the session KS and the avatar URLs (see [§ Identity](#identity)). No secret touches the browser.
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()` and `startPlayback()` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
