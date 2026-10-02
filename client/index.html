@@ -19,67 +19,53 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <!-- SDK pinned to v1.23.2. Integrity from the SDK repo:
-       node tools/sri-map.mjs --entry src/experience/index.js --tag v1.23.2
-       node tools/sri-map.mjs --entry src/experience/chroma-key.js --tag v1.23.2
-       node tools/sri-map.mjs --entry src/experience/noise-suppressor.js --tag v1.23.2
+  <!-- SDK pinned to v1.26.0. Integrity from the SDK repo:
+       node tools/sri-map.mjs --entry src/experience/index.js --tag v1.26.0
+       node tools/sri-map.mjs --entry src/experience/chroma-key.js --tag v1.26.0
+       node tools/sri-map.mjs --entry src/experience/noise-suppressor.js --tag v1.26.0
        chroma-key-video is pinned to v1.2.0. Its hash is openssl dgst -sha384 -binary of that file, base64. -->
   <script type="importmap">
   {
     "imports": {
-      "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js",
-      "@kaltura/intelligent-agents/experience/chroma-key": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js",
-      "@kaltura/intelligent-agents/experience/noise-suppressor": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/noise-suppressor.js",
+      "@kaltura/intelligent-agents": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/index.js",
+      "@kaltura/intelligent-agents/experience/chroma-key": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/chroma-key.js",
+      "@kaltura/intelligent-agents/experience/noise-suppressor": "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/noise-suppressor.js",
       "chroma-key-video": "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js"
     },
     "integrity": {
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/errors.js": "sha384-Uxnna9KkpfjdegWsj4D9Bm039Wkk8bW+oE7DhuKIE12ErUDyA40wm528HGq488SO",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/http.js": "sha384-iET1Q64YELSPD4mr4snAtBjCFzE8R4p+KMpgZA/54waJywXb/BF35qXZ+PVAYlXH",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/ids.js": "sha384-ctclewbHbgVBINOmBZmiQomiy4G5SrrqwGDu/15HDxqZFNLmQy9UvkhjOqw9B5pb",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/kaltura-media.js": "sha384-33jAoWe95OleUjPqktKJOtzrvBnU7XSMAh0qD7vRhVscm1c+5W4Qnldh98mc7JeN",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/net-guard.js": "sha384-3exH9irbJIydsbOUXrtEn4WV4M9PeoXoCeAhWS6HZTcet/q6dcoX+/sRirIOG4NW",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/opening.js": "sha384-rKlMb2LBEkGLh/sv4mQdC0Ii9l+RppragtUcGhQeUqKNsKgx7jwUB7Dk09woo6Ha",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/redact.js": "sha384-qFdQNaEUg3vZ2Qqtc3ZevpQXKAnQTVt0ipSdURM3CwtHnwLa/X8sVy1fAqTJ6xJ/",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/safety.js": "sha384-q+rSrLlZV1HR1klboqVTpVDUwWTvpsgRI9PMTn6R0ewlWrj1Y+j9Ud8LgK/CtSZm",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/session.js": "sha384-640HxC80M4ZfA3ahfAVawuM1nu529ayaXn8QOxMO0J/eNtJRfjrA50FIKXhY3z/3",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/stream.js": "sha384-+v1UeG5Ze3VV9ZFoqDiUXp4VFztCxfF0t0fm32dS9nJosfRTO2YzZZBSC7pf0hdP",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/core/transport-guard.js": "sha384-kU+v6XPjzkByMvio97revZSKeZZm30mEi+4hg2EX09UkW34zm53ZsWx9brJbog2h",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/agent-session.js": "sha384-Qt1hbpAG/W/sljziUz0wz2NIcw4RbDhwB6R0dAjaiLHwh3G+Zl03+A/uIB6eQTpy",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/avatar-media.js": "sha384-uE5v4RBWDHv0Pb14I4EoaxJLS4h6uDvF+9dapfHhRY61hppFkVubaBFpHtOWTE4G",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/captions.js": "sha384-fX4uuix+FeiPOolXI0963vYDTNX8pOVbUc7EwFu3BuLcRdbYLWvbAVlH/2ckssrj",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chroma-key.js": "sha384-bbEsNVbIMZMdZe3d2glbY98NdZ6A3KvuUYTm1EErZDVIjec6t0EUlfz1qUcrWjla",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/chat-session.js": "sha384-DIY18CXWptwXym1JbXj3DEJ0wG7VgbqtN7q5hOKNTNtw3AX8R3cL0weIGcJTMOE9",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/emitter.js": "sha384-FXWiUAS7nnf7troeDYXzjWbLUocg9ATbq7KbVL0hYKiDuYjr1VVHhTZV50abNdCg",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/noise-suppressor.js": "sha384-2FcpfVZaRjLS3vbg7xwcU9vrIp5G0glbEUkRLEcAbjvwEAGd2G6qRq3F6vMw4OIi",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/index.js": "sha384-xAA/uQhrsFuN7yWCx+BCJsrgxuca30IwLrR1yO/XDeelT8Y5uJugrY5EgK9pTbw+",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/scripted-video-session.js": "sha384-euYVxjnsMs3aRND5izy+E2DhLdYlvGTvl4Xm3pwl1Z8USo/hhGsTWBL4nfJfcwm2",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/session-complete.js": "sha384-3uMsVpUGbROtXxMNHQ42sCqqNKfLzBWd3JXFktkwGFFGQSVqYClYMSe6TRtWC9LL",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/session.js": "sha384-ca5G9rrMDMWNWsRsU4mSw3Ln8dopaH/yG40ESyiQs+4W3MQnp4VcncBf8dos92qj",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/teardown.js": "sha384-Hn2DqPtBGwavsey3ZgcLdWEXPYw1B+u91b85n0Zlgx9jxcmZG5YeBWUXVu09u2sk",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/transcript.js": "sha384-2YgKVoBlbWBaAVTxNWcASyKyVHo+xJN/+cCefiOprbsQHeogZF20fZQ5ZgZ18425",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/experience/wire.js": "sha384-mmlnp4hxXjWfGFblaBPfQqZ9pOvbjxd+lk0U4ejlpCINtZ5oUj8o9cbn7yKwbDbm",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/agents.js": "sha384-z4zEswLqgpJjxOIs7Zt47bTq5823o73bXZTE4xyN48m9qMM9MNWnlFcdaClMWyhf",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/application.js": "sha384-XLD0WXR5FPs+2yil0Lwz76ru8oIEeW63F7NWlo0/LGUjIoRyqpFBVLjPN4G5OTDs",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/avatar-sessions.js": "sha384-vKmQfv61J8UKQAoxlqCSlKSvJt00M6MnaFOo+tB/cMKqOt4yNIatoDZmOSy4KR/+",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/avatars.js": "sha384-sbmAQEx+fZAhe2OIftyQnAfE0pNwNJ6Q2Nx+Mng4uTsBE8Ga+7ZgKjhorpmmGGNs",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/capabilities.js": "sha384-TLVh5I3sA2O3h2DvLhhzFgZ6kKeQIUhbZfgelP0eya/nWbBKPR3QTsuw2AlBrMPz",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/catalog.js": "sha384-MYCUr9CgyPTNo8orTaKvGh0lWWnxjDKhfhfd7fjO+BIeIJ6CTlYWDC9JblsFur+K",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/client.js": "sha384-QpiwG4GINfqPvk5Z1w/P8N6E3EtDWOxiR82H/syxsxPcsrgbn9r0bemAv7samfxV",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/conversations.js": "sha384-UECNVDDXHY8f0BLXXzkm775CHL9zMPxkWvKzmdR/4des1bxBA0M6CaQRfDwY1B5h",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/email-templates.js": "sha384-VKEmTp0uUKL1UrrRyG5hBDPQiVpSxV+yfZ7xWyzVO6zV7RlN3bU2NWk5bj4RpFge",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/insight-settings.js": "sha384-9FLhuUB2/umu2ZTptSY2pPpOGxH4F9Reffr8og/sqtQ8cL3/znLHM+2lW0b29iWf",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-body.js": "sha384-o46GH2wY6zsXCkjzKPcTA0PahpWzYbGr6fkbaZacSOTs14jX9AGgUsrMHSZjXzNV",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellect-config.js": "sha384-wgmoGzrWr/Nc8pJ0kIRhkj43Xr+RuVOF7/mU2b6heZCFd9EAScYR4QJ1BfiW6Arc",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/intellects.js": "sha384-M8MOe0M+dY4LgXPl3CvTDIynMM+gK8trZ4j+l4FR163IKdLmOq5T+nLdLAR8yQug",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/ks-inspect.js": "sha384-ISBtJOAvek24nV4iPZ4VUErGbMDu7Z/yUzRccbeXd2zY2EAJiFHyZauW5YT0VorJ",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/lifecycle.js": "sha384-T5TqZboJNvlvKVuIPeGEHiF153MFUpkNylpFuTZ4SHz0LpjYKHgM+BDnvJYUsxv8",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/paginate.js": "sha384-HhF+i/cooQZHaaJ4SMkJdqxqX6ts3zSN+aS+BH0qE+9Wg8MhP3lXlzc3AZ8UEIFN",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/prompt-lint.js": "sha384-g3qTp3/MQeE9h3O9lXU7+BXL6HlodfC3u2Mpr7HHvD7iOhfAGC78ckRENoP5eW2K",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/provision.js": "sha384-I2l7+c8JN3GON7ZcFVB/v7CxNCpCZfzQDPed7Nxt7DNNJHVMRB+uRj4L9xxr0ryg",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/secrets.js": "sha384-/K5ADbfEafozp6VWbRInlxDvHGyJg6Wke/8jR0r1lRnSuwtM3qkuYvyjAn9OjMqP",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/set-forced-language.js": "sha384-MUNwvv10FycIx3bRAszks6bqywgFDYRnitUe4jcGq9yOwwhx8nsTTWV5moaCK2Na",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/skills.js": "sha384-0cPL55NnO6yxYhSkOX/4RCfKWWMH0FZV8fdAueJxspjV/0nYbcXXuh4x60Ak6vOB",
-      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.23.2/src/management/tools.js": "sha384-FzUmu5GpM9F+LtKo2Jh4OyWXNrAvOZHaVvfjwvFPPTTd+AN5ICDsDK6iu+OoLkMd",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/endpoints.js": "sha384-hfzCW6jKgr3qk6ZCsvqTH7XYBhYkVSWe3xMDXB8NA83tb+O+qa0v8DvT/6H46MUb",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/errors.js": "sha384-Uxnna9KkpfjdegWsj4D9Bm039Wkk8bW+oE7DhuKIE12ErUDyA40wm528HGq488SO",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/http.js": "sha384-aMCkVepHtF9PUEHpQTHDNlyCrGjnkngufaECcTAcEdeiiH1E452lJ40W0ZPXSqWI",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/ids.js": "sha384-ctclewbHbgVBINOmBZmiQomiy4G5SrrqwGDu/15HDxqZFNLmQy9UvkhjOqw9B5pb",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/kaltura-media.js": "sha384-33jAoWe95OleUjPqktKJOtzrvBnU7XSMAh0qD7vRhVscm1c+5W4Qnldh98mc7JeN",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/net-guard.js": "sha384-BLX3aMHf1RNELpX9syuZ9NvToHtntBDCA1OSIazD3YXt6HKgj4w2bkqliqwEQatB",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/opening.js": "sha384-rKlMb2LBEkGLh/sv4mQdC0Ii9l+RppragtUcGhQeUqKNsKgx7jwUB7Dk09woo6Ha",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/redact.js": "sha384-qFdQNaEUg3vZ2Qqtc3ZevpQXKAnQTVt0ipSdURM3CwtHnwLa/X8sVy1fAqTJ6xJ/",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/safety.js": "sha384-Re+Ng353siXsFoWsvUMH2tl0GtAqMf9IFVOgtjT+Q5bbXRyvx/ubA6jwx9OdP6LC",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/session.js": "sha384-S8ukShGGyl84IMwW4+L44E8iMHc9zBb4vH+dZqH0xcgj6r6Lud8H7U7qI0IspPS/",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/stream.js": "sha384-d8Kr0WuMaF3UT+vo67XxHNbnHT5JtjoTIeRqJyMO5rbZCqhS+6z7wzEKSWDjyoM7",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/core/transport-guard.js": "sha384-FGn9sTwatcrZ5wt2vxrHWBC9qJ/W4U1q6xqHUASsoXPfElmh2vE4tn7KQqrtwFd8",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/agent-session.js": "sha384-6yXPdc1HKedKjbnsWfGQVPM7jcgwLGrAESF1bSLI8kVPPUqJ2FrLnHvnfU6Cs5LO",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/avatar-media.js": "sha384-JsGCtWEwPDt/m4pmtmY3+bDpfs0ivCx9Rmyj+tvwrDaummZ9IWOncr0Pie89MnGP",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/captions.js": "sha384-MAgTgHtfIrT8hgCQuw3RisEIMuVwNnyWbHGZhyQk4kqTDdh7J5DF4oBQLk9SWXlL",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/chat-session.js": "sha384-Tko3WgW2Wa2l1eFN1u2RBsN++mJZeYnSlc1yw6sp58crEfqkDjBVkUoCyAVmUT3X",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/chroma-key.js": "sha384-XQ4PqZs/skLCYe45AEFKsBtjoSpbNgsqV+eWb1VgPqpzZUxZCDsKIyBVFzLaiTAi",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/emitter.js": "sha384-FXWiUAS7nnf7troeDYXzjWbLUocg9ATbq7KbVL0hYKiDuYjr1VVHhTZV50abNdCg",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/index.js": "sha384-P/o4ndVRJ7lghRC9cDF+7OAUdNw72H1R1YtMuYM9nKFmkOZf6b4HsA+DN70pwawt",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/noise-suppressor.js": "sha384-82FypzSMwXnLxU8I1MFTccv4d1GyrmBpvZqjku39o9iR8VsqOoENwzm1f4qmvjrD",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/scripted-video-session.js": "sha384-SDfD6v+ri5M8cyhNJgMKU+ENjZd4d576Mb3VWkqQE2QRGtNv5u4Yt0o9g1Hnwxqg",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/session-complete.js": "sha384-ur1o/9x5eQPHMuWZScbhzMtXFVwZKs+BSBUIyThFcvEFWDyvTFCrwxhDbpxS1FNa",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/session.js": "sha384-TAj3z83fFaAR+8vE9inUaoe3J4xa5joEeOMFQrLMKFmlTowKyl45oKJ/Xvw8H9Mt",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/teardown.js": "sha384-7d3UHIH7/BELGy4ETWz73ee43i7q/npI9y7zP+dVlvrWSwXam5X7qUBVzhy59ZLn",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/transcript.js": "sha384-RbuJlev2nKl7EhGBiO3tSQ+5t57Qpg48b70DsKAO32Wja1gAqJR4+xKhZ5vsV8lO",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/wire.js": "sha384-+Rg+Ga9KVr6mEGoMjLIw1B+WhHLn9z1eQGzO7p00nZWc8kTsTCaTQEbnP7FOQzEY",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/agents.js": "sha384-Xn6Vs/2WwVh2E+yqbN+AEhVbIFedYptDBr9Hh2FiFh5EOSWYKHgRQRwjgd714OPV",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/capabilities.js": "sha384-99mfuy0y83WBm4WCgRgMdjSVeKLEV/dqpCcP2ck0zL8YvW3Vt3pNXIoxnvUgvrvf",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/catalog.js": "sha384-2NOb56TXIGhVXbUvWMk9KF/km7D00tuZpAofYtV6x3wVDCRAeiN37ByWo5P3eOc4",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/conversations.js": "sha384-jtccIB3T7dWsAbrIGUrp4pDyccGyCRHfREvWp8kgw+xvur6O23Ljea9g9e9Lo2y8",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/intellect-body.js": "sha384-o46GH2wY6zsXCkjzKPcTA0PahpWzYbGr6fkbaZacSOTs14jX9AGgUsrMHSZjXzNV",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/ks-inspect.js": "sha384-ISBtJOAvek24nV4iPZ4VUErGbMDu7Z/yUzRccbeXd2zY2EAJiFHyZauW5YT0VorJ",
+      "https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/management/paginate.js": "sha384-HhF+i/cooQZHaaJ4SMkJdqxqX6ts3zSN+aS+BH0qE+9Wg8MhP3lXlzc3AZ8UEIFN",
       "https://cdn.jsdelivr.net/gh/kaltura/chroma-key-video@v1.2.0/src/chromakey.js": "sha384-Iez9q4Ek7o0C87RvWlZ+qARd/gDpL5Q9ye2veAPXByqSRqFDB78cedFWmgKbcnce"
     }
   }

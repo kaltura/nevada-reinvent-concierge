@@ -150,7 +150,7 @@ async function upsertTool(admin, config, existing) {
   return created.id;
 }
 
-const admin = await kaltura.sessions.createAdminToken();
+const admin = await kaltura.sessions.createAdminToken({ userId: 'nevada-maintainer' });
 const existingTools = await kaltura.tools.list(admin).all();
 const toolIds = {};
 for (const t of [...API_TOOLS, ...CLIENT_TOOLS]) toolIds[t.name] = await upsertTool(admin, t, existingTools);
