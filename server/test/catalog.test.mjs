@@ -57,6 +57,18 @@ test('seed populates the catalog and normalizes venue', () => {
   assert.equal(catalog.get('AAA111').venue, 'MGM');
 });
 
+test('seed restores the sync time of a cached snapshot', () => {
+  const catalog = makeCatalog();
+  catalog.seed(FIXTURES, 1234);
+  assert.equal(catalog.lastSync(), 1234);
+});
+
+test('seed without a sync time leaves it unset', () => {
+  const catalog = makeCatalog();
+  catalog.seed(FIXTURES);
+  assert.equal(catalog.lastSync(), null);
+});
+
 test('seed drops sessions missing from the latest snapshot', () => {
   const catalog = makeCatalog();
   catalog.seed(FIXTURES);
@@ -187,7 +199,7 @@ test('sync walks paginated pages under the real AWS "items" key and seeds the ca
 
   const catalog = makeCatalog();
   const result = await catalog.sync('token');
-  assert.deepEqual(result, { count: 3, totalCount: 3 });
+  assert.deepEqual([result.count, result.totalCount, result.raw.length], [3, 3, 3]);
   assert.equal(catalog.size(), 3);
   assert.equal(catalog.get('BBB222').title, 'Kubernetes at scale');
 });

@@ -25,11 +25,11 @@ const PERSONA_NAME = 'Nevada';
 // Rendered on every avatar join, including switchMode. `returning`, `paired`
 // and `topInterest` are request variables the page sets: `returning` on
 // return from the background (cleared with ''), `paired` from the AWS Events
-// pairing state, `topInterest` from the attendee's own top topic across what
+// sign-in state, `topInterest` from the attendee's own top topic across what
 // they've already reserved or favorited (server/catalog.mjs's topTopic), '' if none.
 const OPENING_PHRASE =
   `{%- if returning -%}Welcome back.` +
-  `{%- elif not paired -%}Hi, I'm ${PERSONA_NAME}. Connect your AWS Events account and I'll build your plan for the week.` +
+  `{%- elif not paired -%}Hi, I'm ${PERSONA_NAME}. Sign in with your AWS Events account and I'll build your plan for the week.` +
   `{%- elif sys__is_new_thread -%}Hi, I'm ${PERSONA_NAME}.` +
   `{%- if topInterest -%} I noticed you've been favoriting {{ topInterest }} sessions, so I've lined up more like that for the week. Tell me if you'd rather go a different direction.` +
   `{%- else -%} I've picked a few sessions for each day to get you started. Tell me if you're deep into a track like agentic AI or serverless, and I'll build around that instead.{%- endif -%}` +
