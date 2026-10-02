@@ -6,6 +6,8 @@ Inspired by [How to plan re:Invent 2026 with the new AWS Events API and MCP serv
 
 Not affiliated with or endorsed by AWS.
 
+Liked this experience and want to build your own intelligent agents? [Sign up for Kaltura Conversational Agent](https://corp.kaltura.com/pricing/conversational-agent/).
+
 ## What Nevada does
 
 1. "That clashes, but it repeats Thursday at 10 and you're free. Want that?" She solves clashes out loud and offers the swap.
