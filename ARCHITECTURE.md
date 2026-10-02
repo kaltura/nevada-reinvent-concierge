@@ -39,7 +39,7 @@ Browser ─▶ /auth/start ─▶ AWS Builder ID (PKCE) ─▶ 127.0.0.1:848x/ca
 
 ## Why a proxy
 
-An SDK `api` tool is one HTTP request. It has a timeout of 1 to 120 s (default 10) and exactly one of `responseMapping`, `responseTemplate` or `responseChapters`. It can't fan out, retry or reconcile. Our AWS logic needs all three:
+The agent talks and calls tools. All AWS work runs in the local server, which holds the attendee's tokens. Each AWS action is several requests with our own logic between them:
 
 - `GetSchedule` returns IDs only, so the proxy joins them with the index.
 - After an uncertain write, the proxy reconciles through `GetSchedule` (see [AWS-EVENTS-INTEGRATION.md § Errors](AWS-EVENTS-INTEGRATION.md#errors)).
@@ -47,10 +47,9 @@ An SDK `api` tool is one HTTP request. It has a timeout of 1 to 120 s (default 1
 
 Other reasons:
 
-- The SDK's OAuth2 tool auth can't do this. AWS redirects only to loopback, so no remote callback can finish the sign-in.
-- One agent serves everyone. No per-attendee provisioning, and no live AWS tokens in Kaltura's secret store.
-- `secrets.set` is a read-merge-write with unknown propagation delay, so a token-push design would race.
-- A server-side tool can't reach a proxy on `127.0.0.1` (the Phase 0 spike confirmed this). So every tool is `tools.client`: the model's call surfaces on the page itself, and the page reaches the proxy same-origin.
+- AWS redirects only to loopback, so the sign-in finishes on the attendee's own machine.
+- One agent serves everyone. No per-attendee provisioning, and AWS tokens live only on the attendee's machine.
+- Every tool is `tools.client`: the model's call surfaces on the page itself, and the page reaches the proxy same-origin. The local app needs no public URL.
 - The proxy is plain code we can unit test.
 
 ## Identity
@@ -136,27 +135,27 @@ One intellect for English with an open mic. A second one is added only if a Phas
 
 | Setting | Value | Why |
 |---|---|---|
-| `kaltura_genie_experiences` | `off` | Its injected instructions beat custom tools. The SDK's create-time check expects exactly `off`. |
+| `kaltura_genie_experiences` | `off` | Our own tools and prompts own the experience |
 | `use_content_search`, `use_get_entry_content`, `use_related_files` | `disabled` | They default on and compete with `search_sessions` |
 | `generate_followup_questions` | `on` | Capabilities are per intellect, and the avatar session always requests this one. The chat fallback shows the SDK's chips. In avatar mode the page shows its own chips, picked from what's on screen. |
 | `include_sources` | `off` | Answers come from tools, not documents |
 | `use_knowledge_base` | `off` unless option A wins (see [Search](#search)) | |
 | `avatar` | `on` | |
-| `avatar_filler` | `off` | Its canned "looking that up" lines can't be steered by prompt. The page shows a thinking state instead. |
-| `use_web_search`, `video_gallery`, `external_video`, `show_link`, `avatar_show_content`, `screen_share_analysis`, `think_process` | `disabled` | The avatar connection forces avatar-only output, so rich widgets never reach the page. Our client tools draw the screen instead. |
-| Voice input | Open mic; the mic button mutes. Noise handled client-side by `createNoiseSuppressor` (see [Runtime](#runtime)), not by an agent setting. | Simpler than push-to-talk, with no per-agent capability to request from Kaltura. |
+| `avatar_filler` | `off` | The page shows its own thinking state instead |
+| `use_web_search`, `video_gallery`, `external_video`, `show_link`, `avatar_show_content`, `screen_share_analysis`, `think_process` | `disabled` | Our client tools draw the screen instead |
+| Voice input | Open mic; the mic button mutes. Noise handled client-side by `createNoiseSuppressor` (see [Runtime](#runtime)), not by an agent setting. | Simpler than push-to-talk |
 | Opening | Jinja: greeting if `sys__is_new_thread` (naming the attendee's top topic from past favorites/reservations if `topInterest` is set), "Welcome back" if the page set `returning`, else `SILENT_OPENING` | The opening replays on every avatar join, including `switchMode`. The page sets `returning` only when it comes back from the background, and clears it by sending an empty string. `topInterest` comes from `catalog.topTopic()` over the attendee's own reserved/favorited sessions, read once before `connect()` so it's ready for the first opening. |
 | Screen context | A `screen` prompt holding `{{ page_context }}`, filled by the page through `setDynamicPrompt` | Lets "book this one" resolve. Needs `allow_client_variables: true`. |
 | `requireDisclosureAck` | `true` | EU AI Act Art. 50. The page calls `acknowledgeDisclosure()` before kickoff. |
-| Avatar | Chosen from `avatars.listTemplates`, plus our background | There is no emotion API, so don't promise expressions |
+| Avatar | Chosen from `avatars.listTemplates`, plus our background | Her look follows [DESIGN.md § Persona](DESIGN.md#persona) |
 
-Capabilities are cached for about 24 hours, so set them all in `intellects.create()`. Never create and then update.
+Set every capability in `intellects.create()`, not in a later update. `npm run provision` does this once.
 
 Prompt text has no such cache. After editing a `prompts/*.md` file, run `npm run update-prompts` (`kaltura.intellects.setPrompts`, a read-merge-write) to push it to the live intellect. No re-provisioning needed. The exception is `base-directive.md`: only `npm run provision` sets it.
 
 ## Tools
 
-All 18 tools are `tools.client`: the model's call surfaces as a `type:"tool"` stream segment the page's already-open socket parses, dispatched to `session.onToolCall(name, handler)` (`client/app.js`). None of them are server-side webhooks, which is why they work with no public reachability (see [Why a proxy](#why-a-proxy)).
+All 18 tools are `tools.client`: the model's call surfaces as a `type:"tool"` stream segment the page's already-open socket parses, dispatched to `session.onToolCall(name, handler)` (`client/app.js`). None of them are server-side webhooks, so the local app needs no public URL (see [Why a proxy](#why-a-proxy)).
 
 ### Proxy tools (`waitForResponse: true`, fetch `/tools/${name}`)
 
@@ -188,7 +187,7 @@ Nothing to ACK, so the turn never waits on a UI update. The arguments carry IDs 
 | `show_recap` | none | Recap card (Phase 4) |
 | `point_at` | `sessionId` | Point ring on the block with that `data-session`. Jumps it into view only if it's off screen. |
 
-The system prompt caps each turn at one client-tool call followed by one to three spoken sentences. Each client tool's description repeats "call once, then speak, never retry". This is the SDK's fix for tool spirals.
+The system prompt caps each turn at one client-tool call followed by one to three spoken sentences. Each client tool's description repeats "call once, then speak, never retry". This keeps turns short and stops repeated tool calls.
 
 ## Search
 
@@ -197,7 +196,7 @@ The catalog is too big to page through inside a turn. Search runs on our index, 
 | Option | What | Status |
 |---|---|---|
 | B (primary) | Our index: word overlap plus structured filters (day, time, venue, level). Top 5 through `search_sessions`. | Built |
-| A (spike) | Kaltura knowledge base: one record, `buildIndexerObjects(['document'])`, one `uploadMarkdown` per session, poll indexing, then set `knowledge_ids` and `use_knowledge_base: 'on'` in one write | Proven pattern in the SDK's docs site. The spike tests scale, hourly churn and ranking. |
+| A (spike) | Kaltura knowledge base: one record, `buildIndexerObjects(['document'])`, one `uploadMarkdown` per session, poll indexing, then set `knowledge_ids` and `use_knowledge_base: 'on'` in one write | Proven pattern in the SDK's docs site. The spike compares its ranking with option B. |
 
 Option B stays the default because ranking and filters stay in our code. A can replace it later without changing the tool or the UI.
 
@@ -230,13 +229,13 @@ Evals run only locally, with Claude Code as the judge, never in CI: sign-in need
 
 ## Runtime
 
-- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/index.js`. Never `@latest`. The SDK isn't on npm, so Node code uses a GitHub tarball of the commit that tag points to.
+- Load the SDK as ESM from jsDelivr pinned to the tag: `https://cdn.jsdelivr.net/gh/kaltura/intelligent-agents-sdk@v1.26.0/src/experience/index.js`. Never `@latest`. Node code uses the GitHub tarball of the commit that tag points to.
 - Add an import map with SRI. Run `node tools/sri-map.mjs --entry <path> --tag v1.26.0` in the SDK repo once per subpath used (today `experience/index.js`, `experience/chroma-key.js` and `experience/noise-suppressor.js`), then merge the integrity blocks. Browsers enforce it from Chrome 127 and Firefox 138. Others skip the check.
 - Load socket.io-client 4.7.5 from a CDN with SRI and pass it as `avatar.socketFactory`. Its hash was taken from the CDN file, so check it against the npm tarball once.
 - Token: the page posts to `/api/agent/init` and gets the session KS and the avatar URLs (see [§ Identity](#identity)). No secret touches the browser.
 - `requireDisclosureAck` and `micStartMode` are avatar config keys. `acknowledgeDisclosure()`, `startMic()` and `startPlayback()` live on `session.transport`, not on the session. The transport is `null` until `connect()`, so wire its events in the `transportChanged` listener. It fires on the first connect and on every `switchMode`.
 - Expo-floor noise: `micConstraints: false` plus `noiseProcessor: createNoiseSuppressor({ thresholdDb: -50 })` from `@kaltura/intelligent-agents/experience/noise-suppressor`, both avatar config keys. Raw audio in, so the browser-native Tier-1 suppressor doesn't double-process the signal ahead of the SDK's own AudioWorklet gate.
-- Media: `<video autoplay playsinline muted>` plus a separate `<audio autoplay>`. With a separate audio element the video stream has no audio track, so `muted` costs nothing and helps iOS autoplay. Video is H264 only, so leave `preferredVideoCodec` unset.
+- Media: `<video autoplay playsinline muted>` plus a separate `<audio autoplay>`. With a separate audio element the video stream has no audio track, so `muted` costs nothing and helps iOS autoplay. Leave `preferredVideoCodec` unset.
 - The video element sits in one fixed frame and never moves in the DOM, because moving it pauses playback. Frame sizes change with CSS only (see [DESIGN.md § Avatar frame](DESIGN.md#avatar-frame)). When video stops, keep the last frame as a still.
 - Typed and tapped turns use `session.sendText(text)` in avatar mode. The avatar speaks the answer, so there is no mode switch. It interrupts Nevada mid-sentence, except during an uninterruptible line such as the opening, where the SDK holds it. It throws before the disclosure is accepted, so the page holds turns until then. Taps send a label plus the session ID.
 - Screen context: one `syncScreen()` call site sends `setDynamicPrompt({view, day, visible, focused})` with session IDs only. Each call replaces the whole value, and it needs a connected session.
@@ -244,7 +243,7 @@ Evals run only locally, with Claude Code as the judge, never in CI: sign-in need
 - Start: `micStartMode: 'deferred'`, then `startMic()` from a tap. On a `playback_blocked` warning, the next tap anywhere calls `startPlayback()`.
 - Background: `hiddenGraceMs` stays at 30 s. On return to the foreground, reconnect quietly (see [EXPERIENCE-UX.md § Network and backgrounding](EXPERIENCE-UX.md#network-and-backgrounding)). If the OS kills the tab first, the backend's idle timeout cleans up. We accept that gap.
 - `setAudioOutput` returns `false` without `setSinkId`, as on iOS. Don't show a speaker picker there.
-- Bad networks: TURN over TCP 443 (`turns:HOST:443?transport=tcp`) first, then `switchMode('chat')` as a fallback only. The app can't cap avatar downlink. `setAsrBandwidth` caps only the uplink.
+- Bad networks: TURN over TCP 443 (`turns:HOST:443?transport=tcp`) first, then `switchMode('chat')` as a fallback only. `setAsrBandwidth` caps the mic uplink.
 - The chat fallback shares the thread through `KalturaAgentSession.switchMode()`, which buffers up to 8 `sendText` calls. Call `switchMode('avatar')` only from a real tap, because the browser needs a gesture for audio and the mic.
 
-The SDK ships no CSS. All styling is ours (see [DESIGN.md](DESIGN.md)).
+All styling is ours (see [DESIGN.md](DESIGN.md)).
