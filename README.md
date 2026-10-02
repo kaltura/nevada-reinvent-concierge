@@ -12,7 +12,16 @@ Not affiliated with or endorsed by AWS.
 npx nevada-reinvent
 ```
 
-The first time, npx asks "Ok to proceed?". Type `y`. Your browser opens and you sign in. Nevada then builds your plan.
+The first time, npx asks "Ok to proceed?". Type `y`. The terminal prints:
+
+```
+Nevada is running at http://127.0.0.1:8484/
+Press Ctrl+C to stop.
+```
+
+Your browser opens and you sign in. Nevada then builds your plan.
+
+Nothing is installed. npx fetches [nevada-reinvent](https://www.npmjs.com/package/nevada-reinvent) into its cache and runs it. To be sure you run the newest version, use `npx nevada-reinvent@latest`.
 
 | You need | Note |
 |---|---|
@@ -85,7 +94,7 @@ npm run provision       # creates the agent, tools and widget; run once
 
 ### Release
 
-Before you publish, run `npm pack --dry-run` and check the file list. It must not contain `.env`, `server/agent.json` or `server/evals/.cache/`. `prepack` writes `server/public.json` (the public widget ID) from `server/agent.json`. Then run `npm publish --otp=<code>`.
+The package is [nevada-reinvent on npm](https://www.npmjs.com/package/nevada-reinvent). To release, bump `version` in `package.json` on `main`, then run `npm pack --dry-run` and check the file list. It must not contain `.env`, `server/agent.json` or `server/evals/.cache/`. `prepack` writes `server/public.json` (the public widget ID) from `server/agent.json`. Then run `npm publish --otp=<code>` and check it with `npx nevada-reinvent@latest` from an empty folder.
 
 ## Repo layout
 
