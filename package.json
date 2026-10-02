@@ -44,6 +44,6 @@
     "prepack": "node scripts/write-public.mjs"
   },
   "devDependencies": {
-    "@kaltura/intelligent-agents": "https://github.com/kaltura/intelligent-agents-sdk/archive/ece0dcb9cdd8a01bd9a11d1d45167986075c34fb.tar.gz"
+    "@kaltura/intelligent-agents": "https://github.com/kaltura/intelligent-agents-sdk/archive/c581d6b994e09aad0cd74df3550275466d5e7007.tar.gz"
   }
 }

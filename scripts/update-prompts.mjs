@@ -38,7 +38,7 @@ const prompts = [
   prompt('screen', 'What the attendee has on screen right now, as JSON with view, day, visible session IDs in order and the focused one:', '{{ page_context }}'),
 ];
 
-const admin = await kaltura.sessions.createAdminToken();
+const admin = await kaltura.sessions.createAdminToken({ userId: 'nevada-maintainer' });
 const { lint } = await kaltura.intellects.setPrompts(configId, prompts, admin, {
   knownVars: ['returning', 'page_context', 'paired'],
 });
